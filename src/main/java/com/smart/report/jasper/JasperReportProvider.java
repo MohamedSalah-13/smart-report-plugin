@@ -21,15 +21,16 @@ import net.sf.jasperreports.export.SimpleWriterExporterOutput;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * يولّد تقارير من قوالب JasperReports (ملف .jrxml يُصرَّف وقت التشغيل، أو .jasper مُصرَّف مسبقًا)،
@@ -38,8 +39,19 @@ import java.util.Map;
  *
  * <p>مسار القالب ({@code ReportRequest#template()}) يُبحث عنه أولًا كملف على القرص، ثم كمورد
  * على الـ classpath (مناسب لتضمين القوالب داخل jar المشروع المستهلك تحت src/main/resources).</p>
+ *
+ * <p><b>الكاش:</b> تصريف الـ .jrxml عملية غالية (بتعدّي على مصرّف جافا)، فالقالب المصرَّف
+ * بيتخزّن ويُعاد استخدامه. قوالب القرص بيتعاد تصريفها لوحدها لو الملف اتعدّل، وقوالب الـ classpath
+ * بتتصرّف مرة واحدة لأنها ما بتتغيّرش وقت التشغيل.</p>
  */
 public final class JasperReportProvider implements ReportProvider {
+
+    /** ختم زمني ثابت لقوالب الـ classpath: مش ممكن تتغيّر وإحنا شغالين. */
+    private static final long CLASSPATH_STAMP = -1L;
+
+    private static final Map<String, CachedTemplate> CACHE = new ConcurrentHashMap<>();
+
+    private record CachedTemplate(JasperReport report, long stamp) {}
 
     @Override
     public byte[] generate(ReportRequest<?> request) throws ReportException {
@@ -58,21 +70,53 @@ public final class JasperReportProvider implements ReportProvider {
         }
     }
 
+    /** يفضّي الكاش؛ مفيد في الاختبارات ولو القوالب بتتبدّل وقت التشغيل. */
+    public static void clearTemplateCache() {
+        CACHE.clear();
+    }
+
     private JasperReport compile(String template) throws JRException, IOException {
-        try (InputStream in = openTemplate(template)) {
-            if (template.endsWith(".jasper")) {
-                return (JasperReport) JRLoader.loadObject(in);
-            }
-            return JasperCompileManager.compileReport(in);
+        Path file = asExistingFile(template);
+        long stamp = file == null ? CLASSPATH_STAMP : Files.getLastModifiedTime(file).toMillis();
+
+        CachedTemplate cached = CACHE.get(template);
+        if (cached != null && cached.stamp() == stamp) {
+            return cached.report();
+        }
+
+        JasperReport compiled;
+        try (InputStream in = openTemplate(template, file)) {
+            compiled = template.endsWith(".jasper")
+                    ? (JasperReport) JRLoader.loadObject(in)
+                    : JasperCompileManager.compileReport(in);
+        }
+        CACHE.put(template, new CachedTemplate(compiled, stamp));
+        return compiled;
+    }
+
+    /**
+     * المسار كملف موجود على القرص، أو {@code null} لو مش موجود أو أصلًا مش اسم مسار صالح
+     * على النظام ده. أسماء موارد الـ classpath ممكن تحتوي محارف ممنوعة في مسارات ويندوز،
+     * فلازم نكمّل للبحث في الـ classpath بدل ما نرمي InvalidPathException.
+     */
+    private static Path asExistingFile(String template) {
+        try {
+            Path path = Path.of(template);
+            return Files.isRegularFile(path) ? path : null;
+        } catch (InvalidPathException e) {
+            return null;
         }
     }
 
-    private InputStream openTemplate(String template) throws IOException {
-        Path path = Path.of(template);
-        if (Files.exists(path)) {
-            return new BufferedInputStream(new FileInputStream(path.toFile()));
+    private InputStream openTemplate(String template, Path file) throws IOException {
+        if (file != null) {
+            return new BufferedInputStream(Files.newInputStream(file));
         }
-        InputStream resource = getClass().getClassLoader().getResourceAsStream(template);
+        ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        if (loader == null) {
+            loader = getClass().getClassLoader();
+        }
+        InputStream resource = loader.getResourceAsStream(template);
         if (resource == null) {
             throw new IOException("Jasper template not found (neither as a file nor as a classpath resource): " + template);
         }
