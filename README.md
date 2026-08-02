@@ -2,7 +2,7 @@
 
 مكتبة (plugin) بجافا بتضاف كـ dependency لأي مشروع، وبتوفر واجهة موحّدة لطباعة كل أنواع التقارير من `List<POJO>`:
 
-- **PDF عام** (بدون قالب): جدول (عنوان + رأس أعمدة + صفوف بيانات) مع ترقيم صفحات تلقائي — عبر Apache PDFBox.
+- **PDF عام** (بدون قالب): جدول (عنوان + رأس أعمدة + صفوف بيانات) مع تقسيم تلقائي للصفحات وتكرار رأس الأعمدة في كل صفحة، ودعم كامل للعربي — عبر Apache PDFBox.
 - **Excel عام** (`.xlsx`, بدون قالب): نفس الفكرة، برأس منسّق وأعمدة بعرض تلقائي — عبر Apache POI.
 - **JasperReports** (قوالب `.jrxml`/`.jasper` مصممة بصريًا): تصدير PDF, XLSX, HTML, أو CSV من نفس القالب.
 
@@ -61,6 +61,35 @@ ReportService.generateToFile(ReportType.PDF, request, Path.of("employees.pdf"));
 ```
 
 اسم كل عمود (`addColumn("id", ...)`) بيتقرا من الكائن عن طريق reflection: بيدوّر أول حاجة موجودة من `getId()`، `isId()`، أو `id()` (مكوّنات الـ record)، وأخيرًا الحقل مباشرة.
+
+الأرقام والمنطقيات والتواريخ بتتكتب في Excel بأنواعها الأصلية مش كنصوص، والتواريخ (`java.util.Date`،
+`Calendar`، `LocalDate`، `LocalDateTime`، `Instant`، `ZonedDateTime`، وأنواع `java.sql`) بتاخد تنسيق
+تاريخ فعلي عشان تظهر كتاريخ بدل الرقم التسلسلي الخام.
+
+### خط الـ PDF للنصوص العربية
+
+خطوط PDF المدمجة (Standard 14 زي Helvetica) بتدعم Latin-1 بس، فمش بتقدر ترسم عربي. عشان كده
+المكتبة بتدوّر على خط TrueType يدعم Unicode بالترتيب ده:
+
+1. الخاصية `smart.report.pdf.font` (واختياريًا `smart.report.pdf.font.bold`) — مسار ملف `.ttf`.
+2. مورد على الـ classpath اسمه `fonts/report-font.ttf` (و`fonts/report-font-bold.ttf`).
+3. خطوط النظام المعروفة على Windows/Linux/macOS.
+
+في أغلب الأجهزة الخطوة الثالثة بتكفي وما تحتاجش تعمل أي حاجة. لو عايز تثبّت خطًا بعينه:
+
+```bash
+java -Dsmart.report.pdf.font=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf -jar app.jar
+```
+
+أو حطّ الخط في `src/main/resources/fonts/report-font.ttf` عشان الـ jar يبقى مكتفيًا بذاته.
+
+لو مفيش أي خط اتلقى وجه نص عربي، بترمي `ReportException` برسالة بتقول الحرف المسبب وإزاي تظبط
+الخط — مش استثناء غامض من جوّه PDFBox.
+
+> العربي بيتظبط تلقائيًا قبل الرسم: الحروف بتتوصّل ببعضها (صور العرض السياقية) وبتترتب من اليمين
+> لليسار، مع دمج لام-ألف والحفاظ على الحركات مع حروفها. النصوص المختلطة (عربي + إنجليزي + أرقام)
+> بتترتب صح كمان. ده شغل `ArabicTextShaper`، وما بيحتاجش أي dependency إضافية.
+> ملاحظة: التقارير المصمّمة بصريًا في Jasper بتتعامل مع العربي بنفسها ومش بتمرّ على المسار ده.
 
 ### JasperReports (قالب مصمم بصريًا)
 
