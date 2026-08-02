@@ -26,11 +26,30 @@ public final class ReportRequest<T> {
 
     private ReportRequest(Builder<T> builder) {
         this.title = builder.title;
-        this.data = List.copyOf(builder.data);
-        this.columns = List.copyOf(builder.columns);
+        this.data = immutableCopy(builder.data, "data");
+        this.columns = immutableCopy(builder.columns, "columns");
+        // القيم الفاضية مسموحة هنا: باراميترات Jasper بتتبعت null عن قصد أحيانًا
         this.parameters = Collections.unmodifiableMap(new LinkedHashMap<>(builder.parameters));
         this.template = builder.template;
         this.exportFormat = builder.exportFormat;
+    }
+
+    /**
+     * نسخة غير قابلة للتعديل مع رسالة واضحة عند وجود عنصر فاضي.
+     * {@code List.copyOf} كانت بترمي NullPointerException بدون أي رسالة، فالمستخدم
+     * ما كانش يعرف أنهي صف في بياناته هو السبب.
+     */
+    private static <E> List<E> immutableCopy(List<E> source, String name) {
+        List<E> copy = new ArrayList<>(source.size());
+        for (int i = 0; i < source.size(); i++) {
+            E element = source.get(i);
+            if (element == null) {
+                throw new IllegalArgumentException(
+                        name + "[" + i + "] is null; " + name + " must not contain null entries.");
+            }
+            copy.add(element);
+        }
+        return Collections.unmodifiableList(copy);
     }
 
     public String title() {

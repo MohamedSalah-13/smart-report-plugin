@@ -11,6 +11,11 @@ import java.nio.file.Path;
 /**
  * نقطة الدخول الموحّدة لتوليد التقارير. اختر النوع المطلوب ({@link ReportType}) وحضّر
  * {@link ReportRequest}، والخدمة تتكفّل باختيار المزوّد المناسب (PDF عام / Excel عام / Jasper).
+ *
+ * <p>أي فشل أثناء التوليد بيوصل كـ {@link ReportException}، حتى لو أصله استثناء غير متوقّع
+ * جاي من مكتبة تحتية؛ كده الـ {@code catch (ReportException)} عند المستخدم بيمسك كل الحالات فعلًا.
+ * الاستثناء الوحيد هو التحقق من المعطيات نفسها، وده بيرمي {@link IllegalArgumentException}
+ * لأنه غلطة برمجية عند المستدعي مش فشل في التوليد.</p>
  */
 public final class ReportService {
 
@@ -23,10 +28,18 @@ public final class ReportService {
         if (request == null) {
             throw new IllegalArgumentException("Report request is required.");
         }
-        return provider(type).generate(request);
+        try {
+            return provider(type).generate(request);
+        } catch (RuntimeException e) {
+            // مثال: خاصية مش موجودة على الكائن، أو مسار قالب مش صالح كمسار ملف
+            throw new ReportException("Failed to generate " + type + " report: " + e.getMessage(), e);
+        }
     }
 
     public static void generateToFile(ReportType type, ReportRequest<?> request, Path outputPath) throws ReportException {
+        if (outputPath == null) {
+            throw new IllegalArgumentException("Output path is required.");
+        }
         byte[] bytes = generate(type, request);
         try {
             if (outputPath.getParent() != null) {
