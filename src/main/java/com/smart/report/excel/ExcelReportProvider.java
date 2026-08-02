@@ -13,7 +13,8 @@ import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.streaming.SXSSFSheet;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -42,6 +43,12 @@ public final class ExcelReportProvider implements ReportProvider {
     private static final String TIME_FORMAT = "hh:mm:ss";
     private static final double SECONDS_PER_DAY = 86_400d;
 
+    /** عدد الصفوف المحفوظة في الذاكرة قبل ما تتكتب على القرص. */
+    private static final int ROW_WINDOW = 200;
+
+    /** أقصى عدد صفوف في ورقة xlsx واحدة. */
+    private static final int MAX_ROWS = 1_048_576;
+
     @Override
     public byte[] generate(ReportRequest<?> request) throws ReportException {
         List<ColumnDefinition> columns = request.columns();
@@ -49,12 +56,26 @@ public final class ExcelReportProvider implements ReportProvider {
             throw new ReportException("At least one column is required to generate an Excel report.");
         }
 
-        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
-            Sheet sheet = workbook.createSheet(sheetName(request.title()));
+        int headerRows = request.title() != null && !request.title().isBlank() ? 3 : 1;
+        long totalRows = (long) request.data().size() + headerRows;
+        if (totalRows > MAX_ROWS) {
+            throw new ReportException("An .xlsx sheet holds at most " + MAX_ROWS + " rows, but this report needs "
+                    + totalRows + ". Split the data across several reports.");
+        }
+
+        // SXSSF بيكتب الصفوف على القرص أول بأول، فتقرير فيه مئات الآلاف من الصفوف
+        // ما بيفضلش كله في الذاكرة زي XSSF
+        SXSSFWorkbook workbook = new SXSSFWorkbook(ROW_WINDOW);
+        try (workbook) {
+            workbook.setCompressTempFiles(true);
+            SXSSFSheet sheet = workbook.createSheet(sheetName(request.title()));
+            // بيتابع عرض الأعمدة والصفوف بتتكتب، فـ autoSizeColumn تفضل شغالة من غير
+            // ما نحتفظ بكل الصفوف في الذاكرة
+            sheet.trackAllColumnsForAutoSizing();
             Styles styles = createStyles(workbook);
 
             int rowIndex = 0;
-            if (request.title() != null && !request.title().isBlank()) {
+            if (headerRows == 3) {
                 Row titleRow = sheet.createRow(rowIndex++);
                 Cell titleCell = titleRow.createCell(0);
                 titleCell.setCellValue(request.title());
@@ -86,6 +107,8 @@ public final class ExcelReportProvider implements ReportProvider {
             return out.toByteArray();
         } catch (IOException e) {
             throw new ReportException("Failed to generate Excel report.", e);
+        } finally {
+            workbook.dispose(); // بيمسح الملفات المؤقتة اللي SXSSF عملها
         }
     }
 

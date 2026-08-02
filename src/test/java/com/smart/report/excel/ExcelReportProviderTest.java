@@ -105,4 +105,44 @@ class ExcelReportProviderTest {
         assertEquals(CellType.STRING, row.getCell(5).getCellType());
         assertEquals("Ahmed", row.getCell(5).getStringCellValue());
     }
+
+    public record Line(int index, String label) {}
+
+    /** الصفوف بتتكتب على القرص أول بأول، فتقرير كبير ما بيفضلش كله في الذاكرة. */
+    @Test
+    void handlesLargeReportsAndKeepsEveryRow() throws Exception {
+        int rows = 50_000;
+        List<Line> data = new java.util.ArrayList<>(rows);
+        for (int i = 0; i < rows; i++) {
+            data.add(new Line(i, "row-" + i));
+        }
+
+        byte[] xlsx = ReportService.generate(ReportType.EXCEL, ReportRequest.<Line>builder()
+                .data(data)
+                .addColumn("index", "Index")
+                .addColumn("label", "Label")
+                .build());
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(xlsx))) {
+            Sheet sheet = workbook.getSheetAt(0);
+            assertEquals(rows, sheet.getLastRowNum(), "لازم كل الصفوف تتكتب"); // بدون عنوان: رأس الأعمدة في 0
+            assertEquals("row-0", sheet.getRow(1).getCell(1).getStringCellValue());
+            assertEquals("row-" + (rows - 1), sheet.getRow(rows).getCell(1).getStringCellValue());
+            assertEquals(rows - 1, (int) sheet.getRow(rows).getCell(0).getNumericCellValue());
+        }
+    }
+
+    /** أكتر من طاقة الورقة كان بيرمي IllegalArgumentException من جوّه POI. */
+    @Test
+    void rejectsMoreRowsThanASheetCanHold() {
+        List<Line> tooMany = java.util.Collections.nCopies(1_048_577, new Line(1, "x"));
+
+        com.smart.report.ReportException thrown = org.junit.jupiter.api.Assertions.assertThrows(
+                com.smart.report.ReportException.class,
+                () -> ReportService.generate(ReportType.EXCEL, ReportRequest.<Line>builder()
+                        .data(tooMany)
+                        .addColumn("label", "Label")
+                        .build()));
+        assertTrue(thrown.getMessage().contains("1048576"), thrown.getMessage());
+    }
 }
