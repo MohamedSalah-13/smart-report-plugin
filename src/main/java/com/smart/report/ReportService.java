@@ -3,6 +3,8 @@ package com.smart.report;
 import com.smart.report.excel.ExcelReportProvider;
 import com.smart.report.jasper.JasperReportProvider;
 import com.smart.report.pdf.PdfReportProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -21,6 +23,8 @@ public final class ReportService {
 
     private ReportService() {}
 
+    private static final Logger log = LoggerFactory.getLogger(ReportService.class);
+
     public static byte[] generate(ReportType type, ReportRequest<?> request) throws ReportException {
         if (type == null) {
             throw new IllegalArgumentException("Report type is required.");
@@ -28,8 +32,12 @@ public final class ReportService {
         if (request == null) {
             throw new IllegalArgumentException("Report request is required.");
         }
+        long startedAt = System.nanoTime();
         try {
-            return provider(type).generate(request);
+            byte[] report = provider(type).generate(request);
+            log.debug("Generated {} report: {} rows, {} bytes, {} ms",
+                    type, request.data().size(), report.length, (System.nanoTime() - startedAt) / 1_000_000);
+            return report;
         } catch (RuntimeException e) {
             // مثال: خاصية مش موجودة على الكائن، أو مسار قالب مش صالح كمسار ملف
             throw new ReportException("Failed to generate " + type + " report: " + e.getMessage(), e);

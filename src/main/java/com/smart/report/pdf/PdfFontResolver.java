@@ -1,5 +1,8 @@
 package com.smart.report.pdf;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -29,6 +32,8 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class PdfFontResolver {
 
     private PdfFontResolver() {}
+
+    private static final Logger log = LoggerFactory.getLogger(PdfFontResolver.class);
 
     public static final String FONT_PROPERTY = "smart.report.pdf.font";
     public static final String BOLD_FONT_PROPERTY = "smart.report.pdf.font.bold";
@@ -86,11 +91,17 @@ public final class PdfFontResolver {
         byte[] regular = readFile(System.getProperty(FONT_PROPERTY));
         byte[] bold = readFile(System.getProperty(BOLD_FONT_PROPERTY));
         if (regular != null) {
+            log.debug("Using PDF font from -D{}={}", FONT_PROPERTY, System.getProperty(FONT_PROPERTY));
             return new Fonts(regular, bold != null ? bold : regular);
+        }
+        if (System.getProperty(FONT_PROPERTY) != null) {
+            log.warn("-D{}={} could not be read; falling back to the other font sources.",
+                    FONT_PROPERTY, System.getProperty(FONT_PROPERTY));
         }
 
         regular = readResource(REGULAR_RESOURCE);
         if (regular != null) {
+            log.debug("Using PDF font from classpath resource {}", REGULAR_RESOURCE);
             bold = readResource(BOLD_RESOURCE);
             return new Fonts(regular, bold != null ? bold : regular);
         }
@@ -98,10 +109,14 @@ public final class PdfFontResolver {
         for (String[] candidate : SYSTEM_FONTS) {
             regular = readFile(candidate[0]);
             if (regular != null) {
+                log.debug("Using system PDF font {}", candidate[0]);
                 bold = readFile(candidate[1]);
                 return new Fonts(regular, bold != null ? bold : regular);
             }
         }
+
+        log.warn("No Unicode TrueType font found; generic PDF reports fall back to Helvetica and support "
+                + "Latin-1 only. Set -D{} to a .ttf, or put {} on the classpath.", FONT_PROPERTY, REGULAR_RESOURCE);
         return new Fonts(null, null);
     }
 

@@ -18,6 +18,8 @@ import net.sf.jasperreports.export.SimpleExporterInput;
 import net.sf.jasperreports.export.SimpleHtmlExporterOutput;
 import net.sf.jasperreports.export.SimpleOutputStreamExporterOutput;
 import net.sf.jasperreports.export.SimpleWriterExporterOutput;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
@@ -45,6 +47,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * بتتصرّف مرة واحدة لأنها ما بتتغيّرش وقت التشغيل.</p>
  */
 public final class JasperReportProvider implements ReportProvider {
+
+    private static final Logger log = LoggerFactory.getLogger(JasperReportProvider.class);
 
     /** ختم زمني ثابت لقوالب الـ classpath: مش ممكن تتغيّر وإحنا شغالين. */
     private static final long CLASSPATH_STAMP = -1L;
@@ -81,9 +85,11 @@ public final class JasperReportProvider implements ReportProvider {
 
         CachedTemplate cached = CACHE.get(template);
         if (cached != null && cached.stamp() == stamp) {
+            log.debug("Reusing compiled Jasper template {}", template);
             return cached.report();
         }
 
+        long startedAt = System.nanoTime();
         JasperReport compiled;
         try (InputStream in = openTemplate(template, file)) {
             compiled = template.endsWith(".jasper")
@@ -91,6 +97,7 @@ public final class JasperReportProvider implements ReportProvider {
                     : JasperCompileManager.compileReport(in);
         }
         CACHE.put(template, new CachedTemplate(compiled, stamp));
+        log.debug("Compiled Jasper template {} in {} ms", template, (System.nanoTime() - startedAt) / 1_000_000);
         return compiled;
     }
 
