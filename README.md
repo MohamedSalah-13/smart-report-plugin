@@ -1,5 +1,7 @@
 # Smart Report Plugin
 
+![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white) ![JasperReports](https://img.shields.io/badge/JasperReports-PDF-C2185B) ![Apache POI](https://img.shields.io/badge/Apache%20POI-Excel-D22128?logo=apache&logoColor=white) ![License](https://img.shields.io/badge/License-MIT-yellow)
+
 مكتبة (plugin) بجافا بتضاف كـ dependency لأي مشروع، وبتوفر واجهة موحّدة لطباعة كل أنواع التقارير من `List<POJO>`:
 
 - **PDF عام** (بدون قالب): جدول (عنوان + رأس أعمدة + صفوف بيانات) مع تقسيم تلقائي للصفحات وتكرار رأس الأعمدة في كل صفحة، ودعم كامل للعربي — عبر Apache PDFBox.
