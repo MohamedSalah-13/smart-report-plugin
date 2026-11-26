@@ -216,6 +216,26 @@ ReportService.generateToFile(ReportType.PDF, request, Path.of("employees.pdf"));
 اسم كل عمود (`addColumn("id", ...)`) بيتقرا من الكائن عن طريق reflection: `getId()`، `isId()`، `id()`
 (مكوّنات الـ record)، وأخيرًا الحقل مباشرة.
 
+العمود ممكن ياخد خياراته في تقرير الـ PDF — نمط تنسيق، محاذاة، ووزن من عرض الجدول:
+
+<div dir="ltr">
+
+```java
+.addColumn(ColumnDefinition.of("amount", "المبلغ").withFormat("#,##0.00").withAlign(Alignment.END).withWeight(2))
+.addColumn(ColumnDefinition.of("date", "التاريخ").withFormat("d MMMM yyyy"))   // 26 نوفمبر 2026
+```
+
+</div>
+
+- `withFormat`: نمط `DecimalFormat` للأرقام (التقريب لفوق من النص) أو نمط `DateTimeFormatter` للتواريخ. أسماء
+  الشهور والأيام بلغة التقرير والأرقام لاتينية. النمط اللي ما ينفعش مع قيمة (`HH:mm` على تاريخ من غير وقت)
+  بيرمي `ReportException` باسم العمود.
+- `withAlign`: `START` أو `CENTER` أو `END`، منسوبة لاتجاه التقرير. من غيرها، عمود الأرقام لنهاية السطر وأي
+  عمود تاني لبدايته.
+- `withWeight`: نصيب العمود من عرض الجدول (2 = ضعف العمود العادي).
+
+تقرير الـ Excel بيكتب القيم بأنواعها الأصلية وبتنسيقات Excel نفسه، فبيتجاهل الخيارات دي.
+
 التقريرين بيبقوا من اليمين لليسار لو العنوان أو أي رأس عمود فيه عربي (في Excel الورقة نفسها بتبقى من اليمين).
 تقرير الـ PDF على A4 طولي. للتغيير:
 

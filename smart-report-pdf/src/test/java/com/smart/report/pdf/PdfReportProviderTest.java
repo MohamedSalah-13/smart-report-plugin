@@ -190,6 +190,56 @@ class PdfReportProviderTest {
         assertTrue(Math.abs(glyphs.first("9").x() - glyphs.first("n/a").x()) < 0.5f);
     }
 
+    private static byte[] sales(List<Sale> rows, com.smart.report.ColumnDefinition... columns) throws Exception {
+        return ReportService.generate(ReportType.PDF, ReportRequest.<Sale>builder()
+                .title("Sales").data(rows).columns(List.of(columns)).build());
+    }
+
+    /** خيارات العمود بتغلب الافتراضي: النمط، والمحاذاة حتى في عمود أرقام. */
+    @Test
+    void columnFormatAndAlignOverrideTheDefaults() throws Exception {
+        byte[] pdf = sales(List.of(new Sale("a", 9, java.time.LocalDate.of(2026, 11, 26)),
+                        new Sale("b", 1000, java.time.LocalDate.of(2026, 1, 2))),
+                com.smart.report.ColumnDefinition.of("name", "Name"),
+                com.smart.report.ColumnDefinition.of("amount", "Amount").withFormat("#,##0.00")
+                        .withAlign(com.smart.report.Alignment.START),
+                com.smart.report.ColumnDefinition.of("when", "When").withFormat("dd/MM/yyyy"));
+
+        String text = textOf(pdf);
+        for (String expected : new String[]{"9.00", "1,000.00", "26/11/2026", "02/01/2026"}) {
+            assertTrue(text.contains(expected), expected + " مش موجود في: " + text);
+        }
+        Glyphs glyphs = Glyphs.of(pdf);
+        assertTrue(Math.abs(glyphs.first("9.00").x() - glyphs.first("1,000.00").x()) < 0.5f,
+                "المحاذاة المطلوبة لبداية السطر غلبت محاذاة الأرقام التلقائية");
+    }
+
+    /** العمود بوزن 3 عرضه تلات أضعاف العمود العادي. */
+    @Test
+    void columnWeightSharesTheTableWidth() throws Exception {
+        Glyphs glyphs = Glyphs.of(sales(List.of(new Sale("a", "b", "c")),
+                com.smart.report.ColumnDefinition.of("name", "H1").withWeight(3),
+                com.smart.report.ColumnDefinition.of("amount", "H2"),
+                com.smart.report.ColumnDefinition.of("when", "H3")));
+
+        // رءوس بنفس العرض ومتوسّطة في أعمدتها، فالمسافة بين بداياتها هي المسافة بين منتصفات الأعمدة.
+        float wide = glyphs.first("H2").x() - glyphs.first("H1").x();
+        float normal = glyphs.first("H3").x() - glyphs.first("H2").x();
+        assertTrue(Math.abs(wide / normal - 2f) < 0.3f,
+                "منتصف رأس لمنتصف رأس: (3+1)/2 ÷ (1+1)/2 = 2؛ الفعلي " + wide / normal);
+    }
+
+    /** النمط اللي ما ينفعش مع القيمة بيقول اسم العمود، مش استثناء غامض من جوّه الـ JDK. */
+    @Test
+    void patternThatDoesNotFitTheValueIsReportedWithTheColumnName() {
+        com.smart.report.ReportException thrown = org.junit.jupiter.api.Assertions.assertThrows(
+                com.smart.report.ReportException.class,
+                () -> sales(List.of(new Sale("a", 1, java.time.LocalDate.of(2026, 11, 26))),
+                        com.smart.report.ColumnDefinition.of("when", "When").withFormat("HH:mm")));
+        assertTrue(thrown.getMessage().contains("'when'") && thrown.getMessage().contains("HH:mm"),
+                thrown.getMessage());
+    }
+
     /** الورقة والاتجاه بيتحددوا من parameters. */
     @Test
     void paperAndDirectionCanBeChosenThroughParameters() throws Exception {

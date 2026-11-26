@@ -1,5 +1,6 @@
 package com.smart.report.pdf;
 
+import com.smart.report.Alignment;
 import com.smart.report.ColumnDefinition;
 import com.smart.report.ReportException;
 import com.smart.report.ReportProvider;
@@ -10,6 +11,7 @@ import com.smart.report.util.TextDirection;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * يولّد تقرير PDF جدولي عام (عنوان + رأس أعمدة + صفوف بيانات) من أي List من الكائنات + قائمة
@@ -20,7 +22,9 @@ import java.util.List;
  * إلا لو {@link #RIGHT_TO_LEFT} اتحدد في {@code parameters}.</p>
  *
  * <p><b>القيم:</b> الأرقام بفواصل الآلاف والتواريخ بصيغة {@code yyyy-MM-dd} ({@link CellText})، وعمود
- * قيمه كلها أرقام بيتحاذى لنهاية السطر فالأرقام تيجي تحت بعض.</p>
+ * قيمه كلها أرقام بيتحاذى لنهاية السطر فالأرقام تيجي تحت بعض. خيارات كل عمود (نمط التنسيق، المحاذاة،
+ * الوزن) في {@link ColumnDefinition} بتغلب الافتراضي؛ النمط اللي ما ينفعش مع قيمة بيرمي
+ * {@link ReportException} باسم العمود.</p>
  *
  * <p><b>الورق:</b> A4 طولي، إلا لو {@link #PAPER} اتحدد في {@code parameters} بكائن {@link Paper}
  * أو باسمه ({@code "A5"}، {@code "A4-landscape"}).</p>
@@ -48,8 +52,8 @@ public final class PdfReportProvider implements ReportProvider {
         }
 
         Paper paper = paper(request.parameters().get(PAPER));
-        PdfDocument document = TextDirection.rightToLeft(request, RIGHT_TO_LEFT)
-                ? PdfDocument.rtl(paper) : PdfDocument.ltr(paper);
+        boolean rightToLeft = TextDirection.rightToLeft(request, RIGHT_TO_LEFT);
+        PdfDocument document = rightToLeft ? PdfDocument.rtl(paper) : PdfDocument.ltr(paper);
         if (request.title() != null && !request.title().isBlank()) {
             document.title(singleLine(request.title()));
         }
@@ -74,17 +78,33 @@ public final class PdfReportProvider implements ReportProvider {
 
         PdfTable table = PdfTable.create();
         for (int i = 0; i < count; i++) {
-            table.column(singleLine(columns.get(i).header()), 1f, numeric[i] && !other[i] ? Align.END : Align.START);
+            ColumnDefinition column = columns.get(i);
+            Align align = column.align() != null ? align(column.align())
+                    : numeric[i] && !other[i] ? Align.END : Align.START;
+            table.column(singleLine(column.header()), column.weight(), align);
         }
-        CellText text = new CellText();
+        CellText text = new CellText(rightToLeft ? Locale.forLanguageTag("ar") : Locale.ENGLISH);
         for (Object[] values : rows) {
             String[] cells = new String[count];
             for (int i = 0; i < count; i++) {
-                cells[i] = singleLine(text.of(values[i]));
+                ColumnDefinition column = columns.get(i);
+                try {
+                    cells[i] = singleLine(text.of(values[i], column.format()));
+                } catch (IllegalArgumentException e) {
+                    throw new ReportException("Column '" + column.fieldName() + "': " + e.getMessage(), e);
+                }
             }
             table.row(cells);
         }
         return document.table(table).toBytes();
+    }
+
+    private static Align align(Alignment alignment) {
+        return switch (alignment) {
+            case START -> Align.START;
+            case CENTER -> Align.CENTER;
+            case END -> Align.END;
+        };
     }
 
     private static Paper paper(Object value) throws ReportException {

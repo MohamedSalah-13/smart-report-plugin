@@ -108,6 +108,15 @@ public final class ReportRequest<T> {
             return this;
         }
 
+        /** عمود بخياراته: {@code addColumn(ColumnDefinition.of("amount", "المبلغ").withFormat("#,##0.00"))}. */
+        public Builder<T> addColumn(ColumnDefinition column) {
+            if (column == null) {
+                throw new IllegalArgumentException("column is required.");
+            }
+            this.columns.add(column);
+            return this;
+        }
+
         public Builder<T> parameter(String key, Object value) {
             this.parameters.put(key, value);
             return this;

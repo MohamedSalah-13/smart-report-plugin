@@ -191,6 +191,22 @@ ReportService.generateToFile(ReportType.PDF, request, Path.of("employees.pdf"));
 Each column's name (`addColumn("id", ...)`) is read from the object by reflection: `getId()`, `isId()`, `id()`
 (record components), and finally the field itself.
 
+A column can carry its own options for the PDF report — a format pattern, an alignment and a width weight:
+
+```java
+.addColumn(ColumnDefinition.of("amount", "المبلغ").withFormat("#,##0.00").withAlign(Alignment.END).withWeight(2))
+.addColumn(ColumnDefinition.of("date", "التاريخ").withFormat("d MMMM yyyy"))   // 26 نوفمبر 2026
+```
+
+- `withFormat`: a `DecimalFormat` pattern for numbers (rounded half up) or a `DateTimeFormatter` pattern for dates.
+  Month and day names follow the report's language; digits stay Latin. A pattern that does not fit a value
+  (`HH:mm` on a date with no time) fails with a `ReportException` naming the column.
+- `withAlign`: `START`, `CENTER` or `END`, relative to the report's direction. Without it, a column of numbers goes
+  to the end of the line and anything else to the start.
+- `withWeight`: the column's share of the table width (2 = twice a normal column).
+
+The Excel report writes values with their own types and Excel's formats, so it ignores these options.
+
 Both reports run right to left if the title or any column header contains Arabic (in Excel the sheet itself
 runs right to left). The PDF report is on portrait A4. To change that:
 

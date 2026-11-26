@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+- Per-column options for the generic PDF report: `ColumnDefinition.withFormat` (a number or date pattern, such as
+  `#,##0.00` or `d MMMM yyyy`, with month names in the report's language), `withAlign` and `withWeight`, and
+  `ReportRequest.Builder.addColumn(ColumnDefinition)`. Existing code that builds columns keeps working as before.
+
 ### Fixed
 - A generic Excel report with an Arabic title or column headers now runs right to left, like the PDF report built
   from the same request; its direction can be set with `ExcelReportProvider.RIGHT_TO_LEFT`.
