@@ -1,31 +1,46 @@
 # Smart Report Plugin
 
-![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white) ![Apache PDFBox](https://img.shields.io/badge/Apache%20PDFBox-PDF-D22128?logo=apache&logoColor=white) ![Apache POI](https://img.shields.io/badge/Apache%20POI-Excel-D22128?logo=apache&logoColor=white) ![JasperReports](https://img.shields.io/badge/JasperReports-templates-C2185B) ![License](https://img.shields.io/badge/License-MIT-yellow)
+![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white) ![JavaFX](https://img.shields.io/badge/JavaFX-21-2E7DAF?logo=java&logoColor=white) ![Apache PDFBox](https://img.shields.io/badge/Apache%20PDFBox-3.0.3-D22128?logo=apache&logoColor=white) ![Apache POI](https://img.shields.io/badge/Apache%20POI-5.3.0-D22128?logo=apache&logoColor=white) ![JasperReports](https://img.shields.io/badge/JasperReports-6.21.3-C2185B) ![Release](https://img.shields.io/github/v/tag/MohamedSalah-13/smart-report-plugin) ![License](https://img.shields.io/github/license/MohamedSalah-13/smart-report-plugin)
 
-مكتبة جافا للتقارير والطباعة، بتضاف كـ dependency لأي مشروع:
+**English** | [العربية](README.ar.md)
 
-- **مستندات PDF عربية جاهزة للطباعة** على A4 و A5 (طولي وعرضي): ترويسة، عنوان، بيانات، أكتر من جدول بصف إجمالي، ملخص، ترقيم صفحات — وإرسال مباشر للطابعة. عبر Apache PDFBox فقط.
-- **نافذة معاينة JavaFX** جاهزة: الصفحات كما هتتطبع، اختيار الطابعة والمقاس وعدد النسخ، طباعة وحفظ PDF.
-- **PDF أو Excel عام من `List<POJO>`** بدون أي قالب.
-- **JasperReports** (قوالب `.jrxml`/`.jasper` مصممة بصريًا): تصدير PDF, XLSX, HTML, أو CSV.
+A Java library for reports and printing, added to any project as a dependency:
 
-<p align="center"><img src="docs/statement-a5.png" alt="كشف حساب على ورقة A5" width="420"></p>
+- **Print-ready Arabic PDF documents** on A4 and A5 (portrait and landscape): letterhead, title, fields, several tables with a totals row, a summary, page numbers — and direct output to a printer. Apache PDFBox only.
+- **A ready JavaFX preview window**: the pages as they will print, a choice of printer, paper and copies, print and save as PDF.
+- **A generic PDF or Excel report from a `List<POJO>`**, with no template.
+- **JasperReports** (visually designed `.jrxml`/`.jasper` templates): export to PDF, XLSX, HTML or CSV.
 
-## الوحدات
+<p align="center"><img src="docs/statement-a5.png" alt="An account statement on A5 paper" width="420"></p>
 
-كل نوع في وحدة Maven لوحده، فالبرنامج اللي بيطبع PDF بس ما يشيلش POI ولا Jasper:
+## What's New
 
-| الوحدة | فيها إيه | بتجيب معاها |
+### 2.1.1
+
+- **Fixed:** a table row taller than a whole page (a cell whose text wraps over more lines than the page holds) is no longer drawn past the bottom of the paper and lost in print; it continues on the next page under the table header.
+
+### 2.1.0
+
+- **New:** a ready JavaFX preview window (the `smart-report-fx` module): the pages as they will print, a choice of printer, paper and copies, print and save as PDF.
+- **New:** a Claude Code skill that wires the library into any project (`claude-skill/pdf-print`).
+
+Details of each release are in [CHANGELOG.md](CHANGELOG.md).
+
+## Modules
+
+Each kind of report is its own Maven module, so a program that only prints PDFs does not carry POI or Jasper:
+
+| Module | What is in it | What it brings |
 |---|---|---|
-| `smart-report-pdf` | `PdfDocument`، `PdfPrinter`، `PdfPages`، وتقرير PDF العام | PDFBox |
-| `smart-report-fx` | `PdfPreview`: نافذة المعاينة | `smart-report-pdf`؛ و JavaFX بتاع برنامجك (`provided`) |
-| `smart-report-excel` | تقرير Excel العام | Apache POI |
-| `smart-report-jasper` | تقارير قوالب Jasper | JasperReports |
-| `smart-report-api` | `ReportService` و`ReportRequest` — بتيجي لوحدها مع أي وحدة فوق | slf4j-api فقط |
+| `smart-report-pdf` | `PdfDocument`, `PdfPrinter`, `PdfPages`, and the generic PDF report | PDFBox |
+| `smart-report-fx` | `PdfPreview`: the preview window | `smart-report-pdf`; and your program's own JavaFX (`provided`) |
+| `smart-report-excel` | The generic Excel report | Apache POI |
+| `smart-report-jasper` | Jasper template reports | JasperReports |
+| `smart-report-api` | `ReportService` and `ReportRequest` — comes along with any module above | slf4j-api only |
 
-## التثبيت
+## Installation
 
-المكتبة بتتسحب من [JitPack](https://jitpack.io) مباشرة من tags المستودع:
+The library is served by [JitPack](https://jitpack.io) straight from the repository's tags:
 
 ```xml
 <repositories>
@@ -42,20 +57,20 @@
 </dependency>
 ```
 
-غيّر `artifactId` لـ `smart-report-fx` أو `smart-report-excel` أو `smart-report-jasper` حسب اللي محتاجه.
-مبنية بـ Java 21. وحدة `smart-report-fx` موجودة من `v2.1.0`.
+Change `artifactId` to `smart-report-fx`, `smart-report-excel` or `smart-report-jasper` for what you need.
+Built with Java 21. The `smart-report-fx` module exists from `v2.1.0`.
 
-> المكتبة بتستخدم `slf4j-api` فقط (بدون implementation)، فلو عايز تشوف الـ logs ضيف backend من اختيارك
-> (logback, slf4j-simple, ...) في مشروعك.
+> The library uses `slf4j-api` only (no implementation), so to see its logs add a backend of your choice
+> (logback, slf4j-simple, ...) to your project.
 
-## مستند PDF (`PdfDocument`)
+## PDF document (`PdfDocument`)
 
-المستند بيتبني جزءًا بعد جزء بالترتيب اللي هيظهر بيه:
+The document is built part by part, in the order the parts will appear:
 
 ```java
 import com.smart.report.pdf.*;
 
-PdfDocument document = PdfDocument.rtl(Paper.A5)            // أو Paper.A4، أو Paper.A4.landscape()
+PdfDocument document = PdfDocument.rtl(Paper.A5)            // or Paper.A4, or Paper.A4.landscape()
         .letterhead("شركة الصفا لنقل مواد البناء", "القاهرة - ت: 0100 000 0000")
         .title("كشف حساب عربية")
         .subtitle("الفترة: من 2026-11-01 إلى 2026-11-30")
@@ -71,87 +86,90 @@ PdfDocument document = PdfDocument.rtl(Paper.A5)            // أو Paper.A4، �
         .summaryTotal("الباقى", "3,200.00")
         .footer("شكرًا لتعاملكم");
 
-document.save(Path.of("statement.pdf"));     // ملف
-byte[] pdf = document.toBytes();             // أو بايتات
+document.save(Path.of("statement.pdf"));     // a file
+byte[] pdf = document.toBytes();             // or bytes
 ```
 
-- `PdfDocument.rtl(...)` للعربي و`PdfDocument.ltr(...)` للإنجليزي. الاتجاه بيحدد مكان أول عمود ومحاذاة النص.
-- الأعمدة والخلايا بتتكتب **بالترتيب المنطقي**؛ المكتبة هي اللي بتحط أول عمود على اليمين في الصفحة العربية.
-- رقم العمود (22، 14، 26) وزنه من عرض الجدول، ومفيش عمود بينزل عن عرض أطول كلمة فيه.
-- النص الأطول من عموده **بيلتف** على أكتر من سطر، ورأس الجدول بيتكرر في كل صفحة، والصفحات بتترقّم ("صفحة 2 من 3") لما المستند يبقى أكتر من صفحة.
-- الأرقام السالبة، التواريخ، النسب، وأرقام التليفون بتتقرا زي ما اتكتبت جوّه الجملة العربية.
+- `PdfDocument.rtl(...)` for Arabic and `PdfDocument.ltr(...)` for English. The direction decides where the first column sits and how text is aligned.
+- Columns and cells are written **in logical order**; the library is what puts the first column on the right in an Arabic page.
+- A column's number (22, 14, 26) is its weight in the table's width, and no column goes below the width of its longest word.
+- Text longer than its column **wraps** over several lines, the table header repeats on every page, and pages are numbered ("Page 2 of 3") once the document runs over one page.
+- A row taller than a whole page continues on the next page.
+- Negative numbers, dates, percentages and phone numbers read as they were written inside an Arabic sentence.
 
-### الشكل (`PdfStyle`)
+### Style (`PdfStyle`)
 
-من غير تحديد، الشكل بيتاخد حسب الورقة (`PdfStyle.forPaper`): خط وهوامش أصغر على A5. للتعديل:
+With nothing set, the style follows the paper (`PdfStyle.forPaper`): a smaller font and margins on A5. To change it:
 
 ```java
 document.style(PdfStyle.forPaper(Paper.A4)
-        .withHeaderColors(0x2C3E50, 0xFFFFFF)   // رأس جدول غامق بخط أبيض
-        .withStripes(true)                      // تلوين الصفوف المتبادلة
+        .withHeaderColors(0x2C3E50, 0xFFFFFF)   // a dark table header with white text
+        .withStripes(true)                      // alternate rows shaded
         .withMargin(28f));
 
-document.style(PdfStyle.forPaper(Paper.A5).inkSaver());   // بلا أي تعبئة: خطوط بدل الخلفيات
+document.style(PdfStyle.forPaper(Paper.A5).inkSaver());   // no fills at all: rules instead of backgrounds
 ```
 
-### الطباعة (`PdfPrinter`)
+### Printing (`PdfPrinter`)
 
 ```java
-List<String> printers = PdfPrinter.printerNames();          // الطابعات المعرّفة على الجهاز
+List<String> printers = PdfPrinter.printerNames();          // the printers set up on this computer
 Optional<String> preferred = PdfPrinter.defaultPrinter();
 
-PdfPrinter.print(document, printerName, 1);                 // المستند على ورقته، نسخة واحدة
-PdfPrinter.print(pdfBytes, printerName, Paper.A5, 2);       // أو PDF جاهز
+PdfPrinter.print(document, printerName, 1);                 // the document on its own paper, one copy
+PdfPrinter.print(pdfBytes, printerName, Paper.A5, 2);       // or a ready PDF
 ```
 
-الطابعة بتتطلب منها ورقة المستند (A4 أو A5) والصفحات بتتبعت بحجمها الفعلي. `printerName` الفاضي معناه
-الطابعة الافتراضية. الطباعة بتاخد وقتها، فنادِها من thread غير thread الواجهة. لو الطابعة مش على
-الجهاز بترمي `ReportException` باسمها وبالطابعات المتاحة.
+The printer is asked for the document's paper (A4 or A5) and pages are sent at their actual size. An empty
+`printerName` means the default printer. Printing takes its time, so call it off the UI thread. If the
+printer is not on the computer, a `ReportException` names it and lists the printers that are available.
 
-### المعاينة (`PdfPreview`)
+### Preview (`PdfPreview`)
 
-وحدة `smart-report-fx` فيها نافذة معاينة لأي برنامج JavaFX:
+The `smart-report-fx` module has a preview window for any JavaFX program:
 
-<p align="center"><img src="docs/preview-window.png" alt="نافذة معاينة الطباعة" width="560"></p>
+<p align="center"><img src="docs/preview-window.png" alt="The print preview window" width="560"></p>
 
 ```java
 import com.smart.report.fx.PdfPreview;
 
 PdfPreview.of(paper -> StatementPdf.document(statement, companyName, paper))
-        .papers(Paper.A4, Paper.A5)       // مقاس واحد = بلا اختيار مقاس في النافذة
+        .papers(Paper.A4, Paper.A5)       // one paper = no paper choice in the window
         .title("كشف حساب عربية 1751")
-        .fileName("كشف 1751")              // الاسم المقترح عند «حفظ PDF»
-        .rightToLeft(true)                 // نافذة عربية؛ false = إنجليزية
-        .remember("statement")             // آخر طابعة ومقاس، لكل نوع مستند
-        .stylesheet(appStylesheetUrl)      // اختياري: CSS بتاع برنامجك
+        .fileName("كشف 1751")              // the name suggested by "Save PDF"
+        .rightToLeft(true)                 // an Arabic window; false = English
+        .remember("statement")             // the last printer and paper, per kind of document
+        .stylesheet(appStylesheetUrl)      // optional: your program's CSS
         .show(ownerWindow);
 
-PdfPreview.of(document).show(ownerWindow);   // أو مستند جاهز على ورقته
+PdfPreview.of(document).show(ownerWindow);   // or a ready document on its own paper
 ```
 
-- النافذة بتعرض الصفحات بنفس الرسم اللي الطابعة بتستلمه، وما بتحجزش البرنامج.
-- لما المستخدم يغيّر المقاس، المستند بيتبني من جديد على المقاس الجديد.
-- الدالة اللي بتبني المستند بتتنادى **خارج thread الواجهة**: اقرا بياناتك قبلها وما تلمسش فيها عناصر JavaFX.
-- كلام النافذة عربي أو إنجليزي حسب `rightToLeft`، و`texts(PreviewTexts)` يبدّله بمصطلحات برنامجك.
-- لرسم الصفحات كصور بنفسك (معاينة مخصّصة، صورة مصغّرة): `PdfPages.open(pdf).render(pageIndex, scale)` في `smart-report-pdf`.
+- The window shows the pages with the same drawing the printer receives, and does not block the program.
+- When the user changes the paper, the document is built again for the new paper.
+- The function that builds the document is called **off the UI thread**: read your data before it and touch no JavaFX node inside it.
+- The window's wording is Arabic or English by `rightToLeft`, and `texts(PreviewTexts)` replaces it with your program's terms.
+- To draw pages as images yourself (a custom preview, a thumbnail): `PdfPages.open(pdf).render(pageIndex, scale)` in `smart-report-pdf`.
 
-### الخط
+### Font
 
-المكتبة فيها خط **Noto Naskh Arabic** مضمَّن (عادي وعريض)، فالناتج واحد على كل جهاز من غير أي إعداد.
-لتغييره، بالترتيب ده:
+The library bundles the **Noto Naskh Arabic** font (regular and bold), so the output is the same on every
+computer with no setup. To change it, in this order:
 
-1. الخاصية `smart.report.pdf.font` (واختياريًا `smart.report.pdf.font.bold`) — مسار ملف `.ttf`.
-2. مورد على الـ classpath اسمه `fonts/report-font.ttf` (و`fonts/report-font-bold.ttf`).
+1. The `smart.report.pdf.font` property (and optionally `smart.report.pdf.font.bold`) — the path of a `.ttf` file.
+2. A classpath resource named `fonts/report-font.ttf` (and `fonts/report-font-bold.ttf`).
 
-الحرف اللي مش في الخط المختار بيتجرّب في خط النظام (Arial وغيره)، وآخر حل بيتطبع `?` مع تحذير في الـ log.
+A character the chosen font lacks is tried in a system font (Arial and others), and as a last resort is
+printed as `?` with a warning in the log.
 
-> العربي بيتظبط تلقائيًا قبل الرسم: الحروف بتتوصّل ببعضها وبتترتب من اليمين لليسار، مع دمج لام-ألف.
-> ده شغل `ArabicTextShaper`، وما بيحتاجش أي dependency إضافية (لا ICU4J ولا غيره).
-> الحركات (التشكيل) بتتوسّط فوق حروفها تقريبيًا — PDFBox ما بيطبّقش جداول GPOS في الخط.
+> Arabic is prepared automatically before drawing: letters are joined and ordered right to left, with the
+> lam-alef ligature. This is the work of `ArabicTextShaper`, and it needs no extra dependency (no ICU4J or
+> anything else). Diacritics (tashkeel) are centred over their letters approximately — PDFBox does not apply
+> the font's GPOS tables.
 
-## PDF أو Excel عام (بدون قالب)
+## Generic PDF or Excel (no template)
 
-نفس الـ `ReportRequest` يشتغل مع النوعين، بس تغيّر `ReportType`:
+The same `ReportRequest` works for both; only `ReportType` changes:
 
 ```java
 import com.smart.report.*;
@@ -164,68 +182,72 @@ ReportRequest<Employee> request = ReportRequest.<Employee>builder()
         .addColumn("salary", "الراتب")
         .build();
 
-byte[] pdf = ReportService.generate(ReportType.PDF, request);     // محتاج smart-report-pdf
-byte[] xlsx = ReportService.generate(ReportType.EXCEL, request);  // محتاج smart-report-excel
+byte[] pdf = ReportService.generate(ReportType.PDF, request);     // needs smart-report-pdf
+byte[] xlsx = ReportService.generate(ReportType.EXCEL, request);  // needs smart-report-excel
 
 ReportService.generateToFile(ReportType.PDF, request, Path.of("employees.pdf"));
 ```
 
-اسم كل عمود (`addColumn("id", ...)`) بيتقرا من الكائن عن طريق reflection: `getId()`، `isId()`، `id()`
-(مكوّنات الـ record)، وأخيرًا الحقل مباشرة.
+Each column's name (`addColumn("id", ...)`) is read from the object by reflection: `getId()`, `isId()`, `id()`
+(record components), and finally the field itself.
 
-تقرير الـ PDF العام بيبقى من اليمين لليسار لو العنوان أو أي رأس عمود فيه عربي، على A4 طولي. للتغيير:
+The generic PDF report runs right to left if the title or any column header contains Arabic, on portrait A4.
+To change that:
 
 ```java
-.parameter(PdfReportProvider.PAPER, "A5-landscape")        // أو كائن Paper
+.parameter(PdfReportProvider.PAPER, "A5-landscape")        // or a Paper object
 .parameter(PdfReportProvider.RIGHT_TO_LEFT, true)
 ```
 
-في Excel، الأرقام والمنطقيات والتواريخ بتتكتب بأنواعها الأصلية مش كنصوص.
+In Excel, numbers, booleans and dates are written with their own types, not as text.
 
-لو طلبت نوعًا وحدته مش على الـ classpath، `ReportException` بتقول لك تضيف أنهي dependency.
+If you ask for a type whose module is not on the classpath, a `ReportException` tells you which dependency
+to add.
 
-## JasperReports (قالب مصمم بصريًا)
+## JasperReports (a visually designed template)
 
 ```java
 import com.smart.report.JasperExportFormat;
 
 ReportRequest<Employee> request = ReportRequest.<Employee>builder()
         .data(employees)
-        .template("reports/employee.jrxml") // ملف على القرص أو مورد على الـ classpath
+        .template("reports/employee.jrxml") // a file on disk or a classpath resource
         .parameter("ReportTitle", "تقرير الموظفين")
-        .exportFormat(JasperExportFormat.PDF) // أو XLSX / HTML / CSV
+        .exportFormat(JasperExportFormat.PDF) // or XLSX / HTML / CSV
         .build();
 
-byte[] pdf = ReportService.generate(ReportType.JASPER, request);  // محتاج smart-report-jasper
+byte[] pdf = ReportService.generate(ReportType.JASPER, request);  // needs smart-report-jasper
 ```
 
-`request.data()` بيتحوّل تلقائيًا لـ `JRBeanCollectionDataSource`، و`request.parameters()` بتتبعت كـ
-report parameters (`$P{...}`). القوالب المصرَّفة بتتخزّن ويُعاد استخدامها.
+`request.data()` is turned into a `JRBeanCollectionDataSource` automatically, and `request.parameters()` are
+passed as report parameters (`$P{...}`). Compiled templates are cached and reused.
 
-## مع Claude Code
+## With Claude Code
 
-المجلد `claude-skill/pdf-print` فيه skill يربط المكتبة بأي مشروع حالي أو جديد: الاعتماد، بناء المستند من
-بيانات البرنامج، نافذة المعاينة، والاختبار. انسخه إلى `~/.claude/skills/` ثم قل لـ Claude: «ضيف طباعة PDF
-للفاتورة» أو «اعمل معاينة قبل الطباعة».
+The `claude-skill/pdf-print` folder holds a skill that wires the library into any existing or new project:
+the dependency, building the document from the program's data, the preview window, and the tests. Copy it
+to `~/.claude/skills/` and then tell Claude: "add PDF printing for the invoice" or "add a preview before
+printing".
 
-## الترقية من 1.0
+## Upgrading from 1.0
 
-- المكتبة بقت وحدات: بدّل `smart-report-plugin` بالوحدة اللي بتستخدمها (`smart-report-pdf` / `-excel` / `-jasper`).
-- `JasperExportFormat` اتنقل من `com.smart.report.jasper` لـ `com.smart.report`.
-- لو كاتب `ReportProvider` خاصًا بيك: زاد عليه `type()`، وبيتسجّل في `META-INF/services/com.smart.report.ReportProvider`.
-- تقرير الـ PDF العام بقى يلتف النص الطويل بدل تقطيعه بـ `...`، والتقرير العربي جدوله من اليمين.
+- The library is now modules: replace `smart-report-plugin` with the module you use (`smart-report-pdf` / `-excel` / `-jasper`).
+- `JasperExportFormat` moved from `com.smart.report.jasper` to `com.smart.report`.
+- If you wrote your own `ReportProvider`: it gained `type()`, and it is registered in `META-INF/services/com.smart.report.ReportProvider`.
+- The generic PDF report now wraps long text instead of cutting it with `...`, and an Arabic report's table runs from the right.
 
-## الاختبارات والبناء
+## Tests and build
 
 ```bash
-mvn test       # كل الوحدات
-mvn install    # يبني الوحدات وينزّلها في المستودع المحلي
+mvn test       # every module
+mvn install    # builds the modules and installs them in the local repository
 ```
 
-اختبارات الـ PDF بتقرا **مواضع** الحروف المرسومة مش النص المستخرج بس: عيوب الاتجاه (عمود في الناحية
-الغلط، إجمالي تحت عمود تاني، آخر الجملة في السطر الأول) ما بتظهرش في النص.
+The PDF tests read the **positions** of the drawn glyphs, not only the extracted text: direction faults
+(a column on the wrong side, a total under another column, the end of a sentence on the first line) do not
+show in the text.
 
-## الرخص
+## Licenses
 
-المشروع مرخّص تحت [MIT License](LICENSE). الخط المضمَّن Noto Naskh Arabic مرخّص تحت
+The project is licensed under the [MIT License](LICENSE). The bundled Noto Naskh Arabic font is licensed under the
 [SIL Open Font License 1.1](smart-report-pdf/src/main/resources/com/smart/report/pdf/fonts/OFL.txt).
