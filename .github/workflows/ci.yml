@@ -1,0 +1,48 @@
+# Builds every module and runs every test on each push to master, each pull request and each release tag.
+# JitPack builds the library straight from a tag, so this is the check that stands between a tag and its users.
+name: CI
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request makes the older run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test (Java ${{ matrix.java }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 21: what the library is compiled for and what JitPack builds with. 25: the current LTS.
+        java: ['21', '25']
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      # The preview window's tests open a real JavaFX window; xvfb gives them a display.
+      # Without one they are skipped rather than failed, so the run still says whether they ran.
+      - name: Build and test
+        run: xvfb-run -a mvn -B -ntp verify
+
+      - name: Test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: surefire-reports-java-${{ matrix.java }}
+          path: '**/target/surefire-reports/'
+          retention-days: 14
