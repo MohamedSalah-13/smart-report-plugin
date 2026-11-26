@@ -65,6 +65,17 @@ final class Glyphs {
         return (float) glyphs.stream().mapToDouble(Glyph::y).max().orElse(0);
     }
 
+    /** مواضع السطور المرسومة في الصفحة من فوق لتحت (حروف بنفس الارتفاع تقريبًا = سطر واحد). */
+    List<Float> lineYs(int page) {
+        List<Float> lines = new ArrayList<>();
+        glyphs.stream().filter(glyph -> glyph.page() == page).map(Glyph::y).sorted().forEach(y -> {
+            if (lines.isEmpty() || y - lines.get(lines.size() - 1) > 0.5f) {
+                lines.add(y);
+            }
+        });
+        return lines;
+    }
+
     int pages() {
         return glyphs.stream().mapToInt(Glyph::page).max().orElse(0);
     }

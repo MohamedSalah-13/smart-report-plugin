@@ -1,6 +1,6 @@
 # Smart Report Plugin
 
-![CI](https://github.com/MohamedSalah-13/smart-report-plugin/actions/workflows/ci.yml/badge.svg) ![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white) ![JavaFX](https://img.shields.io/badge/JavaFX-21-2E7DAF?logo=java&logoColor=white) ![Apache PDFBox](https://img.shields.io/badge/Apache%20PDFBox-3.0.3-D22128?logo=apache&logoColor=white) ![Apache POI](https://img.shields.io/badge/Apache%20POI-5.3.0-D22128?logo=apache&logoColor=white) ![JasperReports](https://img.shields.io/badge/JasperReports-6.21.3-C2185B) ![Release](https://img.shields.io/github/v/tag/MohamedSalah-13/smart-report-plugin) ![License](https://img.shields.io/github/license/MohamedSalah-13/smart-report-plugin)
+![CI](https://github.com/MohamedSalah-13/smart-report-plugin/actions/workflows/ci.yml/badge.svg) ![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white) ![JavaFX](https://img.shields.io/badge/JavaFX-21-2E7DAF?logo=java&logoColor=white) ![Apache PDFBox](https://img.shields.io/badge/Apache%20PDFBox-3.0.8-D22128?logo=apache&logoColor=white) ![Apache POI](https://img.shields.io/badge/Apache%20POI-5.3.0-D22128?logo=apache&logoColor=white) ![JasperReports](https://img.shields.io/badge/JasperReports-6.21.3-C2185B) ![Release](https://img.shields.io/github/v/tag/MohamedSalah-13/smart-report-plugin) ![License](https://img.shields.io/github/license/MohamedSalah-13/smart-report-plugin)
 
 **English** | [العربية](README.ar.md)
 
@@ -86,7 +86,8 @@ PdfDocument document = PdfDocument.rtl(Paper.A5)            // or Paper.A4, or P
         .summary("المستحق عن الفترة", "7,200.00")
         .summary("الواصل", "4,000.00")
         .summaryTotal("الباقى", "3,200.00")
-        .footer("شكرًا لتعاملكم");
+        .footer("شكرًا لتعاملكم")
+        .signatures("المستلم", "المحاسب", "الختم");          // signature boxes, kept together
 
 document.save(Path.of("statement.pdf"));     // a file
 byte[] pdf = document.toBytes();             // or bytes
@@ -96,7 +97,8 @@ byte[] pdf = document.toBytes();             // or bytes
 - Columns and cells are written **in logical order**; the library is what puts the first column on the right in an Arabic page.
 - A column's number (22, 14, 26) is its weight in the table's width, and no column goes below the width of its longest word.
 - Text longer than its column **wraps** over several lines, the table header repeats on every page, and pages are numbered ("Page 2 of 3") once the document runs over one page.
-- A row taller than a whole page continues on the next page.
+- A row taller than a whole page continues on the next page, and so does a field whose value is taller than a page.
+  A table header taller than a third of the page is drawn once instead of on every page.
 - Negative numbers, dates, percentages and phone numbers read as they were written inside an Arabic sentence.
 
 ### Amount in words (`AmountInWords`)
@@ -120,6 +122,32 @@ AmountInWords.arabicWords(new BigDecimal("0.13"), AmountInWords.Currency.SAR);  
 - Ready currencies: `EGP`, `SAR`, `AED`, `KWD` (3 fraction digits) and `USD`. Any other is a `new Currency(...)` with its noun forms.
 - The amount is rounded to the currency's digits (half up). Negative amounts and amounts of a trillion or more are rejected.
 - It lives in `smart-report-api`, so a Jasper or Excel report can use it too (as a parameter, for example).
+
+### On every page
+
+```java
+document.letterheadOnEveryPage(true)                              // the letterhead (and logo) on top of every page
+        .pageFooter("صادر من نظام نقلات - ت: 0100 000 0000");      // a small line at the bottom of every page
+```
+
+- `letterheadOnEveryPage(true)`: for long statements; a table that continues on a new page has its header under the letterhead.
+- `pageFooter(text)`: above the page number on every page, including a single page. `footer(text)` is different:
+  a closing sentence drawn once after the last part.
+
+### Thermal receipts (80 mm and 58 mm)
+
+```java
+PdfDocument receipt = PdfDocument.rtl(Paper.ROLL_80)          // or Paper.ROLL_58
+        .letterhead("سوبر ماركت الهدى", "ت: 0100 000 0000")
+        .table(items)
+        .summaryTotal("الإجمالى", "85.00")
+        .footer("شكرًا لزيارتكم");
+```
+
+- A receipt is **one page as long as its content**, not an A4 sheet: the roll is cut where the text ends.
+- A smaller font and narrow margins are chosen for the roll. `PdfPrinter` asks the printer for no paper size, so it
+  uses its own roll.
+- `Paper.parse("80mm")` and the preview window know the rolls too.
 
 ### Style (`PdfStyle`)
 
@@ -229,7 +257,10 @@ A column can carry its own options for the PDF report — a format pattern, an a
   to the end of the line and anything else to the start.
 - `withWeight`: the column's share of the table width (2 = twice a normal column).
 
-The Excel report writes values with their own types and Excel's formats, so it ignores these options.
+The Excel report applies the format (turned into an Excel format, so a number stays a number and a date a date)
+and the alignment. It ignores the weight: its columns are sized to their content. A date pattern letter Excel has no
+format for (a time zone, `z`), or an hour Excel would show differently (`hh` without `a`), fails with a
+`ReportException` naming the column.
 
 Both reports run right to left if the title or any column header contains Arabic (in Excel the sheet itself
 runs right to left). The PDF report is on portrait A4. To change that:

@@ -2,7 +2,7 @@
 
 # Smart Report Plugin
 
-![CI](https://github.com/MohamedSalah-13/smart-report-plugin/actions/workflows/ci.yml/badge.svg) ![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white) ![JavaFX](https://img.shields.io/badge/JavaFX-21-2E7DAF?logo=java&logoColor=white) ![Apache PDFBox](https://img.shields.io/badge/Apache%20PDFBox-3.0.3-D22128?logo=apache&logoColor=white) ![Apache POI](https://img.shields.io/badge/Apache%20POI-5.3.0-D22128?logo=apache&logoColor=white) ![JasperReports](https://img.shields.io/badge/JasperReports-6.21.3-C2185B) ![Release](https://img.shields.io/github/v/tag/MohamedSalah-13/smart-report-plugin) ![License](https://img.shields.io/github/license/MohamedSalah-13/smart-report-plugin)
+![CI](https://github.com/MohamedSalah-13/smart-report-plugin/actions/workflows/ci.yml/badge.svg) ![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white) ![JavaFX](https://img.shields.io/badge/JavaFX-21-2E7DAF?logo=java&logoColor=white) ![Apache PDFBox](https://img.shields.io/badge/Apache%20PDFBox-3.0.8-D22128?logo=apache&logoColor=white) ![Apache POI](https://img.shields.io/badge/Apache%20POI-5.3.0-D22128?logo=apache&logoColor=white) ![JasperReports](https://img.shields.io/badge/JasperReports-6.21.3-C2185B) ![Release](https://img.shields.io/github/v/tag/MohamedSalah-13/smart-report-plugin) ![License](https://img.shields.io/github/license/MohamedSalah-13/smart-report-plugin)
 
 [English](README.md) | **العربية**
 
@@ -94,7 +94,8 @@ PdfDocument document = PdfDocument.rtl(Paper.A5)            // أو Paper.A4، �
         .summary("المستحق عن الفترة", "7,200.00")
         .summary("الواصل", "4,000.00")
         .summaryTotal("الباقى", "3,200.00")
-        .footer("شكرًا لتعاملكم");
+        .footer("شكرًا لتعاملكم")
+        .signatures("المستلم", "المحاسب", "الختم");          // خانات توقيع، بتفضل مع بعض
 
 document.save(Path.of("statement.pdf"));     // ملف
 byte[] pdf = document.toBytes();             // أو بايتات
@@ -106,7 +107,8 @@ byte[] pdf = document.toBytes();             // أو بايتات
 - الأعمدة والخلايا بتتكتب **بالترتيب المنطقي**؛ المكتبة هي اللي بتحط أول عمود على اليمين في الصفحة العربية.
 - رقم العمود (22، 14، 26) وزنه من عرض الجدول، ومفيش عمود بينزل عن عرض أطول كلمة فيه.
 - النص الأطول من عموده **بيلتف** على أكتر من سطر، ورأس الجدول بيتكرر في كل صفحة، والصفحات بتترقّم ("صفحة 2 من 3") لما المستند يبقى أكتر من صفحة.
-- الصف الأطول من صفحة كاملة بيكمل على الصفحة اللي بعدها.
+- الصف الأطول من صفحة كاملة بيكمل على الصفحة اللي بعدها، وكذلك البيان اللي قيمته أطول من صفحة. ورأس الجدول
+  الأطول من تلت الصفحة بيترسم مرة واحدة بدل ما يتكرر في كل صفحة.
 - الأرقام السالبة، التواريخ، النسب، وأرقام التليفون بتتقرا زي ما اتكتبت جوّه الجملة العربية.
 
 ### التفقيط (`AmountInWords`)
@@ -134,6 +136,39 @@ AmountInWords.arabicWords(new BigDecimal("0.13"), AmountInWords.Currency.SAR);  
 - عملات جاهزة: `EGP` و`SAR` و`AED` و`KWD` (3 خانات للفلس) و`USD`، وأي عملة تانية `new Currency(...)` بصيغ اسمها.
 - المبلغ بيتقرّب لخانات العملة (النص لفوق)، والسالب أو اللي من ألف مليار وأكتر بيترفض.
 - موجود في `smart-report-api`، فتقارير Jasper و Excel تقدر تستخدمه كمان (كـ parameter مثلًا).
+
+### في كل صفحة
+
+<div dir="ltr">
+
+```java
+document.letterheadOnEveryPage(true)                              // الترويسة (والشعار) أعلى كل صفحة
+        .pageFooter("صادر من نظام نقلات - ت: 0100 000 0000");      // سطر صغير أسفل كل صفحة
+```
+
+</div>
+
+- `letterheadOnEveryPage(true)`: للكشوف الطويلة؛ والجدول اللي بيكمل على صفحة جديدة رأسه بييجي تحت الترويسة.
+- `pageFooter(text)`: فوق رقم الصفحة في كل صفحة، حتى لو المستند صفحة واحدة. غير `footer(text)` اللي هو جملة
+  ختامية بتترسم مرة واحدة بعد آخر جزء.
+
+### إيصالات الطابعة الحرارية (80 مم و 58 مم)
+
+<div dir="ltr">
+
+```java
+PdfDocument receipt = PdfDocument.rtl(Paper.ROLL_80)          // أو Paper.ROLL_58
+        .letterhead("سوبر ماركت الهدى", "ت: 0100 000 0000")
+        .table(items)
+        .summaryTotal("الإجمالى", "85.00")
+        .footer("شكرًا لزيارتكم");
+```
+
+</div>
+
+- الإيصال **صفحة واحدة بطول المكتوب فيه**، مش ورقة A4: اللفة بتتقص عند آخر سطر.
+- الخط أصغر والهوامش ضيقة على اللفة. و`PdfPrinter` ما بيطلبش من الطابعة مقاس ورق، فبتستخدم لفتها.
+- `Paper.parse("80mm")` ونافذة المعاينة بيعرفوا اللفات كمان.
 
 ### الشكل (`PdfStyle`)
 
@@ -262,7 +297,9 @@ ReportService.generateToFile(ReportType.PDF, request, Path.of("employees.pdf"));
   عمود تاني لبدايته.
 - `withWeight`: نصيب العمود من عرض الجدول (2 = ضعف العمود العادي).
 
-تقرير الـ Excel بيكتب القيم بأنواعها الأصلية وبتنسيقات Excel نفسه، فبيتجاهل الخيارات دي.
+تقرير الـ Excel بياخد النمط (محوَّلًا لصيغة Excel، فالرقم بيفضل رقم والتاريخ تاريخ) والمحاذاة، وبيتجاهل الوزن:
+عرض أعمدته على قد محتواها. حرف نمط تاريخ مالوش مقابل في Excel (المنطقة الزمنية `z`)، أو ساعة Excel هيعرضها بشكل تاني (`hh` من غير `a`)،
+بيرمي `ReportException` باسم العمود.
 
 التقريرين بيبقوا من اليمين لليسار لو العنوان أو أي رأس عمود فيه عربي (في Excel الورقة نفسها بتبقى من اليمين).
 تقرير الـ PDF على A4 طولي. للتغيير:

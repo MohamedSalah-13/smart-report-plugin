@@ -32,12 +32,26 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ matrix.java }}
-          cache: maven
+
+      # setup-java's own Maven cache is keyed on the pom files alone, and every release changes their version,
+      # so each release run used to download everything again - and Maven Central answered 429 Too Many Requests.
+      # restore-keys brings back the newest cache when the poms changed; the full key saves an updated one.
+      - name: Maven cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-java${{ matrix.java }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-java${{ matrix.java }}-
 
       # The preview window's tests open a real JavaFX window; xvfb gives them a display.
       # Without one they are skipped rather than failed, so the run still says whether they ran.
+      # Maven retries 429/503 three times 5 s apart by default; six tries 10 s, 20 s, ... apart ride out a rate limit.
       - name: Build and test
-        run: xvfb-run -a mvn -B -ntp verify
+        run: >-
+          xvfb-run -a mvn -B -ntp verify
+          -Daether.connector.http.retryHandler.count=6
+          -Daether.connector.http.retryHandler.interval=10000
 
       - name: Test reports
         if: failure()

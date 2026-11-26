@@ -117,7 +117,8 @@ public final class PdfPrinter {
 
     /** اسم الورقة عند الطابعة: A4 و A5 باسميهما، وأي مقاس تاني بأقرب مقاس تعرفه Java. */
     static MediaSizeName media(Paper paper) {
-        if (paper == null) {
+        // اللفة الحرارية مالهاش مقاس في Java: الطابعة بتستخدم لفتها، والصفحة بتتبعت بطولها الفعلي.
+        if (paper == null || paper.roll()) {
             return null;
         }
         Paper upright = paper.portrait();
