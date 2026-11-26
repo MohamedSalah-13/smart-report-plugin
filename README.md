@@ -99,6 +99,28 @@ byte[] pdf = document.toBytes();             // or bytes
 - A row taller than a whole page continues on the next page.
 - Negative numbers, dates, percentages and phone numbers read as they were written inside an Arabic sentence.
 
+### Amount in words (`AmountInWords`)
+
+The total written out in Arabic, as on an invoice or a receipt:
+
+```java
+import com.smart.report.util.AmountInWords;
+
+document.text(AmountInWords.arabic(new BigDecimal("7200"), AmountInWords.Currency.EGP));
+// فقط سبعة آلاف ومائتا جنيه لا غير
+
+AmountInWords.arabic(new BigDecimal("1234.50"), AmountInWords.Currency.EGP);
+// فقط ألف ومائتان وأربعة وثلاثون جنيهًا وخمسون قرشًا لا غير
+AmountInWords.arabicWords(new BigDecimal("0.13"), AmountInWords.Currency.SAR);   // without «فقط ... لا غير»
+// ثلاث عشرة هللةً
+```
+
+- The counted noun follows the number: `جنيه واحد`, `جنيهان`, `ثلاثة جنيهات`, `أحد عشر جنيهًا`, `مائة جنيه`, `مائتا جنيه`, `ألفا جنيه`.
+- Numbers agree with the noun's gender: `ثلاثة جنيهات` but `ثلاث هللات`.
+- Ready currencies: `EGP`, `SAR`, `AED`, `KWD` (3 fraction digits) and `USD`. Any other is a `new Currency(...)` with its noun forms.
+- The amount is rounded to the currency's digits (half up). Negative amounts and amounts of a trillion or more are rejected.
+- It lives in `smart-report-api`, so a Jasper or Excel report can use it too (as a parameter, for example).
+
 ### Style (`PdfStyle`)
 
 With nothing set, the style follows the paper (`PdfStyle.forPaper`): a smaller font and margins on A5. To change it:
