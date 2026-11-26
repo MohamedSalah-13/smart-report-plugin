@@ -113,6 +113,35 @@ class PdfDocumentLayoutTest {
         assertTrue(glyphs.drawn("Total", pages), "الإجمالي في آخر صفحة");
     }
 
+    /**
+     * خلية نصها أطول من صفحة كاملة: الصف بيتقسّم على الصفحات. كان بيترسم كله من مكانه، فباقيه ينزل
+     * تحت حافة الورقة ويضيع في الطباعة من غير أي تحذير.
+     */
+    @Test
+    void rowTallerThanThePageIsSplitAcrossPagesAndNothingLeavesThePaper() throws Exception {
+        StringBuilder note = new StringBuilder();
+        for (int word = 1; word <= 400; word++) {
+            note.append('w').append(word).append(' ');
+        }
+        Glyphs glyphs = Glyphs.of(PdfDocument.ltr(Paper.A5).pageNumbers(PageNumbers.NONE)
+                .table(t -> t.column("Note", 1).column("Amount", 3)
+                        .row("before", "4").row(note.toString().trim(), "5").row("after", "6"))
+                .toBytes());
+
+        float lastLine = Paper.A5.height() - PdfStyle.forPaper(Paper.A5).margin();
+        assertTrue(glyphs.lowest() <= lastLine, "حرف مرسوم تحت الهامش السفلي: " + glyphs.lowest());
+
+        int pages = glyphs.pages();
+        assertTrue(pages >= 3, "400 سطر على A5 أكتر من صفحتين: " + pages);
+        assertTrue(glyphs.drawn("w1", 1), "الصف بيبدأ في الصفحة اللي وصلها، مش في صفحة جديدة");
+        assertTrue(glyphs.drawn("w400", pages));
+        assertTrue(glyphs.drawn("after", pages), "الصف التالي بعد آخر جزء");
+        assertTrue(glyphs.first("w400", pages).y() < glyphs.first("after", pages).y());
+        for (int page = 1; page <= pages; page++) {
+            assertTrue(glyphs.drawn("Note", page), "رأس الجدول ناقص في صفحة " + page);
+        }
+    }
+
     @Test
     void singlePageIsNotNumberedUnlessAsked() throws Exception {
         assertFalse(Glyphs.of(PdfDocument.ltr(Paper.A4).title("One").toBytes()).drawn("Page 1 of 1", 1));

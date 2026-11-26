@@ -60,6 +60,11 @@ final class Glyphs {
         return find(token, page) != null;
     }
 
+    /** بُعد أوطى حرف مرسوم عن أعلى صفحته، بالنقطة. */
+    float lowest() {
+        return (float) glyphs.stream().mapToDouble(Glyph::y).max().orElse(0);
+    }
+
     int pages() {
         return glyphs.stream().mapToInt(Glyph::page).max().orElse(0);
     }
