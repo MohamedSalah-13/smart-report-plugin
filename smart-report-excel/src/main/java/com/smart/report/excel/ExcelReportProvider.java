@@ -10,6 +10,7 @@ import com.smart.report.util.TextDirection;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
@@ -29,7 +30,9 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * يولّد تقرير Excel (.xlsx) عام (عنوان + رأس أعمدة منسّق + صفوف بيانات) بدون الحاجة لأي قالب،
@@ -82,11 +85,16 @@ public final class ExcelReportProvider implements ReportProvider {
         try (workbook) {
             workbook.setCompressTempFiles(true);
             SXSSFSheet sheet = workbook.createSheet(sheetName(request.title()));
-            sheet.setRightToLeft(TextDirection.rightToLeft(request, RIGHT_TO_LEFT));
+            boolean rightToLeft = TextDirection.rightToLeft(request, RIGHT_TO_LEFT);
+            sheet.setRightToLeft(rightToLeft);
             // بيتابع عرض الأعمدة والصفوف بتتكتب، فـ autoSizeColumn تفضل شغالة من غير
             // ما نحتفظ بكل الصفوف في الذاكرة
             sheet.trackAllColumnsForAutoSizing();
             Styles styles = createStyles(workbook);
+            ColumnStyles[] columnStyles = new ColumnStyles[columns.size()];
+            for (int i = 0; i < columns.size(); i++) {
+                columnStyles[i] = new ColumnStyles(workbook, columns.get(i), rightToLeft);
+            }
 
             int rowIndex = 0;
             if (headerRows == 3) {
@@ -108,7 +116,11 @@ public final class ExcelReportProvider implements ReportProvider {
                 Row row = sheet.createRow(rowIndex++);
                 for (int i = 0; i < columns.size(); i++) {
                     Object value = BeanPropertyReader.read(item, columns.get(i).fieldName());
-                    writeCell(row.createCell(i), value, styles);
+                    try {
+                        writeCell(row.createCell(i), value, columnStyles[i]);
+                    } catch (IllegalArgumentException e) {
+                        throw new ReportException("Column '" + columns.get(i).fieldName() + "': " + e.getMessage(), e);
+                    }
                 }
             }
 
@@ -130,57 +142,128 @@ public final class ExcelReportProvider implements ReportProvider {
      * التواريخ في Excel أرقام تسلسلية، فبدون تنسيق تاريخ على الخلية بيظهروا للمستخدم كرقم
      * زي {@code 45245.01} بدل التاريخ نفسه؛ عشان كده كل نوع تاريخ بياخد الـ style المناسب له.
      */
-    private void writeCell(Cell cell, Object value, Styles styles) {
-        switch (value) {
-            case null -> cell.setBlank();
-            case Number number -> cell.setCellValue(number.doubleValue());
-            case Boolean bool -> cell.setCellValue(bool);
+    private void writeCell(Cell cell, Object value, ColumnStyles styles) {
+        CellStyle style = switch (value) {
+            case null -> {
+                cell.setBlank();
+                yield styles.text();
+            }
+            case Number number -> {
+                cell.setCellValue(number.doubleValue());
+                yield styles.number();
+            }
+            case Boolean bool -> {
+                cell.setCellValue(bool);
+                yield styles.text();
+            }
             // أنواع java.sql بترث java.util.Date، فلازم تتفحص قبلها
             case java.sql.Date date -> {
                 cell.setCellValue(date.toLocalDate());
-                cell.setCellStyle(styles.date());
+                yield styles.date(DATE_FORMAT);
             }
             case java.sql.Time time -> {
                 cell.setCellValue(fractionOfDay(time.toLocalTime()));
-                cell.setCellStyle(styles.time());
+                yield styles.date(TIME_FORMAT);
             }
             case java.sql.Timestamp timestamp -> {
                 cell.setCellValue(timestamp.toLocalDateTime());
-                cell.setCellStyle(styles.dateTime());
+                yield styles.date(DATE_TIME_FORMAT);
             }
             case Date date -> {
                 cell.setCellValue(date);
-                cell.setCellStyle(styles.dateTime());
+                yield styles.date(DATE_TIME_FORMAT);
             }
             case Calendar calendar -> {
                 cell.setCellValue(calendar);
-                cell.setCellStyle(styles.dateTime());
+                yield styles.date(DATE_TIME_FORMAT);
             }
             case LocalDate date -> {
                 cell.setCellValue(date);
-                cell.setCellStyle(styles.date());
+                yield styles.date(DATE_FORMAT);
             }
             case LocalDateTime dateTime -> {
                 cell.setCellValue(dateTime);
-                cell.setCellStyle(styles.dateTime());
+                yield styles.date(DATE_TIME_FORMAT);
             }
             case LocalTime time -> {
                 cell.setCellValue(fractionOfDay(time));
-                cell.setCellStyle(styles.time());
+                yield styles.date(TIME_FORMAT);
             }
             case Instant instant -> {
                 cell.setCellValue(LocalDateTime.ofInstant(instant, ZoneId.systemDefault()));
-                cell.setCellStyle(styles.dateTime());
+                yield styles.date(DATE_TIME_FORMAT);
             }
             case ZonedDateTime zoned -> {
                 cell.setCellValue(zoned.toLocalDateTime());
-                cell.setCellStyle(styles.dateTime());
+                yield styles.date(DATE_TIME_FORMAT);
             }
             case OffsetDateTime offset -> {
                 cell.setCellValue(offset.toLocalDateTime());
-                cell.setCellStyle(styles.dateTime());
+                yield styles.date(DATE_TIME_FORMAT);
             }
-            default -> cell.setCellValue(String.valueOf(value));
+            default -> {
+                cell.setCellValue(String.valueOf(value));
+                yield styles.text();
+            }
+        };
+        if (style != null) {
+            cell.setCellStyle(style);
+        }
+    }
+
+    /**
+     * styles عمود واحد، بتتعمل أول ما قيمة محتاجاها تيجي: نمط العمود (لو فيه) بصيغة Excel ومحاذاته.
+     * النمط بيتحوّل حسب نوع القيمة — أرقام أو تواريخ — فنمط تاريخ في عمود أرقام ما بيتلمسش.
+     *
+     * <p>Excel بيقف عند 64,000 style، فكل عمود بيعمل style واحد لكل صيغة، مش لكل خلية.</p>
+     */
+    private static final class ColumnStyles {
+
+        private final Workbook workbook;
+        private final String format;
+        private final HorizontalAlignment alignment;
+        private final Map<String, CellStyle> made = new HashMap<>();
+
+        ColumnStyles(Workbook workbook, ColumnDefinition column, boolean rightToLeft) {
+            this.workbook = workbook;
+            this.format = column.format();
+            // Excel بيحاذي يمين وشمال على الورقة نفسها حتى في الورقة العربية، فالبداية بتتحسب من اتجاهها.
+            this.alignment = column.align() == null ? null : switch (column.align()) {
+                case START -> rightToLeft ? HorizontalAlignment.RIGHT : HorizontalAlignment.LEFT;
+                case CENTER -> HorizontalAlignment.CENTER;
+                case END -> rightToLeft ? HorizontalAlignment.LEFT : HorizontalAlignment.RIGHT;
+            };
+        }
+
+        /** نص أو قيمة منطقية: المحاذاة بس، و{@code null} لو مفيش (زي الأول بالظبط). */
+        CellStyle text() {
+            return alignment == null ? null : style("text", null);
+        }
+
+        CellStyle number() {
+            return format == null ? text() : style("number", ExcelFormats.number(format));
+        }
+
+        /** تاريخ: نمط العمود لو فيه، وإلا الصيغة الافتراضية لنوعه. */
+        CellStyle date(String defaultFormat) {
+            String excel = format == null ? defaultFormat : ExcelFormats.date(format);
+            return style("date|" + excel, excel);
+        }
+
+        private CellStyle style(String key, String dataFormat) {
+            CellStyle known = made.get(key);
+            if (known != null) {
+                return known;
+            }
+            CellStyle created = workbook.createCellStyle();
+            if (alignment != null) {
+                created.setAlignment(alignment);
+            }
+            if (dataFormat != null) {
+                created.setDataFormat(workbook.createDataFormat().getFormat(dataFormat));
+            }
+            made.put(key, created);
+            return created;
         }
     }
 
@@ -207,16 +290,7 @@ public final class ExcelReportProvider implements ReportProvider {
         CellStyle title = workbook.createCellStyle();
         title.setFont(titleFont);
 
-        return new Styles(title, header,
-                dateStyle(workbook, DATE_FORMAT),
-                dateStyle(workbook, DATE_TIME_FORMAT),
-                dateStyle(workbook, TIME_FORMAT));
-    }
-
-    private CellStyle dateStyle(Workbook workbook, String format) {
-        CellStyle style = workbook.createCellStyle();
-        style.setDataFormat(workbook.createDataFormat().getFormat(format));
-        return style;
+        return new Styles(title, header);
     }
 
     private String sheetName(String title) {
@@ -226,5 +300,5 @@ public final class ExcelReportProvider implements ReportProvider {
         return sanitized.length() > 31 ? sanitized.substring(0, 31) : sanitized;
     }
 
-    private record Styles(CellStyle title, CellStyle header, CellStyle date, CellStyle dateTime, CellStyle time) {}
+    private record Styles(CellStyle title, CellStyle header) {}
 }
