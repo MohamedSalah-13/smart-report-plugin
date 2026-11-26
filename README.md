@@ -259,7 +259,8 @@ A column can carry its own options for the PDF report — a format pattern, an a
 
 The Excel report applies the format (turned into an Excel format, so a number stays a number and a date a date)
 and the alignment. It ignores the weight: its columns are sized to their content. A date pattern letter Excel has no
-format for (a time zone, `z`) fails with a `ReportException` naming the column.
+format for (a time zone, `z`), or an hour Excel would show differently (`hh` without `a`), fails with a
+`ReportException` naming the column.
 
 Both reports run right to left if the title or any column header contains Arabic (in Excel the sheet itself
 runs right to left). The PDF report is on portrait A4. To change that:

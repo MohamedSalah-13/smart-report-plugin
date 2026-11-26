@@ -72,6 +72,24 @@ class RollPaperTest {
         assertTrue(glyphs.drawn("item1300", glyphs.pages()));
     }
 
+    /**
+     * عنوان القسم بيحجز مكانًا لنفسه ولرأس جدول وصف بعده، أكتر من اللي بيرسمه. القياس كان بيحسب
+     * المرسوم بس، فالورقة المقصوصة ما كانتش بتكفّي الحجز والعنوان كان بيتنقل لورقة تانية.
+     */
+    @Test
+    void receiptEndingInAHeadingStaysOnOnePage() throws Exception {
+        for (PdfDocument document : new PdfDocument[]{
+                PdfDocument.ltr(Paper.ROLL_80).text("line\n".repeat(30)).heading("End"),
+                PdfDocument.ltr(Paper.ROLL_80).text("line\n".repeat(30)).heading("End").text("one"),
+                receipt(Paper.ROLL_80, 5).heading("End"),
+                receipt(Paper.ROLL_58, 5).signatures("Cashier", "Customer")}) {
+            byte[] pdf = document.toBytes();
+            assertEquals(1, pages(pdf).size());
+            float height = pages(pdf).get(0).getHeight();
+            assertTrue(Glyphs.of(pdf).lowest() <= height - PdfStyle.forPaper(Paper.ROLL_80).margin(), "" + height);
+        }
+    }
+
     @Test
     void narrowRollTakesASmallerStyle() throws Exception {
         List<PDRectangle> boxes = pages(receipt(Paper.ROLL_58, 3).toBytes());

@@ -84,6 +84,11 @@ final class PageWriter {
     private float freshTop;
     /** الترويسة بتترسم دلوقتي: مفيش فتح صفحات من جوّاها. */
     private boolean inLetterhead;
+    /**
+     * أوطى نقطة اتحجزت في الصفحة الحالية: الجزء اللي بيحجز مكانه قبل ما يترسم (عنوان القسم بيحجز لنفسه
+     * ولرأس جدول وصف بعده) ممكن يحجز أكتر من اللي رسمه، والورقة الحرارية لازم تكفّي الحجز ده كمان.
+     */
+    private float lowestReserved = Float.MAX_VALUE;
 
     /** @param page الورقة اللي الصفحات بتترسم عليها؛ في الورق الحراري ارتفاعها بيتحدد من المحتوى */
     PageWriter(PDDocument pdf, PdfDocument document, FontSet fonts, Paper page) {
@@ -131,7 +136,7 @@ final class PageWriter {
      * والهامش ومكان رقم الصفحة والتذييل تحته. {@code -1} لو المحتوى ما كفّتهوش صفحة واحدة.
      */
     float usedHeight() {
-        return pages == 1 ? paper.height() - y + bottom : -1;
+        return pages == 1 ? paper.height() - Math.min(y, lowestReserved) + bottom : -1;
     }
 
     private void draw(PdfDocument.Block block) throws IOException, ReportException {
@@ -181,6 +186,7 @@ final class PageWriter {
         pdf.addPage(page);
         stream = new PDPageContentStream(pdf, page);
         y = top;
+        lowestReserved = Float.MAX_VALUE;
         pages++;
         if (pages == 1 || document.letterheadOnEveryPage()) {
             inLetterhead = true;
@@ -209,6 +215,9 @@ final class PageWriter {
     private void need(float height) throws IOException, ReportException {
         if (!inLetterhead && y - height < bottom && !atTop()) {
             newPage();
+        }
+        if (!inLetterhead) {
+            lowestReserved = Math.min(lowestReserved, y - height);
         }
     }
 

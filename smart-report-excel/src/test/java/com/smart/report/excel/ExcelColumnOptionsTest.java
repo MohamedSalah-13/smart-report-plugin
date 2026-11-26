@@ -71,6 +71,9 @@ class ExcelColumnOptionsTest {
             "#,##0 'EGP'      | #,##0\" EGP\"",
             "#,##0 جنيه       | #,##0\" جنيه\"",
             "0.###E0          | 0.###E+0",
+            // الفاصلة في آخر صيغة Excel بتقسم على ألف: المكتوبة بين علامتي تنصيص بتفضل كده.
+            "0','             | 0\",\"",
+            "#,##0'.-'        | #,##0\".-\"",
     })
     void numberPatternsBecomeExcelFormats(String java, String excel) {
         assertEquals(excel, ExcelFormats.number(java));
@@ -86,9 +89,28 @@ class ExcelColumnOptionsTest {
             "HH:mm:ss.SSS           | hh:mm:ss.000",
             "yyyy-MM-dd'T'HH:mm     | yyyy-mm-dd\"T\"hh:mm",
             "dd 'of' MMMM           | dd\" of \"mmmm",
+            "HH 'h' mm              | hh\" h \"mm",
     })
     void datePatternsBecomeExcelFormats(String java, String excel) {
         assertEquals(excel, ExcelFormats.date(java));
+    }
+
+    /**
+     * Excel بيعرض الساعة بنظام 24 إلا مع AM/PM: الأنماط اللي كانت هتعرض ساعة غير اللي Java بتطبعها
+     * ({@code hh:mm} لـ 13:05 كانت هتطلع 13:05 بدل 01:05) بتترفض.
+     */
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {"hh:mm", "h:mm", "HH:mm a", "kk:mm", "KK:mm a"})
+    void clockPatternsExcelWouldShowDifferentlyAreRejected(String java) {
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, () -> ExcelFormats.date(java));
+        assertTrue(thrown.getMessage().contains(java), thrown.getMessage());
+    }
+
+    /** نفس الوقت في Java وفي الـ Excel بعد التحويل. */
+    @Test
+    void twelveHourClockShowsTheSameTimeInExcel() throws Exception {
+        Row row = firstRow(ColumnDefinition.of("at", "At").withFormat("hh:mm a"));
+        assertEquals("09:05 AM", shown(row.getCell(0)));
     }
 
     @Test

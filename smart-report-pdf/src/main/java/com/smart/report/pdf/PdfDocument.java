@@ -309,7 +309,6 @@ public final class PdfDocument {
     /** يكتب المستند في {@code out} ولا يقفله. */
     public void writeTo(OutputStream out) throws ReportException {
         Objects.requireNonNull(out, "out");
-        Paper page = paper;
         if (paper.roll()) {
             // الورق الحراري بيتقص على قد المكتوب: المستند بيترسم مرة على ورقة بأقصى طول عشان يتقاس، وبعدين
             // على ورقة بالطول اللي احتاجه. لو ما كفّتهوش ورقة بأقصى طول بيفضل صفحات بالطول ده.
@@ -317,10 +316,23 @@ public final class PdfDocument {
             if (used > 0) {
                 // نقطتين زيادة: الجزء الأخير بيقف على الحد بالظبط، وفرق تقريب صغير كان هيفتح له صفحة.
                 float height = Math.max((float) Math.ceil(used) + 2, paper.width());
-                page = new Paper(paper.name(), paper.width(), Math.min(paper.height(), height), true);
+                // القياس بيحسب المكان المحجوز كمان، فالمحاولة الأولى بتكفي؛ ولو حاجة لسه فتحت صفحة تانية
+                // الورقة بتطول بوصة وتتجرّب تاني بدل ما الإيصال يطلع على ورقتين.
+                for (int attempt = 0; attempt < 4 && height < paper.height(); attempt++) {
+                    ByteArrayOutputStream cut = new ByteArrayOutputStream();
+                    if (layOut(new Paper(paper.name(), paper.width(), height, true), cut) > 0) {
+                        try {
+                            cut.writeTo(out);
+                        } catch (IOException e) {
+                            throw new ReportException("Failed to write the PDF document: " + e.getMessage(), e);
+                        }
+                        return;
+                    }
+                    height += 72;
+                }
             }
         }
-        layOut(page, out);
+        layOut(paper, out);
     }
 
     /** يرسم المستند على {@code page} ويكتبه في {@code out} لو مش {@code null}؛ بيرجّع الطول المستخدم. */
