@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
+        <artifactId>smart-report-parent</artifactId>
+        <version>2.0.0</version>
+    </parent>
+
+    <artifactId>smart-report-jasper</artifactId>
+    <name>Smart Report Jasper</name>
+    <description>Reports filled from a JasperReports template (.jrxml / .jasper) and exported as PDF, XLSX, HTML or CSV.</description>
+
+    <properties>
+        <automatic.module.name>com.smart.report.jasper</automatic.module.name>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>smart-report-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>net.sf.jasperreports</groupId>
+            <artifactId>jasperreports</artifactId>
+        </dependency>
+
+        <!-- The tests that go through ReportService for every report type live here, where all three are at hand. -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>smart-report-pdf</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>smart-report-excel</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

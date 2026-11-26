@@ -1,106 +1,163 @@
 # Smart Report Plugin
 
-![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white) ![JasperReports](https://img.shields.io/badge/JasperReports-PDF-C2185B) ![Apache POI](https://img.shields.io/badge/Apache%20POI-Excel-D22128?logo=apache&logoColor=white) ![License](https://img.shields.io/badge/License-MIT-yellow)
+![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white) ![Apache PDFBox](https://img.shields.io/badge/Apache%20PDFBox-PDF-D22128?logo=apache&logoColor=white) ![Apache POI](https://img.shields.io/badge/Apache%20POI-Excel-D22128?logo=apache&logoColor=white) ![JasperReports](https://img.shields.io/badge/JasperReports-templates-C2185B) ![License](https://img.shields.io/badge/License-MIT-yellow)
 
-مكتبة (plugin) بجافا بتضاف كـ dependency لأي مشروع، وبتوفر واجهة موحّدة لطباعة كل أنواع التقارير من `List<POJO>`:
+مكتبة جافا للتقارير والطباعة، بتضاف كـ dependency لأي مشروع:
 
-- **PDF عام** (بدون قالب): جدول (عنوان + رأس أعمدة + صفوف بيانات) مع تقسيم تلقائي للصفحات وتكرار رأس الأعمدة في كل صفحة، ودعم كامل للعربي — عبر Apache PDFBox.
-- **Excel عام** (`.xlsx`, بدون قالب): نفس الفكرة، برأس منسّق وأعمدة بعرض تلقائي — عبر Apache POI.
-- **JasperReports** (قوالب `.jrxml`/`.jasper` مصممة بصريًا): تصدير PDF, XLSX, HTML, أو CSV من نفس القالب.
+- **مستندات PDF عربية جاهزة للطباعة** على A4 و A5 (طولي وعرضي): ترويسة، عنوان، بيانات، أكتر من جدول بصف إجمالي، ملخص، ترقيم صفحات — وإرسال مباشر للطابعة. عبر Apache PDFBox فقط.
+- **PDF أو Excel عام من `List<POJO>`** بدون أي قالب.
+- **JasperReports** (قوالب `.jrxml`/`.jasper` مصممة بصريًا): تصدير PDF, XLSX, HTML, أو CSV.
 
-مبني بـ Java 21 و Maven.
+<p align="center"><img src="docs/statement-a5.png" alt="كشف حساب على ورقة A5" width="420"></p>
 
-## المتطلبات
+## الوحدات
 
-- Java 21+
-- Maven 3.6+
+كل نوع في وحدة Maven لوحده، فالبرنامج اللي بيطبع PDF بس ما يشيلش POI ولا Jasper:
+
+| الوحدة | فيها إيه | بتجيب معاها |
+|---|---|---|
+| `smart-report-pdf` | `PdfDocument`، `PdfPrinter`، وتقرير PDF العام | PDFBox |
+| `smart-report-excel` | تقرير Excel العام | Apache POI |
+| `smart-report-jasper` | تقارير قوالب Jasper | JasperReports |
+| `smart-report-api` | `ReportService` و`ReportRequest` — بتيجي لوحدها مع أي وحدة فوق | slf4j-api فقط |
 
 ## التثبيت
 
-المشروع مش منشور على Maven Central، فبتضيفه محليًا:
-
-```bash
-mvn install
-```
-
-وبعدين تضيفه كـ dependency في `pom.xml` بتاع مشروعك:
+المكتبة بتتسحب من [JitPack](https://jitpack.io) مباشرة من tags المستودع:
 
 ```xml
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+</repositories>
+
 <dependency>
-    <groupId>com.smart.report</groupId>
-    <artifactId>smart-report-plugin</artifactId>
-    <version>1.0.0</version>
+    <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
+    <artifactId>smart-report-pdf</artifactId>
+    <version>v2.0.0</version>
 </dependency>
 ```
 
-> المكتبة بتستخدم `slf4j-api` فقط (بدون implementation)، فلو عايز تشوف الـ logs، ضيف backend من اختيارك (logback, slf4j-simple, ...) في مشروعك.
->
-> على مستوى `DEBUG` بتطلع: نوع التقرير وعدد صفوفه وحجمه وزمنه، الخط اللي اتقفل عليه الاختيار للـ PDF،
-> وتصريف قوالب Jasper (وزمنه) مقابل إعادة استخدام النسخة المخزَّنة. وعلى `WARN` بتنبّهك لو مفيش
-> خط Unicode متاح أصلًا.
+غيّر `artifactId` لـ `smart-report-excel` أو `smart-report-jasper` حسب اللي محتاجه. مبنية بـ Java 21.
 
-## الاستخدام السريع
+> المكتبة بتستخدم `slf4j-api` فقط (بدون implementation)، فلو عايز تشوف الـ logs ضيف backend من اختيارك
+> (logback, slf4j-simple, ...) في مشروعك.
 
-### PDF أو Excel عام (بدون قالب)
+## مستند PDF (`PdfDocument`)
+
+المستند بيتبني جزءًا بعد جزء بالترتيب اللي هيظهر بيه:
+
+```java
+import com.smart.report.pdf.*;
+
+PdfDocument document = PdfDocument.rtl(Paper.A5)            // أو Paper.A4، أو Paper.A4.landscape()
+        .letterhead("شركة الصفا لنقل مواد البناء", "القاهرة - ت: 0100 000 0000")
+        .title("كشف حساب عربية")
+        .subtitle("الفترة: من 2026-11-01 إلى 2026-11-30")
+        .field("رقم العربية", "ق ط ع 1234").field("السائق", "أحمد محمد علي")
+        .table(t -> t
+                .column("التاريخ", 22).column("العدد", 14, Align.CENTER).column("القيمة", 26, Align.CENTER)
+                .rows(movements, m -> new String[]{date(m), trips(m), amount(m)})
+                .totals("الإجمالى", "12 نقلة", "-7,200.00"))
+        .heading("الواصل والتسويات")
+        .table(payments)
+        .summary("المستحق عن الفترة", "7,200.00")
+        .summary("الواصل", "4,000.00")
+        .summaryTotal("الباقى", "3,200.00")
+        .footer("شكرًا لتعاملكم");
+
+document.save(Path.of("statement.pdf"));     // ملف
+byte[] pdf = document.toBytes();             // أو بايتات
+```
+
+- `PdfDocument.rtl(...)` للعربي و`PdfDocument.ltr(...)` للإنجليزي. الاتجاه بيحدد مكان أول عمود ومحاذاة النص.
+- الأعمدة والخلايا بتتكتب **بالترتيب المنطقي**؛ المكتبة هي اللي بتحط أول عمود على اليمين في الصفحة العربية.
+- رقم العمود (22، 14، 26) وزنه من عرض الجدول، ومفيش عمود بينزل عن عرض أطول كلمة فيه.
+- النص الأطول من عموده **بيلتف** على أكتر من سطر، ورأس الجدول بيتكرر في كل صفحة، والصفحات بتترقّم ("صفحة 2 من 3") لما المستند يبقى أكتر من صفحة.
+- الأرقام السالبة، التواريخ، النسب، وأرقام التليفون بتتقرا زي ما اتكتبت جوّه الجملة العربية.
+
+### الشكل (`PdfStyle`)
+
+من غير تحديد، الشكل بيتاخد حسب الورقة (`PdfStyle.forPaper`): خط وهوامش أصغر على A5. للتعديل:
+
+```java
+document.style(PdfStyle.forPaper(Paper.A4)
+        .withHeaderColors(0x2C3E50, 0xFFFFFF)   // رأس جدول غامق بخط أبيض
+        .withStripes(true)                      // تلوين الصفوف المتبادلة
+        .withMargin(28f));
+
+document.style(PdfStyle.forPaper(Paper.A5).inkSaver());   // بلا أي تعبئة: خطوط بدل الخلفيات
+```
+
+### الطباعة (`PdfPrinter`)
+
+```java
+List<String> printers = PdfPrinter.printerNames();          // الطابعات المعرّفة على الجهاز
+Optional<String> preferred = PdfPrinter.defaultPrinter();
+
+PdfPrinter.print(document, printerName, 1);                 // المستند على ورقته، نسخة واحدة
+PdfPrinter.print(pdfBytes, printerName, Paper.A5, 2);       // أو PDF جاهز
+```
+
+الطابعة بتتطلب منها ورقة المستند (A4 أو A5) والصفحات بتتبعت بحجمها الفعلي. `printerName` الفاضي معناه
+الطابعة الافتراضية. الطباعة بتاخد وقتها، فنادِها من thread غير thread الواجهة. لو الطابعة مش على
+الجهاز بترمي `ReportException` باسمها وبالطابعات المتاحة.
+
+### الخط
+
+المكتبة فيها خط **Noto Naskh Arabic** مضمَّن (عادي وعريض)، فالناتج واحد على كل جهاز من غير أي إعداد.
+لتغييره، بالترتيب ده:
+
+1. الخاصية `smart.report.pdf.font` (واختياريًا `smart.report.pdf.font.bold`) — مسار ملف `.ttf`.
+2. مورد على الـ classpath اسمه `fonts/report-font.ttf` (و`fonts/report-font-bold.ttf`).
+
+الحرف اللي مش في الخط المختار بيتجرّب في خط النظام (Arial وغيره)، وآخر حل بيتطبع `?` مع تحذير في الـ log.
+
+> العربي بيتظبط تلقائيًا قبل الرسم: الحروف بتتوصّل ببعضها وبتترتب من اليمين لليسار، مع دمج لام-ألف.
+> ده شغل `ArabicTextShaper`، وما بيحتاجش أي dependency إضافية (لا ICU4J ولا غيره).
+> الحركات (التشكيل) بتتوسّط فوق حروفها تقريبيًا — PDFBox ما بيطبّقش جداول GPOS في الخط.
+
+## PDF أو Excel عام (بدون قالب)
 
 نفس الـ `ReportRequest` يشتغل مع النوعين، بس تغيّر `ReportType`:
 
 ```java
 import com.smart.report.*;
 
-List<Employee> employees = employeeRepository.findAll();
-
 ReportRequest<Employee> request = ReportRequest.<Employee>builder()
         .title("تقرير الموظفين")
         .data(employees)
         .addColumn("id", "الرقم")
         .addColumn("name", "الاسم")
-        .addColumn("department", "القسم")
         .addColumn("salary", "الراتب")
         .build();
 
-byte[] pdf = ReportService.generate(ReportType.PDF, request);
-byte[] xlsx = ReportService.generate(ReportType.EXCEL, request);
+byte[] pdf = ReportService.generate(ReportType.PDF, request);     // محتاج smart-report-pdf
+byte[] xlsx = ReportService.generate(ReportType.EXCEL, request);  // محتاج smart-report-excel
 
-// أو تكتب مباشرة لملف
 ReportService.generateToFile(ReportType.PDF, request, Path.of("employees.pdf"));
 ```
 
-اسم كل عمود (`addColumn("id", ...)`) بيتقرا من الكائن عن طريق reflection: بيدوّر أول حاجة موجودة من `getId()`، `isId()`، أو `id()` (مكوّنات الـ record)، وأخيرًا الحقل مباشرة.
+اسم كل عمود (`addColumn("id", ...)`) بيتقرا من الكائن عن طريق reflection: `getId()`، `isId()`، `id()`
+(مكوّنات الـ record)، وأخيرًا الحقل مباشرة.
 
-الأرقام والمنطقيات والتواريخ بتتكتب في Excel بأنواعها الأصلية مش كنصوص، والتواريخ (`java.util.Date`،
-`Calendar`، `LocalDate`، `LocalDateTime`، `Instant`، `ZonedDateTime`، وأنواع `java.sql`) بتاخد تنسيق
-تاريخ فعلي عشان تظهر كتاريخ بدل الرقم التسلسلي الخام.
-
-### خط الـ PDF للنصوص العربية
-
-خطوط PDF المدمجة (Standard 14 زي Helvetica) بتدعم Latin-1 بس، فمش بتقدر ترسم عربي. عشان كده
-المكتبة بتدوّر على خط TrueType يدعم Unicode بالترتيب ده:
-
-1. الخاصية `smart.report.pdf.font` (واختياريًا `smart.report.pdf.font.bold`) — مسار ملف `.ttf`.
-2. مورد على الـ classpath اسمه `fonts/report-font.ttf` (و`fonts/report-font-bold.ttf`).
-3. خطوط النظام المعروفة على Windows/Linux/macOS.
-
-في أغلب الأجهزة الخطوة الثالثة بتكفي وما تحتاجش تعمل أي حاجة. لو عايز تثبّت خطًا بعينه:
-
-```bash
-java -Dsmart.report.pdf.font=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf -jar app.jar
-```
-
-أو حطّ الخط في `src/main/resources/fonts/report-font.ttf` عشان الـ jar يبقى مكتفيًا بذاته.
-
-لو مفيش أي خط اتلقى وجه نص عربي، بترمي `ReportException` برسالة بتقول الحرف المسبب وإزاي تظبط
-الخط — مش استثناء غامض من جوّه PDFBox.
-
-> العربي بيتظبط تلقائيًا قبل الرسم: الحروف بتتوصّل ببعضها (صور العرض السياقية) وبتترتب من اليمين
-> لليسار، مع دمج لام-ألف والحفاظ على الحركات مع حروفها. النصوص المختلطة (عربي + إنجليزي + أرقام)
-> بتترتب صح كمان. ده شغل `ArabicTextShaper`، وما بيحتاجش أي dependency إضافية.
-> ملاحظة: التقارير المصمّمة بصريًا في Jasper بتتعامل مع العربي بنفسها ومش بتمرّ على المسار ده.
-
-### JasperReports (قالب مصمم بصريًا)
+تقرير الـ PDF العام بيبقى من اليمين لليسار لو العنوان أو أي رأس عمود فيه عربي، على A4 طولي. للتغيير:
 
 ```java
-import com.smart.report.jasper.JasperExportFormat;
+.parameter(PdfReportProvider.PAPER, "A5-landscape")        // أو كائن Paper
+.parameter(PdfReportProvider.RIGHT_TO_LEFT, true)
+```
+
+في Excel، الأرقام والمنطقيات والتواريخ بتتكتب بأنواعها الأصلية مش كنصوص.
+
+لو طلبت نوعًا وحدته مش على الـ classpath، `ReportException` بتقول لك تضيف أنهي dependency.
+
+## JasperReports (قالب مصمم بصريًا)
+
+```java
+import com.smart.report.JasperExportFormat;
 
 ReportRequest<Employee> request = ReportRequest.<Employee>builder()
         .data(employees)
@@ -109,44 +166,30 @@ ReportRequest<Employee> request = ReportRequest.<Employee>builder()
         .exportFormat(JasperExportFormat.PDF) // أو XLSX / HTML / CSV
         .build();
 
-byte[] pdf = ReportService.generate(ReportType.JASPER, request);
+byte[] pdf = ReportService.generate(ReportType.JASPER, request);  // محتاج smart-report-jasper
 ```
 
-`request.data()` بيتحوّل تلقائيًا لـ `JRBeanCollectionDataSource` عشان تستخدمه كـ `$F{...}` جوه القالب، و`request.parameters()` بتتبعت كـ report parameters (`$P{...}`).
+`request.data()` بيتحوّل تلقائيًا لـ `JRBeanCollectionDataSource`، و`request.parameters()` بتتبعت كـ
+report parameters (`$P{...}`). القوالب المصرَّفة بتتخزّن ويُعاد استخدامها.
 
-## أنواع التقارير (`ReportType`)
+## الترقية من 1.0
 
-| القيمة | الوصف | يحتاج قالب؟ |
-|---|---|---|
-| `PDF` | PDF جدولي عام (PDFBox) | لأ |
-| `EXCEL` | ملف `.xlsx` عام (Apache POI) | لأ |
-| `JASPER` | تصدير من قالب JasperReports | أيوه (`.jrxml`/`.jasper`) |
+- المكتبة بقت وحدات: بدّل `smart-report-plugin` بالوحدة اللي بتستخدمها (`smart-report-pdf` / `-excel` / `-jasper`).
+- `JasperExportFormat` اتنقل من `com.smart.report.jasper` لـ `com.smart.report`.
+- لو كاتب `ReportProvider` خاصًا بيك: زاد عليه `type()`، وبيتسجّل في `META-INF/services/com.smart.report.ReportProvider`.
+- تقرير الـ PDF العام بقى يلتف النص الطويل بدل تقطيعه بـ `...`، والتقرير العربي جدوله من اليمين.
 
-## صيغ تصدير Jasper (`JasperExportFormat`)
-
-| القيمة | الوصف |
-|---|---|
-| `PDF` | ملف PDF |
-| `XLSX` | جدول بيانات Excel |
-| `HTML` | صفحة HTML |
-| `CSV` | ملف CSV |
-
-## الاختبارات
+## الاختبارات والبناء
 
 ```bash
-mvn test
+mvn test       # كل الوحدات
+mvn install    # يبني الوحدات وينزّلها في المستودع المحلي
 ```
 
-الاختبارات بتولّد تقارير حقيقية (PDF عام، Excel عام، Jasper→PDF، Jasper→XLSX) وتفتح الملف الناتج فعليًا للتحقق من محتواه (نصوص PDF عبر `PDFTextStripper`، خلايا Excel عبر POI).
+اختبارات الـ PDF بتقرا **مواضع** الحروف المرسومة مش النص المستخرج بس: عيوب الاتجاه (عمود في الناحية
+الغلط، إجمالي تحت عمود تاني، آخر الجملة في السطر الأول) ما بتظهرش في النص.
 
-## البناء
+## الرخص
 
-```bash
-mvn package
-```
-
-بينتج `target/smart-report-plugin-1.0.0.jar`.
-
-## الرخصة
-
-المشروع مرخّص تحت [MIT License](LICENSE).
+المشروع مرخّص تحت [MIT License](LICENSE). الخط المضمَّن Noto Naskh Arabic مرخّص تحت
+[SIL Open Font License 1.1](smart-report-pdf/src/main/resources/com/smart/report/pdf/fonts/OFL.txt).

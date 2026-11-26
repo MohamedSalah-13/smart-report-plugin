@@ -1,0 +1,86 @@
+package com.smart.report.pdf;
+
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.pdfbox.text.TextPosition;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * مواضع الحروف المرسومة في PDF. النص المستخرج بيقول الكلام <em>إيه</em> بس؛ عيوب الاتجاه (عمود في
+ * الناحية الغلط، إجمالي تحت عمود تاني، آخر الجملة في السطر الأول) ما بتظهرش غير في المواضع.
+ */
+final class Glyphs {
+
+    /** حرف مرسوم: صفحته (من 1)، ومكانه بالنقطة من أعلى يسار الصفحة. */
+    record Glyph(String text, int page, float x, float y) {
+    }
+
+    private final List<Glyph> glyphs = new ArrayList<>();
+
+    static Glyphs of(byte[] pdf) throws IOException {
+        Glyphs found = new Glyphs();
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            PDFTextStripper stripper = new PDFTextStripper() {
+                @Override
+                protected void processTextPosition(TextPosition text) {
+                    found.glyphs.add(new Glyph(text.getUnicode(), getCurrentPageNo(),
+                            text.getXDirAdj(), text.getYDirAdj()));
+                    super.processTextPosition(text);
+                }
+            };
+            stripper.getText(document);
+        }
+        return found;
+    }
+
+    /** أول ظهور للكلمة (حروف لاتينية أو أرقام، بترتيب رسمها) في الصفحة، أو استثناء لو مش مرسومة. */
+    Glyph first(String token, int page) {
+        Glyph found = find(token, page);
+        if (found == null) {
+            throw new AssertionError("\"" + token + "\" is not drawn on page " + page);
+        }
+        return found;
+    }
+
+    Glyph first(String token) {
+        for (int page = 1; page <= pages(); page++) {
+            Glyph found = find(token, page);
+            if (found != null) {
+                return found;
+            }
+        }
+        throw new AssertionError("\"" + token + "\" is not drawn anywhere");
+    }
+
+    boolean drawn(String token, int page) {
+        return find(token, page) != null;
+    }
+
+    int pages() {
+        return glyphs.stream().mapToInt(Glyph::page).max().orElse(0);
+    }
+
+    private Glyph find(String token, int page) {
+        for (int i = 0; i < glyphs.size(); i++) {
+            if (glyphs.get(i).page() != page) {
+                continue;
+            }
+            StringBuilder run = new StringBuilder();
+            for (int k = i; k < glyphs.size() && run.length() < token.length(); k++) {
+                Glyph glyph = glyphs.get(k);
+                if (glyph.page() != page || Math.abs(glyph.y() - glyphs.get(i).y()) > 0.5f) {
+                    break;
+                }
+                run.append(glyph.text());
+            }
+            if (run.toString().equals(token)) {
+                return glyphs.get(i);
+            }
+        }
+        return null;
+    }
+}

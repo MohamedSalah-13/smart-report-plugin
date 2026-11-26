@@ -1,0 +1,285 @@
+package com.smart.report.pdf;
+
+import com.smart.report.ReportException;
+import org.apache.pdfbox.pdmodel.PDDocument;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Consumer;
+
+/**
+ * مستند PDF بيتبني جزءًا بعد جزء بالترتيب اللي هيظهر بيه: ترويسة، عنوان، بيانات، جداول، ملخص، تذييل.
+ *
+ * <pre>{@code
+ * PdfDocument document = PdfDocument.rtl(Paper.A5)
+ *         .letterhead("شركة النقل", "ت: 0100 000 0000")
+ *         .title("كشف حساب عربية")
+ *         .field("رقم العربية", "1234").field("السائق", "أحمد")
+ *         .table(t -> t.column("التاريخ", 22).column("العدد", 14).column("القيمة", 26, Align.END)
+ *                 .row("2026-11-01", "3", "5,400.00")
+ *                 .totals("الإجمالى", "3", "5,400.00"))
+ *         .summary("المستحق", "5,400.00")
+ *         .summaryTotal("الباقى", "1,400.00");
+ *
+ * document.save(Path.of("statement.pdf"));     // ملف
+ * PdfPrinter.print(document, printerName, 1);  // أو للطابعة مباشرة
+ * }</pre>
+ *
+ * <p>الاتجاه ({@link #rtl(Paper)} / {@link #ltr(Paper)}) بيحدد مكان أول عمود في الجدول ومحاذاة
+ * النص؛ النص العربي بيتشكّل ويترتب صح في الاتجاهين، والأرقام والتواريخ بتتقرا زي ما اتكتبت.</p>
+ *
+ * <p>الكائن قابل للتعديل وغير آمن للاستخدام من أكتر من thread؛ ابنِ مستندًا لكل طباعة.</p>
+ */
+public final class PdfDocument {
+
+    /** جزء من جسم المستند، بالترتيب اللي اتضاف بيه. */
+    sealed interface Block {
+    }
+
+    record TitleBlock(String text) implements Block {
+    }
+
+    record SubtitleBlock(String text) implements Block {
+    }
+
+    record HeadingBlock(String text) implements Block {
+    }
+
+    record TextBlock(String text, Align align) implements Block {
+    }
+
+    record SpaceBlock(float points) implements Block {
+    }
+
+    record TableBlock(PdfTable table) implements Block {
+    }
+
+    record FieldsBlock(List<String[]> fields) implements Block {
+    }
+
+    record SummaryBlock(List<SummaryLine> lines) implements Block {
+    }
+
+    record SummaryLine(String label, String value, boolean total) {
+    }
+
+    private final Paper paper;
+    private final boolean rightToLeft;
+    private final List<Block> blocks = new ArrayList<>();
+    private PdfStyle style;
+    private String letterheadName = "";
+    private List<String> letterheadLines = List.of();
+    private byte[] logo;
+    private String footer = "";
+    private PageNumbers pageNumbers = PageNumbers.WHEN_SEVERAL;
+
+    private PdfDocument(Paper paper, boolean rightToLeft) {
+        this.paper = Objects.requireNonNull(paper, "paper");
+        this.rightToLeft = rightToLeft;
+    }
+
+    /** مستند من اليمين لليسار — العربي. */
+    public static PdfDocument rtl(Paper paper) {
+        return new PdfDocument(paper, true);
+    }
+
+    /** مستند من اليسار لليمين. */
+    public static PdfDocument ltr(Paper paper) {
+        return new PdfDocument(paper, false);
+    }
+
+    /** شكل الصفحة؛ من غيره بيتاخد {@link PdfStyle#forPaper(Paper)}. */
+    public PdfDocument style(PdfStyle style) {
+        this.style = Objects.requireNonNull(style, "style");
+        return this;
+    }
+
+    /** ترويسة أعلى أول صفحة: اسم الجهة بخط عريض، وتحته سطور (عنوان، تليفون...)، ثم خط فاصل. */
+    public PdfDocument letterhead(String name, String... lines) {
+        this.letterheadName = name == null ? "" : name;
+        List<String> kept = new ArrayList<>();
+        if (lines != null) {
+            for (String line : lines) {
+                if (line != null && !line.isBlank()) {
+                    kept.add(line);
+                }
+            }
+        }
+        this.letterheadLines = List.copyOf(kept);
+        return this;
+    }
+
+    /** شعار الجهة (PNG أو JPEG) بجانب الترويسة، في الجهة اللي الصفحة بتبدأ منها. */
+    public PdfDocument logo(byte[] image) {
+        this.logo = image == null || image.length == 0 ? null : image.clone();
+        return this;
+    }
+
+    /** عنوان في منتصف الصفحة بخط عريض. */
+    public PdfDocument title(String text) {
+        return add(new TitleBlock(text));
+    }
+
+    /** سطر تحت العنوان، في المنتصف بلون أهدأ — الفترة مثلًا. */
+    public PdfDocument subtitle(String text) {
+        return add(new SubtitleBlock(text));
+    }
+
+    /** عنوان قسم بخط عريض عند بداية السطر — فوق جدول مثلًا. */
+    public PdfDocument heading(String text) {
+        return add(new HeadingBlock(text));
+    }
+
+    /** فقرة عند بداية السطر، بتلتف على عرض الصفحة. */
+    public PdfDocument text(String text) {
+        return text(text, Align.START);
+    }
+
+    public PdfDocument text(String text, Align align) {
+        return add(new TextBlock(text, align == null ? Align.START : align));
+    }
+
+    /** مسافة رأسية بالنقطة. */
+    public PdfDocument space(float points) {
+        return add(new SpaceBlock(Math.max(0, points)));
+    }
+
+    /**
+     * بيان وقيمته ("رقم العربية: 1234"). البيانات المتتالية بتترص اثنين في السطر، الأول عند بداية
+     * السطر والتاني في نصف الصفحة.
+     */
+    public PdfDocument field(String label, String value) {
+        String[] field = {label == null ? "" : label, value == null ? "" : value};
+        if (!blocks.isEmpty() && blocks.get(blocks.size() - 1) instanceof FieldsBlock fields) {
+            fields.fields().add(field);
+        } else {
+            List<String[]> fields = new ArrayList<>();
+            fields.add(field);
+            blocks.add(new FieldsBlock(fields));
+        }
+        return this;
+    }
+
+    public PdfDocument table(PdfTable table) {
+        return add(new TableBlock(Objects.requireNonNull(table, "table")));
+    }
+
+    /** جدول بيتبني في مكانه: {@code table(t -> t.column(...).row(...))}. */
+    public PdfDocument table(Consumer<PdfTable> build) {
+        PdfTable table = PdfTable.create();
+        build.accept(table);
+        return table(table);
+    }
+
+    /** سطر في الملخص: بيان عند بداية السطر وقيمته بجانبه. السطور المتتالية بتبقى صندوقًا واحدًا. */
+    public PdfDocument summary(String label, String value) {
+        return summaryLine(label, value, false);
+    }
+
+    /** السطر اللي القارئ بيدوّر عليه (الباقى، الإجمالى): بخط أكبر وعريض على خلفية مميّزة. */
+    public PdfDocument summaryTotal(String label, String value) {
+        return summaryLine(label, value, true);
+    }
+
+    private PdfDocument summaryLine(String label, String value, boolean total) {
+        SummaryLine line = new SummaryLine(label == null ? "" : label, value == null ? "" : value, total);
+        if (!blocks.isEmpty() && blocks.get(blocks.size() - 1) instanceof SummaryBlock summary) {
+            summary.lines().add(line);
+        } else {
+            List<SummaryLine> lines = new ArrayList<>();
+            lines.add(line);
+            blocks.add(new SummaryBlock(lines));
+        }
+        return this;
+    }
+
+    /** جملة ختامية صغيرة في منتصف الصفحة بعد آخر جزء. */
+    public PdfDocument footer(String text) {
+        this.footer = text == null ? "" : text;
+        return this;
+    }
+
+    public PdfDocument pageNumbers(PageNumbers mode) {
+        this.pageNumbers = Objects.requireNonNull(mode, "mode");
+        return this;
+    }
+
+    private PdfDocument add(Block block) {
+        blocks.add(block);
+        return this;
+    }
+
+    public Paper paper() {
+        return paper;
+    }
+
+    public boolean rightToLeft() {
+        return rightToLeft;
+    }
+
+    PdfStyle resolvedStyle() {
+        return style != null ? style : PdfStyle.forPaper(paper);
+    }
+
+    List<Block> blocks() {
+        return blocks;
+    }
+
+    String letterheadName() {
+        return letterheadName;
+    }
+
+    List<String> letterheadLines() {
+        return letterheadLines;
+    }
+
+    byte[] logoBytes() {
+        return logo;
+    }
+
+    String footerText() {
+        return footer;
+    }
+
+    PageNumbers pageNumberMode() {
+        return pageNumbers;
+    }
+
+    /** المستند كبايتات PDF. */
+    public byte[] toBytes() throws ReportException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        writeTo(out);
+        return out.toByteArray();
+    }
+
+    /** يكتب المستند في {@code out} ولا يقفله. */
+    public void writeTo(OutputStream out) throws ReportException {
+        Objects.requireNonNull(out, "out");
+        try (PDDocument pdf = new PDDocument(); FontSet fonts = FontSet.load(pdf)) {
+            new PageWriter(pdf, this, fonts).write();
+            pdf.save(out);
+        } catch (IOException e) {
+            throw new ReportException("Failed to write the PDF document: " + e.getMessage(), e);
+        }
+    }
+
+    /** يحفظ المستند في ملف، وينشئ المجلدات الناقصة في مساره. */
+    public void save(Path file) throws ReportException {
+        Objects.requireNonNull(file, "file");
+        byte[] bytes = toBytes();
+        try {
+            if (file.toAbsolutePath().getParent() != null) {
+                Files.createDirectories(file.toAbsolutePath().getParent());
+            }
+            Files.write(file, bytes);
+        } catch (IOException e) {
+            throw new ReportException("Failed to write the PDF document to " + file, e);
+        }
+    }
+}
