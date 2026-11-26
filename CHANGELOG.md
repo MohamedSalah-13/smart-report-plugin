@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `PdfDocument.letterheadOnEveryPage(true)` draws the letterhead (and logo) at the top of every page of a long
+  document, with a continuing table's header under it.
+- `PdfDocument.pageFooter(text)`: a small line at the bottom of every page, above the page number.
+- `PdfDocument.signatures("المستلم", "المحاسب", "الختم")`: signature boxes side by side in reading order, kept together.
+- Thermal receipt paper: `Paper.ROLL_80` and `Paper.ROLL_58` (and `Paper.roll` for other widths). A receipt is one
+  page as long as its content, with a narrow style, and the printer is not asked for a paper size.
+- The Excel report now applies a column's format (converted to an Excel format, values stay numbers and dates) and
+  alignment; the weight stays PDF-only.
+
+### Fixed
+- A table header taller than a third of the page is drawn once (split if taller than a page) instead of repeating on
+  every page and running off the paper.
+- A field whose value is taller than a page continues on the next page instead of running off the paper.
+
+### Changed
+- PDFBox 3.0.8 (from 3.0.3) and slf4j 2.0.20 (from 2.0.16).
+
 ## [2.3.0] - 2026-11-26
 
 ### Added
