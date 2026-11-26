@@ -25,6 +25,7 @@
     <modules>
         <module>smart-report-api</module>
         <module>smart-report-pdf</module>
+        <module>smart-report-fx</module>
         <module>smart-report-excel</module>
         <module>smart-report-jasper</module>
     </modules>

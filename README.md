@@ -5,6 +5,7 @@
 مكتبة جافا للتقارير والطباعة، بتضاف كـ dependency لأي مشروع:
 
 - **مستندات PDF عربية جاهزة للطباعة** على A4 و A5 (طولي وعرضي): ترويسة، عنوان، بيانات، أكتر من جدول بصف إجمالي، ملخص، ترقيم صفحات — وإرسال مباشر للطابعة. عبر Apache PDFBox فقط.
+- **نافذة معاينة JavaFX** جاهزة: الصفحات كما هتتطبع، اختيار الطابعة والمقاس وعدد النسخ، طباعة وحفظ PDF.
 - **PDF أو Excel عام من `List<POJO>`** بدون أي قالب.
 - **JasperReports** (قوالب `.jrxml`/`.jasper` مصممة بصريًا): تصدير PDF, XLSX, HTML, أو CSV.
 
@@ -16,7 +17,8 @@
 
 | الوحدة | فيها إيه | بتجيب معاها |
 |---|---|---|
-| `smart-report-pdf` | `PdfDocument`، `PdfPrinter`، وتقرير PDF العام | PDFBox |
+| `smart-report-pdf` | `PdfDocument`، `PdfPrinter`، `PdfPages`، وتقرير PDF العام | PDFBox |
+| `smart-report-fx` | `PdfPreview`: نافذة المعاينة | `smart-report-pdf`؛ و JavaFX بتاع برنامجك (`provided`) |
 | `smart-report-excel` | تقرير Excel العام | Apache POI |
 | `smart-report-jasper` | تقارير قوالب Jasper | JasperReports |
 | `smart-report-api` | `ReportService` و`ReportRequest` — بتيجي لوحدها مع أي وحدة فوق | slf4j-api فقط |
@@ -36,11 +38,12 @@
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.0.0</version>
+    <version>v2.1.0</version>
 </dependency>
 ```
 
-غيّر `artifactId` لـ `smart-report-excel` أو `smart-report-jasper` حسب اللي محتاجه. مبنية بـ Java 21.
+غيّر `artifactId` لـ `smart-report-fx` أو `smart-report-excel` أو `smart-report-jasper` حسب اللي محتاجه.
+مبنية بـ Java 21. وحدة `smart-report-fx` موجودة من `v2.1.0`.
 
 > المكتبة بتستخدم `slf4j-api` فقط (بدون implementation)، فلو عايز تشوف الـ logs ضيف backend من اختيارك
 > (logback, slf4j-simple, ...) في مشروعك.
@@ -104,6 +107,33 @@ PdfPrinter.print(pdfBytes, printerName, Paper.A5, 2);       // أو PDF جاهز
 الطابعة بتتطلب منها ورقة المستند (A4 أو A5) والصفحات بتتبعت بحجمها الفعلي. `printerName` الفاضي معناه
 الطابعة الافتراضية. الطباعة بتاخد وقتها، فنادِها من thread غير thread الواجهة. لو الطابعة مش على
 الجهاز بترمي `ReportException` باسمها وبالطابعات المتاحة.
+
+### المعاينة (`PdfPreview`)
+
+وحدة `smart-report-fx` فيها نافذة معاينة لأي برنامج JavaFX:
+
+<p align="center"><img src="docs/preview-window.png" alt="نافذة معاينة الطباعة" width="560"></p>
+
+```java
+import com.smart.report.fx.PdfPreview;
+
+PdfPreview.of(paper -> StatementPdf.document(statement, companyName, paper))
+        .papers(Paper.A4, Paper.A5)       // مقاس واحد = بلا اختيار مقاس في النافذة
+        .title("كشف حساب عربية 1751")
+        .fileName("كشف 1751")              // الاسم المقترح عند «حفظ PDF»
+        .rightToLeft(true)                 // نافذة عربية؛ false = إنجليزية
+        .remember("statement")             // آخر طابعة ومقاس، لكل نوع مستند
+        .stylesheet(appStylesheetUrl)      // اختياري: CSS بتاع برنامجك
+        .show(ownerWindow);
+
+PdfPreview.of(document).show(ownerWindow);   // أو مستند جاهز على ورقته
+```
+
+- النافذة بتعرض الصفحات بنفس الرسم اللي الطابعة بتستلمه، وما بتحجزش البرنامج.
+- لما المستخدم يغيّر المقاس، المستند بيتبني من جديد على المقاس الجديد.
+- الدالة اللي بتبني المستند بتتنادى **خارج thread الواجهة**: اقرا بياناتك قبلها وما تلمسش فيها عناصر JavaFX.
+- كلام النافذة عربي أو إنجليزي حسب `rightToLeft`، و`texts(PreviewTexts)` يبدّله بمصطلحات برنامجك.
+- لرسم الصفحات كصور بنفسك (معاينة مخصّصة، صورة مصغّرة): `PdfPages.open(pdf).render(pageIndex, scale)` في `smart-report-pdf`.
 
 ### الخط
 
@@ -171,6 +201,12 @@ byte[] pdf = ReportService.generate(ReportType.JASPER, request);  // محتاج 
 
 `request.data()` بيتحوّل تلقائيًا لـ `JRBeanCollectionDataSource`، و`request.parameters()` بتتبعت كـ
 report parameters (`$P{...}`). القوالب المصرَّفة بتتخزّن ويُعاد استخدامها.
+
+## مع Claude Code
+
+المجلد `claude-skill/pdf-print` فيه skill يربط المكتبة بأي مشروع حالي أو جديد: الاعتماد، بناء المستند من
+بيانات البرنامج، نافذة المعاينة، والاختبار. انسخه إلى `~/.claude/skills/` ثم قل لـ Claude: «ضيف طباعة PDF
+للفاتورة» أو «اعمل معاينة قبل الطباعة».
 
 ## الترقية من 1.0
 
