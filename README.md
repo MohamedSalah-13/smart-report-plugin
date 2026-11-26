@@ -15,16 +15,16 @@ A Java library for reports and printing, added to any project as a dependency:
 
 ## What's New
 
+### 2.3.0
+
+- **New:** amount in words (تفقيط) for invoices and receipts: «فقط سبعة آلاف ومائتا جنيه لا غير», with the right noun form and gender agreement, for EGP, SAR, AED, KWD, USD or your own currency. See [Amount in words](#amount-in-words-amountinwords).
+
 ### 2.2.0
 
 - **New:** per-column options for the generic PDF report: a number or date format (`#,##0.00`, `d MMMM yyyy`), an alignment and a width weight. See [Generic PDF or Excel](#generic-pdf-or-excel-no-template).
 - **Fixed:** an Arabic Excel report now runs right to left, like the PDF from the same request.
 - **Fixed:** the generic PDF report formats values instead of printing `toString`: `1,234,567.5`, `2026-11-26`, and number columns line up.
 - **Fixed:** letters such as ڤ, چ, گ, پ, ک and ی now join their neighbours instead of breaking the word.
-
-### 2.1.1
-
-- **Fixed:** a table row taller than a whole page (a cell whose text wraps over more lines than the page holds) is no longer drawn past the bottom of the paper and lost in print; it continues on the next page under the table header.
 
 Details of each release are in [CHANGELOG.md](CHANGELOG.md).
 
@@ -55,7 +55,7 @@ The library is served by [JitPack](https://jitpack.io) straight from the reposit
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.2.0</version>
+    <version>v2.3.0</version>
 </dependency>
 ```
 
