@@ -1,0 +1,22 @@
+# Weekly pull requests for newer library and action versions; CI runs on each, so a breaking update shows as a red run.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # PDFBox, fontbox and pdfbox-io, or slf4j-api and slf4j-simple, move together.
+      maven-patch-and-minor:
+        patterns: ['*']
+        update-types: [minor, patch]
+    ignore:
+      # The program brings its own JavaFX (provided scope): the library only compiles against the oldest it supports.
+      - dependency-name: org.openjfx:*
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
