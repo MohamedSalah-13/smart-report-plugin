@@ -16,7 +16,7 @@
 
     <properties>
         <automatic.module.name>com.smart.report.fx</automatic.module.name>
-        <javafx.version>21.0.6</javafx.version>
+        <javafx.version>21.0.13.1</javafx.version>
     </properties>
 
     <dependencies>
