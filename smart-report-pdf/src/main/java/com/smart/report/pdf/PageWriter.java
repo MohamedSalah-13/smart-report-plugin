@@ -53,7 +53,7 @@ final class PageWriter {
     }
 
     /** صف جدول اتقاس: سطور كل خلية وارتفاع الصف. */
-    private record RowLayout(List<List<Line>> cells, float height, float size) {
+    private record RowLayout(List<List<Line>> cells, float height, float size, boolean split) {
     }
 
     private final PDDocument pdf;
@@ -500,18 +500,48 @@ final class PageWriter {
         boolean headerDrawn = false;
         int index = 0;
         for (PdfTable.Row row : table.rows()) {
-            RowLayout layout = layout(row.cells(), widths, row.total(), row.total() ? totalSize : bodySize);
-            float needed = layout.height() + (headerDrawn || header == null ? 0 : header.height());
-            if (y - needed < bottom && !atTop()) {
+            RowLayout rest = layout(row.cells(), widths, row.total(), row.total() ? totalSize : bodySize);
+            RowKind kind = row.total() ? RowKind.TOTAL : RowKind.NORMAL;
+            boolean striped = style.stripes() && index % 2 == 1;
+            float headerHeight = header == null ? 0 : header.height();
+            // الصف بيترسم كله في مكانه لو كفّاه الباقي، وإلا في صفحة جديدة لو تكفيه. الصف الأطول من
+            // صفحة كاملة بيتقسّم على سطوره: كان بيترسم تحت حافة الورقة ويضيع باقيه في الطباعة.
+            while (true) {
+                float room = y - bottom - (headerDrawn ? 0 : headerHeight);
+                if (rest.height() <= room) {
+                    break;
+                }
+                // نفس حساب room في أول صفحة جديدة، فالصف اللي تكفيه بيخرج من الفحص اللي فوق بعدها.
+                boolean fitsFreshPage = rest.height() <= top - bottom - headerHeight;
+                int fitting = (int) ((room - 2 * PAD_Y) / (rest.size() * LEADING));
+                if (!atTop() && (fitsFreshPage || fitting < 1)) {
+                    newPage();
+                    headerDrawn = false;
+                    continue;
+                }
+                fitting = Math.max(1, fitting);
+                if (!headerDrawn && header != null) {
+                    paint(header, columns, x, widths, RowKind.HEADER, false);
+                }
+                headerDrawn = true;
+                paint(slice(rest, 0, fitting), columns, x, widths, kind, striped);
+                if (fitting >= lineCount(rest)) {
+                    // رأس الجدول ما سابش في الصفحة مكان لسطر واحد: السطر اترسم غصبًا والصف خلص. من غير
+                    // الوقفة دي الباقي الفاضي كان بيفضل «ما يكفيهوش المكان» والحلقة ما بتنتهيش.
+                    rest = null;
+                    break;
+                }
+                rest = slice(rest, fitting, Integer.MAX_VALUE);
                 newPage();
                 headerDrawn = false;
             }
-            if (!headerDrawn && header != null) {
-                paint(header, columns, x, widths, RowKind.HEADER, false);
+            if (rest != null) {
+                if (!headerDrawn && header != null) {
+                    paint(header, columns, x, widths, RowKind.HEADER, false);
+                }
+                headerDrawn = true;
+                paint(rest, columns, x, widths, kind, striped);
             }
-            headerDrawn = true;
-            paint(layout, columns, x, widths, row.total() ? RowKind.TOTAL : RowKind.NORMAL,
-                    style.stripes() && index % 2 == 1);
             if (!row.total()) {
                 index++;
             }
@@ -561,7 +591,28 @@ final class PageWriter {
             tallest = Math.max(tallest, cell.size());
             lines.add(cell);
         }
-        return new RowLayout(lines, tallest * size * LEADING + 2 * PAD_Y, size);
+        return new RowLayout(lines, tallest * size * LEADING + 2 * PAD_Y, size, false);
+    }
+
+    /** عدد سطور أطول خلية في الصف. */
+    private static int lineCount(RowLayout row) {
+        int tallest = 0;
+        for (List<Line> cell : row.cells()) {
+            tallest = Math.max(tallest, cell.size());
+        }
+        return tallest;
+    }
+
+    /** السطور من {@code from} لحد {@code to} من كل خلية: جزء من صف اتقسّم على صفحتين، سطوره من أعلاه. */
+    private static RowLayout slice(RowLayout row, int from, int to) {
+        List<List<Line>> cells = new ArrayList<>(row.cells().size());
+        int tallest = 1;
+        for (List<Line> cell : row.cells()) {
+            List<Line> part = from >= cell.size() ? List.of() : cell.subList(from, Math.min(to, cell.size()));
+            tallest = Math.max(tallest, part.size());
+            cells.add(part);
+        }
+        return new RowLayout(cells, tallest * row.size() * LEADING + 2 * PAD_Y, row.size(), true);
     }
 
     private void paint(RowLayout row, List<PdfTable.Column> columns, float[] x, float[] widths, RowKind kind,
@@ -593,8 +644,9 @@ final class PageWriter {
         for (int i = 0; i < row.cells().size(); i++) {
             List<Line> lines = row.cells().get(i);
             Side side = kind == RowKind.HEADER ? Side.CENTER : side(columns.get(i).align());
-            // الخلية الأقصر من صفها بتتوسّط رأسيًا.
-            float firstTop = y - PAD_Y - (height - 2 * PAD_Y - lines.size() * leading) / 2;
+            // الخلية الأقصر من صفها بتتوسّط رأسيًا — إلا في صف اتقسّم على صفحتين، سطوره بتكمل من أعلاه.
+            float firstTop = row.split() ? y - PAD_Y
+                    : y - PAD_Y - (height - 2 * PAD_Y - lines.size() * leading) / 2;
             for (int k = 0; k < lines.size(); k++) {
                 drawLine(lines.get(k), row.size(), color, x[i] + PAD_X, widths[i] - 2 * PAD_X, side,
                         firstTop - k * leading - row.size() * BASELINE);

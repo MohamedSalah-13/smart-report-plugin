@@ -113,6 +113,86 @@ class PdfDocumentLayoutTest {
         assertTrue(glyphs.drawn("Total", pages), "الإجمالي في آخر صفحة");
     }
 
+    /**
+     * خلية نصها أطول من صفحة كاملة: الصف بيتقسّم على الصفحات. كان بيترسم كله من مكانه، فباقيه ينزل
+     * تحت حافة الورقة ويضيع في الطباعة من غير أي تحذير.
+     */
+    @Test
+    void rowTallerThanThePageIsSplitAcrossPagesAndNothingLeavesThePaper() throws Exception {
+        StringBuilder note = new StringBuilder();
+        for (int word = 1; word <= 400; word++) {
+            note.append('w').append(word).append(' ');
+        }
+        Glyphs glyphs = Glyphs.of(PdfDocument.ltr(Paper.A5).pageNumbers(PageNumbers.NONE)
+                .table(t -> t.column("Note", 1).column("Amount", 3)
+                        .row("before", "4").row(note.toString().trim(), "5").row("after", "6"))
+                .toBytes());
+
+        float lastLine = Paper.A5.height() - PdfStyle.forPaper(Paper.A5).margin();
+        assertTrue(glyphs.lowest() <= lastLine, "حرف مرسوم تحت الهامش السفلي: " + glyphs.lowest());
+
+        int pages = glyphs.pages();
+        assertTrue(pages >= 3, "400 سطر على A5 أكتر من صفحتين: " + pages);
+        assertTrue(glyphs.drawn("w1", 1), "الصف بيبدأ في الصفحة اللي وصلها، مش في صفحة جديدة");
+        assertTrue(glyphs.drawn("w400", pages));
+        assertTrue(glyphs.drawn("after", pages), "الصف التالي بعد آخر جزء");
+        assertTrue(glyphs.first("w400", pages).y() < glyphs.first("after", pages).y());
+        for (int page = 1; page <= pages; page++) {
+            assertTrue(glyphs.drawn("Note", page), "رأس الجدول ناقص في صفحة " + page);
+        }
+    }
+
+    /** نفس التقسيم في صفحة عربية ولصف إجمالي: كل جزء في عموده، وأول عمود على اليمين في كل صفحة. */
+    @Test
+    void splitTotalsRowKeepsItsColumnsInARightToLeftPage() throws Exception {
+        StringBuilder note = new StringBuilder();
+        for (int word = 1; word <= 400; word++) {
+            note.append('w').append(word).append(' ');
+        }
+        Glyphs glyphs = Glyphs.of(PdfDocument.rtl(Paper.A5).pageNumbers(PageNumbers.NONE)
+                .table(t -> t.column("Note", 1).column("Amount", 3)
+                        .row("before", "AAA").totals(note.toString().trim(), "ZZZ"))
+                .toBytes());
+
+        float lastLine = Paper.A5.height() - PdfStyle.forPaper(Paper.A5).margin();
+        assertTrue(glyphs.lowest() <= lastLine, "حرف مرسوم تحت الهامش السفلي: " + glyphs.lowest());
+
+        int pages = glyphs.pages();
+        assertTrue(pages >= 3, "400 سطر على A5 أكتر من صفحتين: " + pages);
+        assertTrue(glyphs.drawn("w1", 1));
+        assertTrue(glyphs.drawn("ZZZ", 1), "الخلية القصيرة بتترسم مرة واحدة، مع أول جزء");
+        assertTrue(glyphs.drawn("w400", pages));
+        for (int page = 2; page <= pages; page++) {
+            assertFalse(glyphs.drawn("ZZZ", page), "الخلية القصيرة اتكررت في صفحة " + page);
+        }
+        float amountColumn = glyphs.first("ZZZ", 1).x();
+        assertTrue(glyphs.first("w1", 1).x() > amountColumn, "أول عمود على اليمين");
+        assertTrue(glyphs.first("w400", pages).x() > amountColumn, "وباقي الصف في نفس العمود");
+    }
+
+    /**
+     * رأس جدول أطول من الصفحة ما بيسيبش مكان لأي سطر: المستند لازم يتبني برضه وكل صفوفه تترسم.
+     * تقسيم الصف كان بيلف للأبد على باقٍ فاضي ويفتح صفحات لحد ما الذاكرة تخلص.
+     */
+    @Test
+    void headerThatLeavesNoRoomForARowStillLetsTheDocumentFinish() {
+        StringBuilder header = new StringBuilder();
+        for (int word = 1; word <= 50; word++) {
+            header.append('h').append(word).append('\n');
+        }
+        byte[] pdf = org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(java.time.Duration.ofSeconds(20),
+                () -> PdfDocument.ltr(Paper.A5)
+                        .table(t -> t.column(header.toString().trim(), 1).column("Amount", 1)
+                                .row("first", "1").row("second", "2").totals("Total", "3"))
+                        .toBytes());
+
+        Glyphs glyphs = org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> Glyphs.of(pdf));
+        assertTrue(glyphs.pages() <= 3, "صفحة لكل صف على الأكثر: " + glyphs.pages());
+        glyphs.first("first");
+        glyphs.first("second");
+        glyphs.first("Total");
+    }
+
     @Test
     void singlePageIsNotNumberedUnlessAsked() throws Exception {
         assertFalse(Glyphs.of(PdfDocument.ltr(Paper.A4).title("One").toBytes()).drawn("Page 1 of 1", 1));
