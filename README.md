@@ -38,7 +38,7 @@
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.1.0</version>
+    <version>v2.1.1</version>
 </dependency>
 ```
 
