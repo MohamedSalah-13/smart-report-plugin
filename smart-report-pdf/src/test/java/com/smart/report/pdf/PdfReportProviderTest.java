@@ -144,6 +144,52 @@ class PdfReportProviderTest {
         assertTrue(glyphs.first("AAA").x() > glyphs.first("BBB").x());
     }
 
+    public record Sale(String name, Object amount, Object when) {}
+
+    private static byte[] sales(List<Sale> rows) throws Exception {
+        return ReportService.generate(ReportType.PDF, ReportRequest.<Sale>builder()
+                .title("Sales").data(rows)
+                .addColumn("name", "Name").addColumn("amount", "Amount").addColumn("when", "When")
+                .build());
+    }
+
+    /** toString كان بيطبع "Thu Jan 01 02:00:00 EET 1970" و"1234567.5" من غير فواصل. */
+    @Test
+    void valuesAreFormattedByTheirType() throws Exception {
+        java.util.Date legacy = new java.util.GregorianCalendar(2026, java.util.Calendar.NOVEMBER, 26, 10, 30).getTime();
+        String text = textOf(sales(List.of(
+                new Sale("double", 1234567.5, java.time.LocalDate.of(2026, 11, 26)),
+                new Sale("decimal", new java.math.BigDecimal("1200.50"), legacy),
+                new Sale("whole", 7200.0, java.time.LocalDateTime.of(2026, 11, 26, 9, 5, 7)),
+                new Sale("long", 1000000L, java.sql.Date.valueOf("2026-11-25")),
+                new Sale("none", null, null))));
+
+        for (String expected : new String[]{"1,234,567.5", "1,200.50", "7,200", "1,000,000",
+                "2026-11-26", "2026-11-26 10:30:00", "2026-11-26 09:05:07", "2026-11-25"}) {
+            assertTrue(text.contains(expected), expected + " مش موجود في: " + text);
+        }
+        assertFalse(text.contains("7,200.0"), "الـ double بأقصر صورة: " + text);
+        assertFalse(text.contains("null"), text);
+        assertFalse(text.contains("1970") || text.contains("GMT") || text.contains("EET"), text);
+    }
+
+    /** عمود قيمه كلها أرقام بيتحاذى لنهاية السطر، فالرقم القصير بيبدأ أبعد من الطويل. */
+    @Test
+    void numberColumnIsAlignedToTheEndAndTextColumnToTheStart() throws Exception {
+        Glyphs glyphs = Glyphs.of(sales(List.of(new Sale("a", 9, "x"), new Sale("abcdef", 1000, "xyzxyz"))));
+
+        assertTrue(glyphs.first("9").x() > glyphs.first("1,000").x() + 5, "الأرقام تحت بعض من آخرها");
+        assertTrue(Math.abs(glyphs.first("x").x() - glyphs.first("xyzxyz").x()) < 0.5f, "النص من أوله");
+    }
+
+    /** عمود فيه رقم ونص مع بعض بيفضل نصًا عاديًا. */
+    @Test
+    void mixedColumnStaysAlignedToTheStart() throws Exception {
+        Glyphs glyphs = Glyphs.of(sales(List.of(new Sale("a", 9, "x"), new Sale("b", "n/a", "y"))));
+
+        assertTrue(Math.abs(glyphs.first("9").x() - glyphs.first("n/a").x()) < 0.5f);
+    }
+
     /** الورقة والاتجاه بيتحددوا من parameters. */
     @Test
     void paperAndDirectionCanBeChosenThroughParameters() throws Exception {

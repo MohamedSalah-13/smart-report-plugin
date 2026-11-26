@@ -19,6 +19,7 @@ import java.util.GregorianCalendar;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ExcelReportProviderTest {
@@ -66,6 +67,35 @@ class ExcelReportProviderTest {
             Sheet sheet = workbook.getSheetAt(0);
             return sheet.getRow(3); // عنوان + سطر فاضي + رأس أعمدة
         }
+    }
+
+    private static boolean sheetRunsRightToLeft(ReportRequest<Record> request) throws Exception {
+        byte[] xlsx = ReportService.generate(ReportType.EXCEL, request);
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(xlsx))) {
+            return workbook.getSheetAt(0).isRightToLeft();
+        }
+    }
+
+    /** نفس الطلب كان بيطلع PDF عربيًا من اليمين وورقة Excel أعمدتها من الشمال. */
+    @Test
+    void arabicReportSheetRunsRightToLeft() throws Exception {
+        assertTrue(sheetRunsRightToLeft(ReportRequest.<Record>builder()
+                .data(List.of(new Record())).addColumn("name", "الاسم").addColumn("amount", "المبلغ").build()));
+        assertTrue(sheetRunsRightToLeft(ReportRequest.<Record>builder()
+                .title("تقرير").data(List.of(new Record())).addColumn("name", "Name").build()),
+                "العنوان العربي لوحده كفاية");
+        assertFalse(sheetRunsRightToLeft(ReportRequest.<Record>builder()
+                .title("Report").data(List.of(new Record())).addColumn("name", "Name").build()));
+    }
+
+    @Test
+    void directionCanBeChosenThroughParameters() throws Exception {
+        assertTrue(sheetRunsRightToLeft(ReportRequest.<Record>builder()
+                .data(List.of(new Record())).addColumn("name", "Name")
+                .parameter(ExcelReportProvider.RIGHT_TO_LEFT, true).build()));
+        assertFalse(sheetRunsRightToLeft(ReportRequest.<Record>builder()
+                .data(List.of(new Record())).addColumn("name", "الاسم")
+                .parameter(ExcelReportProvider.RIGHT_TO_LEFT, false).build()));
     }
 
     /** كانت الخلايا بتطلع أرقامًا خامًا زي 45245.01 بدل التاريخ. */

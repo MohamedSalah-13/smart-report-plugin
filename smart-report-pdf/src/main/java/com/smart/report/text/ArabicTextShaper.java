@@ -1,5 +1,7 @@
 package com.smart.report.text;
 
+import com.smart.report.util.TextDirection;
+
 import java.text.Bidi;
 import java.util.ArrayList;
 import java.util.List;
@@ -67,6 +69,24 @@ public final class ArabicTextShaper {
             /* ف */ 4, /* ق */ 4, /* ك */ 4, /* ل */ 4,
             /* م */ 4, /* ن */ 4, /* ه */ 4, /* و */ 2,
             /* ى */ 2, /* ي */ 4
+    };
+
+    /**
+     * حروف خارج {@code ء..ي} بتتكتب في أسماء وكلمات عربية (ڤيلا، چيهان، جوجل بـ گ) وفي الفارسية والأردية.
+     * صورها في كتلة Presentation Forms-A، بنفس الترتيب: منفصلة، نهائية، أولية، وسطية. من غيرها الحرف
+     * كان بيترسم منفصلًا ويقطع الكلمة.
+     */
+    private static final String EXTRA_LETTERS =
+            "ٱٹپچڈڑژڤکگھہیے";
+    private static final char[] EXTRA_BASE = {
+            /* ٱ */ 'ﭐ', /* ٹ */ 'ﭦ', /* پ */ 'ﭖ', /* چ */ 'ﭺ', /* ڈ */ 'ﮈ',
+            /* ڑ */ 'ﮌ', /* ژ */ 'ﮊ', /* ڤ */ 'ﭪ', /* ک */ 'ﮎ', /* گ */ 'ﮒ',
+            /* ھ */ 'ﮪ', /* ہ */ 'ﮦ', /* ی */ 'ﯼ', /* ے */ 'ﮮ'
+    };
+    private static final byte[] EXTRA_COUNT = {
+            /* ٱ */ 2, /* ٹ */ 4, /* پ */ 4, /* چ */ 4, /* ڈ */ 2,
+            /* ڑ */ 2, /* ژ */ 2, /* ڤ */ 4, /* ک */ 4, /* گ */ 4,
+            /* ھ */ 4, /* ہ */ 4, /* ی */ 4, /* ے */ 2
     };
 
     private static final int ISOLATED = 0;
@@ -275,9 +295,8 @@ public final class ArabicTextShaper {
 
         while (i < length) {
             char c = text.charAt(i);
-            int index = shapeIndex(c);
 
-            if (index < 0) { // علامة تشكيل أو حرف غير عربي: يمرّ كما هو
+            if (formBase(c) == 0) { // علامة تشكيل أو حرف غير عربي: يمرّ كما هو
                 out.append(c);
                 i++;
                 continue;
@@ -301,7 +320,7 @@ public final class ArabicTextShaper {
             }
 
             boolean joinsNext = joinsForward(c) && next >= 0 && joinsBackward(text.charAt(next));
-            out.append(selectForm(index, joinsPrevious, joinsNext));
+            out.append(selectForm(c, joinsPrevious, joinsNext));
             i++;
         }
         return out.toString();
@@ -345,21 +364,12 @@ public final class ArabicTextShaper {
 
     /** هل النص يحتوي على أي حرف من كتل العربية (بما فيها صور العرض)؟ */
     public static boolean containsArabic(String text) {
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if ((c >= '؀' && c <= 'ۿ')   // Arabic
-                    || (c >= 'ݐ' && c <= 'ݿ')   // Arabic Supplement
-                    || (c >= 'ﭐ' && c <= '﷿')   // Presentation Forms-A
-                    || (c >= 'ﹰ' && c <= '﻿')) { // Presentation Forms-B
-                return true;
-            }
-        }
-        return false;
+        return TextDirection.containsArabic(text);
     }
 
-    private static char selectForm(int index, boolean joinsPrevious, boolean joinsNext) {
-        char base = FORM_BASE[index];
-        int count = FORM_COUNT[index];
+    private static char selectForm(char c, boolean joinsPrevious, boolean joinsNext) {
+        char base = formBase(c);
+        int count = formCount(c);
         if (count == 4) {
             if (joinsPrevious && joinsNext) return (char) (base + MEDIAL);
             if (joinsPrevious) return (char) (base + FINAL);
@@ -385,23 +395,30 @@ public final class ArabicTextShaper {
 
     /** هل يستطيع الحرف الاتصال بما بعده (ثنائي الاتصال أو تطويل)؟ */
     private static boolean joinsForward(char c) {
-        if (c == TATWEEL) return true;
-        int index = shapeIndex(c);
-        return index >= 0 && FORM_COUNT[index] == 4;
+        return c == TATWEEL || formCount(c) == 4;
     }
 
     /** هل يستطيع الحرف الاتصال بما قبله (له صورة نهائية أو تطويل)؟ */
     private static boolean joinsBackward(char c) {
-        if (c == TATWEEL) return true;
-        int index = shapeIndex(c);
-        return index >= 0 && FORM_COUNT[index] >= 2;
+        return c == TATWEEL || formCount(c) >= 2;
     }
 
-    /** موضع الحرف في جداول الصور، أو -1 لو ليس حرفًا عربيًا قابلًا للتشكيل. */
-    private static int shapeIndex(char c) {
-        if (c < ARABIC_START || c > ARABIC_END) return -1;
-        int index = c - ARABIC_START;
-        return FORM_BASE[index] == 0 ? -1 : index;
+    /** أول صورة عرض للحرف، أو 0 لو ليس حرفًا عربيًا قابلًا للتشكيل. التطويل بيرجع نفسه. */
+    private static char formBase(char c) {
+        if (c >= ARABIC_START && c <= ARABIC_END) {
+            return FORM_BASE[c - ARABIC_START];
+        }
+        int extra = EXTRA_LETTERS.indexOf(c);
+        return extra < 0 ? 0 : EXTRA_BASE[extra];
+    }
+
+    /** عدد صور الحرف: 4 ثنائي الاتصال، 2 يتصل بما قبله فقط، 1 منفصل دائمًا، 0 تطويل أو مش حرف. */
+    private static int formCount(char c) {
+        if (c >= ARABIC_START && c <= ARABIC_END) {
+            return FORM_COUNT[c - ARABIC_START];
+        }
+        int extra = EXTRA_LETTERS.indexOf(c);
+        return extra < 0 ? 0 : EXTRA_COUNT[extra];
     }
 
     /** علامات التشكيل شفّافة: لا تكسر الاتصال بين الحرفين المحيطين بها. */
