@@ -170,6 +170,29 @@ class PdfDocumentLayoutTest {
         assertTrue(glyphs.first("w400", pages).x() > amountColumn, "وباقي الصف في نفس العمود");
     }
 
+    /**
+     * رأس جدول أطول من الصفحة ما بيسيبش مكان لأي سطر: المستند لازم يتبني برضه وكل صفوفه تترسم.
+     * تقسيم الصف كان بيلف للأبد على باقٍ فاضي ويفتح صفحات لحد ما الذاكرة تخلص.
+     */
+    @Test
+    void headerThatLeavesNoRoomForARowStillLetsTheDocumentFinish() {
+        StringBuilder header = new StringBuilder();
+        for (int word = 1; word <= 50; word++) {
+            header.append('h').append(word).append('\n');
+        }
+        byte[] pdf = org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(java.time.Duration.ofSeconds(20),
+                () -> PdfDocument.ltr(Paper.A5)
+                        .table(t -> t.column(header.toString().trim(), 1).column("Amount", 1)
+                                .row("first", "1").row("second", "2").totals("Total", "3"))
+                        .toBytes());
+
+        Glyphs glyphs = org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> Glyphs.of(pdf));
+        assertTrue(glyphs.pages() <= 3, "صفحة لكل صف على الأكثر: " + glyphs.pages());
+        glyphs.first("first");
+        glyphs.first("second");
+        glyphs.first("Total");
+    }
+
     @Test
     void singlePageIsNotNumberedUnlessAsked() throws Exception {
         assertFalse(Glyphs.of(PdfDocument.ltr(Paper.A4).title("One").toBytes()).drawn("Page 1 of 1", 1));

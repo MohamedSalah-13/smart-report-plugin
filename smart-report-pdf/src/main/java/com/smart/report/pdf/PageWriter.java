@@ -523,16 +523,25 @@ final class PageWriter {
                 if (!headerDrawn && header != null) {
                     paint(header, columns, x, widths, RowKind.HEADER, false);
                 }
+                headerDrawn = true;
                 paint(slice(rest, 0, fitting), columns, x, widths, kind, striped);
+                if (fitting >= lineCount(rest)) {
+                    // رأس الجدول ما سابش في الصفحة مكان لسطر واحد: السطر اترسم غصبًا والصف خلص. من غير
+                    // الوقفة دي الباقي الفاضي كان بيفضل «ما يكفيهوش المكان» والحلقة ما بتنتهيش.
+                    rest = null;
+                    break;
+                }
                 rest = slice(rest, fitting, Integer.MAX_VALUE);
                 newPage();
                 headerDrawn = false;
             }
-            if (!headerDrawn && header != null) {
-                paint(header, columns, x, widths, RowKind.HEADER, false);
+            if (rest != null) {
+                if (!headerDrawn && header != null) {
+                    paint(header, columns, x, widths, RowKind.HEADER, false);
+                }
+                headerDrawn = true;
+                paint(rest, columns, x, widths, kind, striped);
             }
-            headerDrawn = true;
-            paint(rest, columns, x, widths, kind, striped);
             if (!row.total()) {
                 index++;
             }
@@ -583,6 +592,15 @@ final class PageWriter {
             lines.add(cell);
         }
         return new RowLayout(lines, tallest * size * LEADING + 2 * PAD_Y, size, false);
+    }
+
+    /** عدد سطور أطول خلية في الصف. */
+    private static int lineCount(RowLayout row) {
+        int tallest = 0;
+        for (List<Line> cell : row.cells()) {
+            tallest = Math.max(tallest, cell.size());
+        }
+        return tallest;
     }
 
     /** السطور من {@code from} لحد {@code to} من كل خلية: جزء من صف اتقسّم على صفحتين، سطوره من أعلاه. */
