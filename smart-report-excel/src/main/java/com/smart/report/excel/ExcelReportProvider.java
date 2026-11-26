@@ -6,6 +6,7 @@ import com.smart.report.ReportProvider;
 import com.smart.report.ReportRequest;
 import com.smart.report.ReportType;
 import com.smart.report.util.BeanPropertyReader;
+import com.smart.report.util.TextDirection;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.FillPatternType;
@@ -36,8 +37,14 @@ import java.util.List;
  *
  * <p>الأرقام والمنطقيات والتواريخ بتتكتب بأنواعها الأصلية في Excel (مش كنصوص)، والتواريخ بياخدوا
  * تنسيق تاريخ فعلي عشان يظهروا كتواريخ بدل الرقم التسلسلي الخام.</p>
+ *
+ * <p><b>الاتجاه:</b> الورقة من اليمين لليسار (أول عمود على اليمين) لو العنوان أو أي رأس عمود فيه
+ * عربي — نفس قاعدة تقرير الـ PDF العام — إلا لو {@link #RIGHT_TO_LEFT} اتحدد في {@code parameters}.</p>
  */
 public final class ExcelReportProvider implements ReportProvider {
+
+    /** مفتاح في {@code ReportRequest.parameters()}: {@code Boolean} يحسم اتجاه الورقة. */
+    public static final String RIGHT_TO_LEFT = "smart.report.excel.rightToLeft";
 
     private static final String DATE_FORMAT = "yyyy-mm-dd";
     private static final String DATE_TIME_FORMAT = "yyyy-mm-dd hh:mm:ss";
@@ -75,6 +82,7 @@ public final class ExcelReportProvider implements ReportProvider {
         try (workbook) {
             workbook.setCompressTempFiles(true);
             SXSSFSheet sheet = workbook.createSheet(sheetName(request.title()));
+            sheet.setRightToLeft(TextDirection.rightToLeft(request, RIGHT_TO_LEFT));
             // بيتابع عرض الأعمدة والصفوف بتتكتب، فـ autoSizeColumn تفضل شغالة من غير
             // ما نحتفظ بكل الصفوف في الذاكرة
             sheet.trackAllColumnsForAutoSizing();

@@ -163,7 +163,7 @@ A character the chosen font lacks is tried in a system font (Arial and others), 
 printed as `?` with a warning in the log.
 
 > Arabic is prepared automatically before drawing: letters are joined and ordered right to left, with the
-> lam-alef ligature. This is the work of `ArabicTextShaper`, and it needs no extra dependency (no ICU4J or
+> lam-alef ligature, and letters such as ڤ, چ, گ, پ, ک and ی join as well. This is the work of `ArabicTextShaper`, and it needs no extra dependency (no ICU4J or
 > anything else). Diacritics (tashkeel) are centred over their letters approximately — PDFBox does not apply
 > the font's GPOS tables.
 
@@ -191,13 +191,33 @@ ReportService.generateToFile(ReportType.PDF, request, Path.of("employees.pdf"));
 Each column's name (`addColumn("id", ...)`) is read from the object by reflection: `getId()`, `isId()`, `id()`
 (record components), and finally the field itself.
 
-The generic PDF report runs right to left if the title or any column header contains Arabic, on portrait A4.
-To change that:
+A column can carry its own options for the PDF report — a format pattern, an alignment and a width weight:
+
+```java
+.addColumn(ColumnDefinition.of("amount", "المبلغ").withFormat("#,##0.00").withAlign(Alignment.END).withWeight(2))
+.addColumn(ColumnDefinition.of("date", "التاريخ").withFormat("d MMMM yyyy"))   // 26 نوفمبر 2026
+```
+
+- `withFormat`: a `DecimalFormat` pattern for numbers (rounded half up) or a `DateTimeFormatter` pattern for dates.
+  Month and day names follow the report's language; digits stay Latin. A pattern that does not fit a value
+  (`HH:mm` on a date with no time) fails with a `ReportException` naming the column.
+- `withAlign`: `START`, `CENTER` or `END`, relative to the report's direction. Without it, a column of numbers goes
+  to the end of the line and anything else to the start.
+- `withWeight`: the column's share of the table width (2 = twice a normal column).
+
+The Excel report writes values with their own types and Excel's formats, so it ignores these options.
+
+Both reports run right to left if the title or any column header contains Arabic (in Excel the sheet itself
+runs right to left). The PDF report is on portrait A4. To change that:
 
 ```java
 .parameter(PdfReportProvider.PAPER, "A5-landscape")        // or a Paper object
 .parameter(PdfReportProvider.RIGHT_TO_LEFT, true)
+.parameter(ExcelReportProvider.RIGHT_TO_LEFT, true)       // the direction of the Excel sheet
 ```
+
+In the PDF, numbers get thousands separators (`1,234,567.5`, `1,200.50`), dates are written `2026-11-26` and
+`2026-11-26 10:30:00`, and a column holding only numbers is aligned to the end of the line so the numbers line up.
 
 In Excel, numbers, booleans and dates are written with their own types, not as text.
 

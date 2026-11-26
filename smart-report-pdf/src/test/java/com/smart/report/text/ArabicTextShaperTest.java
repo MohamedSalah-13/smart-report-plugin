@@ -81,13 +81,55 @@ class ArabicTextShaperTest {
         assertEquals(42, base.length, "الجدول لازم يغطي ء..ي");
         assertEquals(base.length, count.length, "الجدولين لازم يبقوا بنفس الطول");
 
+        String[] names = {"ISOLATED FORM", "FINAL FORM", "INITIAL FORM", "MEDIAL FORM"};
         for (int i = 0; i < base.length; i++) {
             char letter = (char) (0x0621 + i);
             for (int form = 0; form < count[i]; form++) {
                 char presentationForm = (char) (base[i] + form);
+                int expected = form;
                 assertEquals(String.valueOf(letter),
                         Normalizer.normalize(String.valueOf(presentationForm), Normalizer.Form.NFKC),
                         () -> String.format("صورة خاطئة للحرف U+%04X", (int) letter));
+                assertTrue(Character.getName(presentationForm).endsWith(names[expected]),
+                        () -> String.format("U+%04X مش %s", (int) presentationForm, names[expected]));
+            }
+        }
+    }
+
+    /** ڤ و چ و گ و ک و ی كانت بتترسم منفصلة وتقطع الكلمة: «ڤيلا» كانت بتطلع ڤ لوحدها و«يلا» بعدها. */
+    @Test
+    void lettersOutsideTheBasicBlockJoinTheirNeighbours() {
+        assertEquals("ﭬﻴﻼ", ArabicTextShaper.shape("ڤيلا"));        // ڤ أولية
+        assertEquals("ﭼﻴﻬﺎﻥ", ArabicTextShaper.shape("چيهان"));
+        assertEquals("ﮔﻞ", ArabicTextShaper.shape("گل"));               // گ أولية، ل نهائية
+        assertEquals("ﮐﺘﺎﺏ", ArabicTextShaper.shape("کتاب"));
+        assertEquals("ﺳﯿﺎﻩ", ArabicTextShaper.shape("سیاه"));  // ی فارسية وسطية
+        assertEquals("ﻣﭙﺎ", ArabicTextShaper.shape("مپا"));        // پ وسطية
+        // ژ بتتصل باللي قبلها بس: بعدها الحرف بيبدأ من جديد.
+        assertEquals("ﮊﺍﻟﻪ", ArabicTextShaper.shape("ژاله"));
+        assertEquals("ﺑﮋﺍ", ArabicTextShaper.shape("بژا"));
+    }
+
+    /** نفس حارس جدول ء..ي للحروف الزيادة، ومعاه إن كل صورة في مكانها: منفصلة، نهائية، أولية، وسطية. */
+    @Test
+    void extraLetterFormsMatchUnicodeData() throws Exception {
+        String letters = (String) field("EXTRA_LETTERS").get(null);
+        char[] base = (char[]) field("EXTRA_BASE").get(null);
+        byte[] count = (byte[]) field("EXTRA_COUNT").get(null);
+        assertEquals(letters.length(), base.length);
+        assertEquals(letters.length(), count.length);
+
+        String[] names = {"ISOLATED FORM", "FINAL FORM", "INITIAL FORM", "MEDIAL FORM"};
+        for (int i = 0; i < letters.length(); i++) {
+            char letter = letters.charAt(i);
+            for (int form = 0; form < count[i]; form++) {
+                char presentationForm = (char) (base[i] + form);
+                int expected = form;
+                assertEquals(String.valueOf(letter),
+                        Normalizer.normalize(String.valueOf(presentationForm), Normalizer.Form.NFKC),
+                        () -> String.format("صورة خاطئة للحرف U+%04X", (int) letter));
+                assertTrue(Character.getName(presentationForm).endsWith(names[expected]),
+                        () -> String.format("U+%04X مش %s", (int) presentationForm, names[expected]));
             }
         }
     }

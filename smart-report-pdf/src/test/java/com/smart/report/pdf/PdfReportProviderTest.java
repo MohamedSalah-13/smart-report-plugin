@@ -144,6 +144,102 @@ class PdfReportProviderTest {
         assertTrue(glyphs.first("AAA").x() > glyphs.first("BBB").x());
     }
 
+    public record Sale(String name, Object amount, Object when) {}
+
+    private static byte[] sales(List<Sale> rows) throws Exception {
+        return ReportService.generate(ReportType.PDF, ReportRequest.<Sale>builder()
+                .title("Sales").data(rows)
+                .addColumn("name", "Name").addColumn("amount", "Amount").addColumn("when", "When")
+                .build());
+    }
+
+    /** toString كان بيطبع "Thu Jan 01 02:00:00 EET 1970" و"1234567.5" من غير فواصل. */
+    @Test
+    void valuesAreFormattedByTheirType() throws Exception {
+        java.util.Date legacy = new java.util.GregorianCalendar(2026, java.util.Calendar.NOVEMBER, 26, 10, 30).getTime();
+        String text = textOf(sales(List.of(
+                new Sale("double", 1234567.5, java.time.LocalDate.of(2026, 11, 26)),
+                new Sale("decimal", new java.math.BigDecimal("1200.50"), legacy),
+                new Sale("whole", 7200.0, java.time.LocalDateTime.of(2026, 11, 26, 9, 5, 7)),
+                new Sale("long", 1000000L, java.sql.Date.valueOf("2026-11-25")),
+                new Sale("none", null, null))));
+
+        for (String expected : new String[]{"1,234,567.5", "1,200.50", "7,200", "1,000,000",
+                "2026-11-26", "2026-11-26 10:30:00", "2026-11-26 09:05:07", "2026-11-25"}) {
+            assertTrue(text.contains(expected), expected + " مش موجود في: " + text);
+        }
+        assertFalse(text.contains("7,200.0"), "الـ double بأقصر صورة: " + text);
+        assertFalse(text.contains("null"), text);
+        assertFalse(text.contains("1970") || text.contains("GMT") || text.contains("EET"), text);
+    }
+
+    /** عمود قيمه كلها أرقام بيتحاذى لنهاية السطر، فالرقم القصير بيبدأ أبعد من الطويل. */
+    @Test
+    void numberColumnIsAlignedToTheEndAndTextColumnToTheStart() throws Exception {
+        Glyphs glyphs = Glyphs.of(sales(List.of(new Sale("a", 9, "x"), new Sale("abcdef", 1000, "xyzxyz"))));
+
+        assertTrue(glyphs.first("9").x() > glyphs.first("1,000").x() + 5, "الأرقام تحت بعض من آخرها");
+        assertTrue(Math.abs(glyphs.first("x").x() - glyphs.first("xyzxyz").x()) < 0.5f, "النص من أوله");
+    }
+
+    /** عمود فيه رقم ونص مع بعض بيفضل نصًا عاديًا. */
+    @Test
+    void mixedColumnStaysAlignedToTheStart() throws Exception {
+        Glyphs glyphs = Glyphs.of(sales(List.of(new Sale("a", 9, "x"), new Sale("b", "n/a", "y"))));
+
+        assertTrue(Math.abs(glyphs.first("9").x() - glyphs.first("n/a").x()) < 0.5f);
+    }
+
+    private static byte[] sales(List<Sale> rows, com.smart.report.ColumnDefinition... columns) throws Exception {
+        return ReportService.generate(ReportType.PDF, ReportRequest.<Sale>builder()
+                .title("Sales").data(rows).columns(List.of(columns)).build());
+    }
+
+    /** خيارات العمود بتغلب الافتراضي: النمط، والمحاذاة حتى في عمود أرقام. */
+    @Test
+    void columnFormatAndAlignOverrideTheDefaults() throws Exception {
+        byte[] pdf = sales(List.of(new Sale("a", 9, java.time.LocalDate.of(2026, 11, 26)),
+                        new Sale("b", 1000, java.time.LocalDate.of(2026, 1, 2))),
+                com.smart.report.ColumnDefinition.of("name", "Name"),
+                com.smart.report.ColumnDefinition.of("amount", "Amount").withFormat("#,##0.00")
+                        .withAlign(com.smart.report.Alignment.START),
+                com.smart.report.ColumnDefinition.of("when", "When").withFormat("dd/MM/yyyy"));
+
+        String text = textOf(pdf);
+        for (String expected : new String[]{"9.00", "1,000.00", "26/11/2026", "02/01/2026"}) {
+            assertTrue(text.contains(expected), expected + " مش موجود في: " + text);
+        }
+        Glyphs glyphs = Glyphs.of(pdf);
+        assertTrue(Math.abs(glyphs.first("9.00").x() - glyphs.first("1,000.00").x()) < 0.5f,
+                "المحاذاة المطلوبة لبداية السطر غلبت محاذاة الأرقام التلقائية");
+    }
+
+    /** العمود بوزن 3 عرضه تلات أضعاف العمود العادي. */
+    @Test
+    void columnWeightSharesTheTableWidth() throws Exception {
+        Glyphs glyphs = Glyphs.of(sales(List.of(new Sale("a", "b", "c")),
+                com.smart.report.ColumnDefinition.of("name", "H1").withWeight(3),
+                com.smart.report.ColumnDefinition.of("amount", "H2"),
+                com.smart.report.ColumnDefinition.of("when", "H3")));
+
+        // رءوس بنفس العرض ومتوسّطة في أعمدتها، فالمسافة بين بداياتها هي المسافة بين منتصفات الأعمدة.
+        float wide = glyphs.first("H2").x() - glyphs.first("H1").x();
+        float normal = glyphs.first("H3").x() - glyphs.first("H2").x();
+        assertTrue(Math.abs(wide / normal - 2f) < 0.3f,
+                "منتصف رأس لمنتصف رأس: (3+1)/2 ÷ (1+1)/2 = 2؛ الفعلي " + wide / normal);
+    }
+
+    /** النمط اللي ما ينفعش مع القيمة بيقول اسم العمود، مش استثناء غامض من جوّه الـ JDK. */
+    @Test
+    void patternThatDoesNotFitTheValueIsReportedWithTheColumnName() {
+        com.smart.report.ReportException thrown = org.junit.jupiter.api.Assertions.assertThrows(
+                com.smart.report.ReportException.class,
+                () -> sales(List.of(new Sale("a", 1, java.time.LocalDate.of(2026, 11, 26))),
+                        com.smart.report.ColumnDefinition.of("when", "When").withFormat("HH:mm")));
+        assertTrue(thrown.getMessage().contains("'when'") && thrown.getMessage().contains("HH:mm"),
+                thrown.getMessage());
+    }
+
     /** الورقة والاتجاه بيتحددوا من parameters. */
     @Test
     void paperAndDirectionCanBeChosenThroughParameters() throws Exception {

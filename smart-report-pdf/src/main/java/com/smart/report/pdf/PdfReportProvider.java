@@ -1,14 +1,17 @@
 package com.smart.report.pdf;
 
+import com.smart.report.Alignment;
 import com.smart.report.ColumnDefinition;
 import com.smart.report.ReportException;
 import com.smart.report.ReportProvider;
 import com.smart.report.ReportRequest;
 import com.smart.report.ReportType;
-import com.smart.report.text.ArabicTextShaper;
 import com.smart.report.util.BeanPropertyReader;
+import com.smart.report.util.TextDirection;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * يولّد تقرير PDF جدولي عام (عنوان + رأس أعمدة + صفوف بيانات) من أي List من الكائنات + قائمة
@@ -17,6 +20,11 @@ import java.util.List;
  *
  * <p><b>الاتجاه:</b> من اليمين لليسار لو العنوان أو أي رأس عمود فيه عربي، وإلا من اليسار لليمين —
  * إلا لو {@link #RIGHT_TO_LEFT} اتحدد في {@code parameters}.</p>
+ *
+ * <p><b>القيم:</b> الأرقام بفواصل الآلاف والتواريخ بصيغة {@code yyyy-MM-dd} ({@link CellText})، وعمود
+ * قيمه كلها أرقام بيتحاذى لنهاية السطر فالأرقام تيجي تحت بعض. خيارات كل عمود (نمط التنسيق، المحاذاة،
+ * الوزن) في {@link ColumnDefinition} بتغلب الافتراضي؛ النمط اللي ما ينفعش مع قيمة بيرمي
+ * {@link ReportException} باسم العمود.</p>
  *
  * <p><b>الورق:</b> A4 طولي، إلا لو {@link #PAPER} اتحدد في {@code parameters} بكائن {@link Paper}
  * أو باسمه ({@code "A5"}، {@code "A4-landscape"}).</p>
@@ -44,23 +52,59 @@ public final class PdfReportProvider implements ReportProvider {
         }
 
         Paper paper = paper(request.parameters().get(PAPER));
-        PdfDocument document = rightToLeft(request) ? PdfDocument.rtl(paper) : PdfDocument.ltr(paper);
+        boolean rightToLeft = TextDirection.rightToLeft(request, RIGHT_TO_LEFT);
+        PdfDocument document = rightToLeft ? PdfDocument.rtl(paper) : PdfDocument.ltr(paper);
         if (request.title() != null && !request.title().isBlank()) {
             document.title(singleLine(request.title()));
         }
 
-        PdfTable table = PdfTable.create();
-        for (ColumnDefinition column : columns) {
-            table.column(singleLine(column.header()));
+        // القيم بتتقرا الأول: محاذاة العمود بتتحدد من نوع قيمه كلها.
+        int count = columns.size();
+        List<Object[]> rows = new ArrayList<>(request.data().size());
+        boolean[] numeric = new boolean[count];
+        boolean[] other = new boolean[count];
+        for (Object item : request.data()) {
+            Object[] values = new Object[count];
+            for (int i = 0; i < count; i++) {
+                values[i] = BeanPropertyReader.read(item, columns.get(i).fieldName());
+                if (values[i] instanceof Number) {
+                    numeric[i] = true;
+                } else if (values[i] != null) {
+                    other[i] = true;
+                }
+            }
+            rows.add(values);
         }
-        for (Object row : request.data()) {
-            String[] cells = new String[columns.size()];
-            for (int i = 0; i < cells.length; i++) {
-                cells[i] = singleLine(BeanPropertyReader.readAsString(row, columns.get(i).fieldName()));
+
+        PdfTable table = PdfTable.create();
+        for (int i = 0; i < count; i++) {
+            ColumnDefinition column = columns.get(i);
+            Align align = column.align() != null ? align(column.align())
+                    : numeric[i] && !other[i] ? Align.END : Align.START;
+            table.column(singleLine(column.header()), column.weight(), align);
+        }
+        CellText text = new CellText(rightToLeft ? Locale.forLanguageTag("ar") : Locale.ENGLISH);
+        for (Object[] values : rows) {
+            String[] cells = new String[count];
+            for (int i = 0; i < count; i++) {
+                ColumnDefinition column = columns.get(i);
+                try {
+                    cells[i] = singleLine(text.of(values[i], column.format()));
+                } catch (IllegalArgumentException e) {
+                    throw new ReportException("Column '" + column.fieldName() + "': " + e.getMessage(), e);
+                }
             }
             table.row(cells);
         }
         return document.table(table).toBytes();
+    }
+
+    private static Align align(Alignment alignment) {
+        return switch (alignment) {
+            case START -> Align.START;
+            case CENTER -> Align.CENTER;
+            case END -> Align.END;
+        };
     }
 
     private static Paper paper(Object value) throws ReportException {
@@ -75,21 +119,6 @@ public final class PdfReportProvider implements ReportProvider {
         } catch (IllegalArgumentException e) {
             throw new ReportException("Invalid " + PAPER + " parameter: " + e.getMessage(), e);
         }
-    }
-
-    private static boolean rightToLeft(ReportRequest<?> request) {
-        if (request.parameters().get(RIGHT_TO_LEFT) instanceof Boolean chosen) {
-            return chosen;
-        }
-        if (request.title() != null && ArabicTextShaper.containsArabic(request.title())) {
-            return true;
-        }
-        for (ColumnDefinition column : request.columns()) {
-            if (ArabicTextShaper.containsArabic(column.header())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
