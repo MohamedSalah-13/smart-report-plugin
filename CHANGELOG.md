@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Amount in words (تفقيط): `AmountInWords.arabic` writes an amount the way an invoice does — «فقط سبعة آلاف ومائتا
+  جنيه لا غير» — with the counted noun in the right form (singular, dual, plural, accusative) and numbers that agree
+  with its gender. Ready currencies are EGP, SAR, AED, KWD and USD, and a program can define its own.
+
 ## [2.2.0] - 2026-11-26
 
 ### Added
