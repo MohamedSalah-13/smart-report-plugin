@@ -66,6 +66,10 @@ public record PdfStyle(float margin,
     /** الشكل الافتراضي مناسبًا لمقاس الورقة: أصغر على الورق الضيّق، وبهامش أقل على الورق القصير. */
     public static PdfStyle forPaper(Paper paper) {
         PdfStyle style = standard();
+        if (paper.roll()) {
+            // لفة الإيصالات ضيقة: خط أصغر، وهامش صغير لأن الطابعة نفسها سايبة هامش من الجنبين.
+            return style.scaled(paper.width() < 200f ? 0.78f : 0.85f).withMargin(8f);
+        }
         if (paper.width() < 500f) {
             style = style.scaled(0.88f);
         }

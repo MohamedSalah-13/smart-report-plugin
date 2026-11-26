@@ -43,6 +43,8 @@ final class PageWriter {
     private static final float GRID_WIDTH = 0.5f;
     private static final float BLOCK_GAP = 8f;
     private static final float LOGO_HEIGHT = 44f;
+    /** المكان الفاضي للتوقيع بين عنوان الخانة وخطها. */
+    private static final float SIGNATURE_SPACE = 34f;
 
     private enum Side { LEFT, CENTER, RIGHT }
 
@@ -66,19 +68,30 @@ final class PageWriter {
     private final float right;
     private final float width;
     private final float top;
-    private final float bottom;
+    /** آخر نقطة للمحتوى من تحت: الهامش، ومكان رقم الصفحة وتذييل الصفحات لو موجودين. */
+    private float bottom;
     /** عرض الكلمة مرسومة، بالوجه والحجم والكلمة: التقرير بيكرر كلماته في كل صف. */
     private final Map<String, Float> wordWidths = new HashMap<>();
+    /** تذييل الصفحات متكسّرًا لسطوره، بيترسم في الآخر مع أرقام الصفحات. */
+    private List<Line> pageFooter = List.of();
 
     private PDPageContentStream stream;
     private float y;
+    private int pages;
+    /** أول مكان للمحتوى في الصفحة الحالية: تحت الترويسة لو اترسمت فيها. */
+    private float pageTop;
+    /** أول مكان للمحتوى في أي صفحة جديدة؛ منه بيتحسب «هل الجزء ده يكفيه صفحة كاملة؟». */
+    private float freshTop;
+    /** الترويسة بتترسم دلوقتي: مفيش فتح صفحات من جوّاها. */
+    private boolean inLetterhead;
 
-    PageWriter(PDDocument pdf, PdfDocument document, FontSet fonts) {
+    /** @param page الورقة اللي الصفحات بتترسم عليها؛ في الورق الحراري ارتفاعها بيتحدد من المحتوى */
+    PageWriter(PDDocument pdf, PdfDocument document, FontSet fonts, Paper page) {
         this.pdf = pdf;
         this.document = document;
         this.fonts = fonts;
         this.style = document.resolvedStyle();
-        this.paper = document.paper();
+        this.paper = page;
         this.rtl = document.rightToLeft();
         this.left = style.margin();
         this.right = paper.width() - style.margin();
@@ -94,9 +107,15 @@ final class PageWriter {
 
     void write() throws IOException, ReportException {
         pdf.getDocumentInformation().setCreator("smart-report-pdf");
+        if (!document.pageFooterText().isBlank()) {
+            pageFooter = wrap(document.pageFooterText(), false, style.smallSize(), width);
+            bottom += pageFooter.size() * style.smallSize() * LEADING;
+            if (top - bottom < 60) {
+                throw new IllegalArgumentException("The page footer leaves no room on the page for its content.");
+            }
+        }
         newPage();
         try {
-            letterhead();
             for (PdfDocument.Block block : document.blocks()) {
                 draw(block);
             }
@@ -105,6 +124,14 @@ final class PageWriter {
             stream.close();
         }
         numberPages();
+    }
+
+    /**
+     * الارتفاع اللي المحتوى احتاجه، لورقة حرارية بتتقص على قد المكتوب: من أعلى الورقة لآخر سطر،
+     * والهامش ومكان رقم الصفحة والتذييل تحته. {@code -1} لو المحتوى ما كفّتهوش صفحة واحدة.
+     */
+    float usedHeight() {
+        return pages == 1 ? paper.height() - y + bottom : -1;
     }
 
     private void draw(PdfDocument.Block block) throws IOException, ReportException {
@@ -136,12 +163,17 @@ final class PageWriter {
                 table(table.table());
             }
             case PdfDocument.SummaryBlock summary -> summary(summary.lines());
+            case PdfDocument.SignaturesBlock signatures -> signatures(signatures.labels());
         }
     }
 
     // ===================== الصفحات =====================
 
-    private void newPage() throws IOException {
+    /**
+     * صفحة جديدة، والترويسة في أعلاها لو دي أول صفحة أو لو المستند طالبها في كل صفحة. بعدها
+     * {@link #atTop()} بيقيس من تحت الترويسة، فالجزء اللي ما كفّاهوش الباقي ما يفتحش صفحة ورا صفحة.
+     */
+    private void newPage() throws IOException, ReportException {
         if (stream != null) {
             stream.close();
         }
@@ -149,22 +181,40 @@ final class PageWriter {
         pdf.addPage(page);
         stream = new PDPageContentStream(pdf, page);
         y = top;
+        pages++;
+        if (pages == 1 || document.letterheadOnEveryPage()) {
+            inLetterhead = true;
+            try {
+                letterhead();
+            } finally {
+                inLetterhead = false;
+            }
+        }
+        pageTop = y;
+        if (pages == 1) {
+            freshTop = document.letterheadOnEveryPage() ? pageTop : top;
+        }
     }
 
     private boolean atTop() {
-        return y >= top - 0.5f;
+        return y >= pageTop - 0.5f;
+    }
+
+    /** المكان اللي صفحة جديدة بتديه للمحتوى. */
+    private float freshRoom() {
+        return freshTop - bottom;
     }
 
     /** يفتح صفحة جديدة لو {@code height} ما يكفيهاش الباقي — إلا لو إحنا أصلًا في أول الصفحة. */
-    private void need(float height) throws IOException {
-        if (y - height < bottom && !atTop()) {
+    private void need(float height) throws IOException, ReportException {
+        if (!inLetterhead && y - height < bottom && !atTop()) {
             newPage();
         }
     }
 
-    /** مسافة رأسية، إلا في أول الصفحة. */
+    /** مسافة رأسية، إلا في أعلى الورقة نفسها (تحت الترويسة المسافة بتفضل، زي ما كانت في أول صفحة). */
     private void gap(float points) {
-        if (!atTop()) {
+        if (y < top - 0.5f) {
             y -= points;
         }
     }
@@ -369,23 +419,35 @@ final class PageWriter {
     }
 
     /**
-     * رقم كل صفحة في منتصف هامشها السفلي. بيتكتب في الآخر لأنه بيقول عدد الصفحات كلها، وده ما
-     * بيتعرفش غير بعد رسم آخر صفحة.
+     * رقم كل صفحة في منتصف هامشها السفلي، وتذييل الصفحات فوقه. بيتكتبوا في الآخر لأن الرقم بيقول عدد
+     * الصفحات كلها، وده ما بيتعرفش غير بعد رسم آخر صفحة.
      */
     private void numberPages() throws IOException, ReportException {
-        int pages = pdf.getNumberOfPages();
+        int count = pdf.getNumberOfPages();
         PageNumbers mode = document.pageNumberMode();
-        if (mode == PageNumbers.NONE || mode == PageNumbers.WHEN_SEVERAL && pages < 2) {
+        boolean numbered = mode == PageNumbers.ALWAYS || mode == PageNumbers.WHEN_SEVERAL && count >= 2;
+        if (!numbered && pageFooter.isEmpty()) {
             return;
         }
         float size = style.smallSize();
-        for (int number = 1; number <= pages; number++) {
-            String text = rtl ? "صفحة " + number + " من " + pages : "Page " + number + " of " + pages;
-            Line line = line(text, text, false, size);
+        float leading = size * LEADING;
+        float numberBaseline = style.margin() * 0.55f;
+        // التذييل فوق مكان الرقم المحجوز (حتى لو الرقم ما اتكتبش)، فبيقف في نفس المكان في كل مستند.
+        float footerBaseline = numberBaseline + (mode == PageNumbers.NONE ? 0 : leading)
+                + (pageFooter.size() - 1) * leading;
+        for (int number = 1; number <= count; number++) {
             stream = new PDPageContentStream(pdf, pdf.getPage(number - 1),
                     PDPageContentStream.AppendMode.APPEND, true, true);
             try {
-                drawLine(line, size, style.mutedColor(), left, width, Side.CENTER, style.margin() * 0.55f);
+                if (numbered) {
+                    String text = rtl ? "صفحة " + number + " من " + count : "Page " + number + " of " + count;
+                    drawLine(line(text, text, false, size), size, style.mutedColor(), left, width, Side.CENTER,
+                            numberBaseline);
+                }
+                for (int k = 0; k < pageFooter.size(); k++) {
+                    drawLine(pageFooter.get(k), size, style.mutedColor(), left, width, Side.CENTER,
+                            footerBaseline - k * leading);
+                }
             } finally {
                 stream.close();
             }
@@ -411,18 +473,62 @@ final class PageWriter {
                 tallest = Math.max(tallest, lines.size());
                 row.add(lines);
             }
-            need(tallest * leading);
-            for (int column = 0; column < row.size(); column++) {
-                float offset = column * (cell + gutter);
-                float boxLeft = rtl ? right - offset - cell : left + offset;
-                List<Line> lines = row.get(column);
-                for (int k = 0; k < lines.size(); k++) {
-                    drawLine(lines.get(k), size, style.textColor(), boxLeft, cell, side(Align.START),
-                            y - k * leading - size * BASELINE);
-                }
+            // البيانان بيفضلوا مع بعض لو صفحة تكفيهم؛ البيان الأطول من صفحة بيكمل سطرًا سطرًا على اللي
+            // بعدها — كان بيترسم كله من مكانه ويخرج عن الورقة.
+            if (tallest * leading <= freshRoom()) {
+                need(tallest * leading);
             }
-            y -= tallest * leading + 1;
+            for (int k = 0; k < tallest; k++) {
+                need(leading);
+                for (int column = 0; column < row.size(); column++) {
+                    List<Line> lines = row.get(column);
+                    if (k >= lines.size()) {
+                        continue;
+                    }
+                    float offset = column * (cell + gutter);
+                    float boxLeft = rtl ? right - offset - cell : left + offset;
+                    drawLine(lines.get(k), size, style.textColor(), boxLeft, cell, side(Align.START),
+                            y - size * BASELINE);
+                }
+                y -= leading;
+            }
+            y -= 1;
         }
+    }
+
+    /**
+     * خانات التوقيع: عنوان كل خانة («المستلم»، «المحاسب») وتحته مكان للتوقيع وخط. الخانات بالعرض
+     * بترتيب القراءة — الأولى عند بداية السطر — ومع بعض في نفس الصفحة.
+     */
+    private void signatures(List<String> labels) throws IOException, ReportException {
+        int count = labels.size();
+        if (count == 0) {
+            return;
+        }
+        float size = style.bodySize();
+        float leading = size * LEADING;
+        float cell = width / count;
+        float inset = Math.min(12f, cell * 0.1f);
+        List<List<Line>> wrapped = new ArrayList<>(count);
+        int tallest = 1;
+        for (String label : labels) {
+            List<Line> lines = wrap(label, true, size, cell - 2 * inset);
+            tallest = Math.max(tallest, lines.size());
+            wrapped.add(lines);
+        }
+        float height = tallest * leading + SIGNATURE_SPACE;
+        gap(BLOCK_GAP * 2);
+        need(height + 2);
+        for (int i = 0; i < count; i++) {
+            float boxLeft = rtl ? right - (i + 1) * cell : left + i * cell;
+            List<Line> lines = wrapped.get(i);
+            for (int k = 0; k < lines.size(); k++) {
+                drawLine(lines.get(k), size, style.textColor(), boxLeft, cell, Side.CENTER,
+                        y - k * leading - size * BASELINE);
+            }
+            rule(boxLeft + inset, boxLeft + cell - inset, y - height, style.textColor(), 0.6f);
+        }
+        y -= height + 2;
     }
 
     /** الملخص: جدول بلا رأس من عمودين، وسطر الإجمالي فيه بخط أكبر. */
@@ -448,7 +554,7 @@ final class PageWriter {
         gap(BLOCK_GAP);
         // الملخص قصير: لو ما كفّاهوش الباقي بيتنقل كله للصفحة الجاية بدل ما يتقسم.
         float estimate = lines.size() * (style.bodySize() * LEADING + 2 * PAD_Y) + 4;
-        if (estimate < top - bottom) {
+        if (estimate < freshRoom()) {
             need(estimate);
         }
         table(table);
@@ -496,61 +602,80 @@ final class PageWriter {
             }
         }
 
+        Grid grid = new Grid(columns, x, widths);
         RowLayout header = table.headerShown() ? layout(headers, widths, true, headerSize) : null;
+        // الرأس بيتكرر في أول كل صفحة لو مش واخد أكتر من تلت الصفحة. الأطول من كده بيترسم مرة واحدة
+        // (ومتقسّم لو أطول من صفحة): كان بيتكرر في كل صفحة ويخرج عن الورقة أو ياكلها كلها.
+        RowLayout repeated = header != null && header.height() <= freshRoom() / 3 ? header : null;
         boolean headerDrawn = false;
+        if (header != null && repeated == null) {
+            row(header, RowKind.HEADER, false, null, false, grid);
+        }
         int index = 0;
         for (PdfTable.Row row : table.rows()) {
-            RowLayout rest = layout(row.cells(), widths, row.total(), row.total() ? totalSize : bodySize);
-            RowKind kind = row.total() ? RowKind.TOTAL : RowKind.NORMAL;
-            boolean striped = style.stripes() && index % 2 == 1;
-            float headerHeight = header == null ? 0 : header.height();
-            // الصف بيترسم كله في مكانه لو كفّاه الباقي، وإلا في صفحة جديدة لو تكفيه. الصف الأطول من
-            // صفحة كاملة بيتقسّم على سطوره: كان بيترسم تحت حافة الورقة ويضيع باقيه في الطباعة.
-            while (true) {
-                float room = y - bottom - (headerDrawn ? 0 : headerHeight);
-                if (rest.height() <= room) {
-                    break;
-                }
-                // نفس حساب room في أول صفحة جديدة، فالصف اللي تكفيه بيخرج من الفحص اللي فوق بعدها.
-                boolean fitsFreshPage = rest.height() <= top - bottom - headerHeight;
-                int fitting = (int) ((room - 2 * PAD_Y) / (rest.size() * LEADING));
-                if (!atTop() && (fitsFreshPage || fitting < 1)) {
-                    newPage();
-                    headerDrawn = false;
-                    continue;
-                }
-                fitting = Math.max(1, fitting);
-                if (!headerDrawn && header != null) {
-                    paint(header, columns, x, widths, RowKind.HEADER, false);
-                }
-                headerDrawn = true;
-                paint(slice(rest, 0, fitting), columns, x, widths, kind, striped);
-                if (fitting >= lineCount(rest)) {
-                    // رأس الجدول ما سابش في الصفحة مكان لسطر واحد: السطر اترسم غصبًا والصف خلص. من غير
-                    // الوقفة دي الباقي الفاضي كان بيفضل «ما يكفيهوش المكان» والحلقة ما بتنتهيش.
-                    rest = null;
-                    break;
-                }
-                rest = slice(rest, fitting, Integer.MAX_VALUE);
-                newPage();
-                headerDrawn = false;
-            }
-            if (rest != null) {
-                if (!headerDrawn && header != null) {
-                    paint(header, columns, x, widths, RowKind.HEADER, false);
-                }
-                headerDrawn = true;
-                paint(rest, columns, x, widths, kind, striped);
-            }
+            RowLayout layout = layout(row.cells(), widths, row.total(), row.total() ? totalSize : bodySize);
+            headerDrawn = row(layout, row.total() ? RowKind.TOTAL : RowKind.NORMAL,
+                    style.stripes() && index % 2 == 1, repeated, headerDrawn, grid);
             if (!row.total()) {
                 index++;
             }
         }
-        if (!headerDrawn && header != null) {
+        if (!headerDrawn && repeated != null) {
             // جدول بلا صفوف: رأسه بيترسم برضه، عشان الورقة تقول إن الجدول فاضي.
-            need(header.height());
-            paint(header, columns, x, widths, RowKind.HEADER, false);
+            need(repeated.height());
+            paint(repeated, grid, RowKind.HEADER, false);
         }
+    }
+
+    /** أعمدة جدول على الورقة: مكان كل عمود منطقي وعرضه. */
+    private record Grid(List<PdfTable.Column> columns, float[] x, float[] widths) {
+    }
+
+    /**
+     * صف واحد: بيترسم كله في مكانه لو كفّاه الباقي، وإلا في صفحة جديدة لو تكفيه. الصف الأطول من صفحة
+     * كاملة بيتقسّم على سطوره: كان بيترسم تحت حافة الورقة ويضيع باقيه في الطباعة.
+     *
+     * @param pageHeader  رأس الجدول اللي بيترسم قبل الصف في أول كل صفحة؛ {@code null} = مفيش
+     * @param headerDrawn الرأس اترسم بالفعل في الصفحة الحالية
+     * @return هل الرأس مرسوم في الصفحة اللي الصف خلص فيها
+     */
+    private boolean row(RowLayout row, RowKind kind, boolean striped, RowLayout pageHeader, boolean headerDrawn,
+                        Grid grid) throws IOException, ReportException {
+        float headerHeight = pageHeader == null ? 0 : pageHeader.height();
+        RowLayout rest = row;
+        while (true) {
+            float room = y - bottom - (headerDrawn ? 0 : headerHeight);
+            if (rest.height() <= room) {
+                break;
+            }
+            // نفس حساب room في أول صفحة جديدة، فالصف اللي تكفيه بيخرج من الفحص اللي فوق بعدها.
+            boolean fitsFreshPage = rest.height() <= freshRoom() - headerHeight;
+            int fitting = (int) ((room - 2 * PAD_Y) / (rest.size() * LEADING));
+            if (!atTop() && (fitsFreshPage || fitting < 1)) {
+                newPage();
+                headerDrawn = false;
+                continue;
+            }
+            fitting = Math.max(1, fitting);
+            if (!headerDrawn && pageHeader != null) {
+                paint(pageHeader, grid, RowKind.HEADER, false);
+            }
+            headerDrawn = true;
+            paint(slice(rest, 0, fitting), grid, kind, striped);
+            if (fitting >= lineCount(rest)) {
+                // الرأس ما سابش في الصفحة مكان لسطر واحد: السطر اترسم غصبًا والصف خلص. من غير
+                // الوقفة دي الباقي الفاضي كان بيفضل «ما يكفيهوش المكان» والحلقة ما بتنتهيش.
+                return true;
+            }
+            rest = slice(rest, fitting, Integer.MAX_VALUE);
+            newPage();
+            headerDrawn = false;
+        }
+        if (!headerDrawn && pageHeader != null) {
+            paint(pageHeader, grid, RowKind.HEADER, false);
+        }
+        paint(rest, grid, kind, striped);
+        return true;
     }
 
     /** يرفع أضيق عرض لكل عمود لعرض أطول كلمة في خليته مع حشوتها، بحد أقصى نصف عرض الجدول. */
@@ -615,8 +740,10 @@ final class PageWriter {
         return new RowLayout(cells, tallest * row.size() * LEADING + 2 * PAD_Y, row.size(), true);
     }
 
-    private void paint(RowLayout row, List<PdfTable.Column> columns, float[] x, float[] widths, RowKind kind,
-                       boolean striped) throws IOException {
+    private void paint(RowLayout row, Grid grid, RowKind kind, boolean striped) throws IOException {
+        List<PdfTable.Column> columns = grid.columns();
+        float[] x = grid.x();
+        float[] widths = grid.widths();
         float tableLeft = rtl ? x[x.length - 1] : x[0];
         float tableWidth = 0;
         for (float w : widths) {

@@ -193,6 +193,63 @@ class PdfDocumentLayoutTest {
         glyphs.first("Total");
     }
 
+    /** رأس أطول من تلت الصفحة بيترسم مرة واحدة: لو اتكرر كان هياكل كل صفحة. */
+    @Test
+    void tallHeaderIsDrawnOnceInsteadOfOnEveryPage() throws Exception {
+        StringBuilder header = new StringBuilder();
+        for (int line = 1; line <= 15; line++) {
+            header.append('h').append(line).append('\n');
+        }
+        PdfTable table = PdfTable.create().column(header.toString().trim(), 1).column("Amount", 1);
+        for (int day = 1; day <= 120; day++) {
+            table.row("row" + day, "5");
+        }
+        Glyphs glyphs = Glyphs.of(PdfDocument.ltr(Paper.A5).table(table).toBytes());
+
+        assertTrue(glyphs.drawn("h15", 1));
+        for (int page = 2; page <= glyphs.pages(); page++) {
+            assertFalse(glyphs.drawn("h1", page), "الرأس الطويل اتكرر في صفحة " + page);
+        }
+        assertTrue(glyphs.drawn("row120", glyphs.pages()));
+    }
+
+    /** رأس أطول من الصفحة كلها بيتقسّم زي الصف، ومفيش سطر منه بيخرج عن الورقة. */
+    @Test
+    void headerTallerThanThePageIsSplitAndNothingLeavesThePaper() throws Exception {
+        StringBuilder header = new StringBuilder();
+        for (int line = 1; line <= 60; line++) {
+            header.append('h').append(line).append('\n');
+        }
+        Glyphs glyphs = Glyphs.of(PdfDocument.ltr(Paper.A5).pageNumbers(PageNumbers.NONE)
+                .table(t -> t.column(header.toString().trim(), 1).column("Amount", 1).row("first", "1"))
+                .toBytes());
+
+        assertTrue(glyphs.lowest() <= Paper.A5.height() - PdfStyle.forPaper(Paper.A5).margin(), "" + glyphs.lowest());
+        assertTrue(glyphs.drawn("h1", 1));
+        assertTrue(glyphs.pages() >= 2);
+        glyphs.first("h60");
+        glyphs.first("first");
+    }
+
+    /** بيان قيمته أطول من صفحة بيكمل سطرًا سطرًا: كان بيترسم كله من مكانه ويخرج عن الورقة. */
+    @Test
+    void fieldLongerThanThePageContinuesOnTheNextPage() throws Exception {
+        StringBuilder value = new StringBuilder();
+        for (int word = 1; word <= 600; word++) {
+            value.append('w').append(word).append(' ');
+        }
+        Glyphs glyphs = Glyphs.of(PdfDocument.ltr(Paper.A5).pageNumbers(PageNumbers.NONE)
+                .field("Notes", value.toString().trim()).field("Plate", "1234")
+                .text("after")
+                .toBytes());
+
+        assertTrue(glyphs.lowest() <= Paper.A5.height() - PdfStyle.forPaper(Paper.A5).margin(), "" + glyphs.lowest());
+        assertTrue(glyphs.pages() >= 2);
+        assertTrue(glyphs.drawn("Plate:", 1), "البيان التاني جنب الأول");
+        assertTrue(glyphs.drawn("w600", glyphs.pages()));
+        assertTrue(glyphs.first("w600").y() < glyphs.first("after").y(), "اللي بعده تحته");
+    }
+
     @Test
     void singlePageIsNotNumberedUnlessAsked() throws Exception {
         assertFalse(Glyphs.of(PdfDocument.ltr(Paper.A4).title("One").toBytes()).drawn("Page 1 of 1", 1));

@@ -69,6 +69,9 @@ public final class PdfDocument {
     record SummaryLine(String label, String value, boolean total) {
     }
 
+    record SignaturesBlock(List<String> labels) implements Block {
+    }
+
     private final Paper paper;
     private final boolean rightToLeft;
     private final List<Block> blocks = new ArrayList<>();
@@ -77,6 +80,8 @@ public final class PdfDocument {
     private List<String> letterheadLines = List.of();
     private byte[] logo;
     private String footer = "";
+    private boolean letterheadOnEveryPage;
+    private String pageFooter = "";
     private PageNumbers pageNumbers = PageNumbers.WHEN_SEVERAL;
 
     private PdfDocument(Paper paper, boolean rightToLeft) {
@@ -113,6 +118,41 @@ public final class PdfDocument {
         }
         this.letterheadLines = List.copyOf(kept);
         return this;
+    }
+
+    /**
+     * الترويسة (والشعار) في أعلى كل صفحة، مش الأولى بس — للكشوف اللي بتطول. رأس الجدول اللي بيكمل
+     * على الصفحة الجديدة بيترسم تحتها.
+     */
+    public PdfDocument letterheadOnEveryPage(boolean value) {
+        this.letterheadOnEveryPage = value;
+        return this;
+    }
+
+    /**
+     * سطر صغير في أسفل كل صفحة فوق رقمها — العنوان والتليفون، أو «هذا المستند صادر من نظام ...».
+     * غير {@link #footer(String)} اللي بيترسم مرة واحدة بعد آخر جزء.
+     */
+    public PdfDocument pageFooter(String text) {
+        this.pageFooter = text == null ? "" : text;
+        return this;
+    }
+
+    /**
+     * خانات توقيع بالعرض: عنوان كل خانة («المستلم»، «المحاسب»، «الختم») وتحته مكان للتوقيع وخط.
+     * الخانة الأولى عند بداية السطر، والخانات بتفضل مع بعض في نفس الصفحة.
+     */
+    public PdfDocument signatures(String... labels) {
+        List<String> kept = new ArrayList<>();
+        if (labels != null) {
+            for (String label : labels) {
+                kept.add(label == null ? "" : label);
+            }
+        }
+        if (kept.isEmpty()) {
+            throw new IllegalArgumentException("At least one signature label is required.");
+        }
+        return add(new SignaturesBlock(List.copyOf(kept)));
     }
 
     /** شعار الجهة (PNG أو JPEG) بجانب الترويسة، في الجهة اللي الصفحة بتبدأ منها. */
@@ -251,6 +291,14 @@ public final class PdfDocument {
         return pageNumbers;
     }
 
+    boolean letterheadOnEveryPage() {
+        return letterheadOnEveryPage;
+    }
+
+    String pageFooterText() {
+        return pageFooter;
+    }
+
     /** المستند كبايتات PDF. */
     public byte[] toBytes() throws ReportException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -261,9 +309,29 @@ public final class PdfDocument {
     /** يكتب المستند في {@code out} ولا يقفله. */
     public void writeTo(OutputStream out) throws ReportException {
         Objects.requireNonNull(out, "out");
+        Paper page = paper;
+        if (paper.roll()) {
+            // الورق الحراري بيتقص على قد المكتوب: المستند بيترسم مرة على ورقة بأقصى طول عشان يتقاس، وبعدين
+            // على ورقة بالطول اللي احتاجه. لو ما كفّتهوش ورقة بأقصى طول بيفضل صفحات بالطول ده.
+            float used = layOut(paper, null);
+            if (used > 0) {
+                // نقطتين زيادة: الجزء الأخير بيقف على الحد بالظبط، وفرق تقريب صغير كان هيفتح له صفحة.
+                float height = Math.max((float) Math.ceil(used) + 2, paper.width());
+                page = new Paper(paper.name(), paper.width(), Math.min(paper.height(), height), true);
+            }
+        }
+        layOut(page, out);
+    }
+
+    /** يرسم المستند على {@code page} ويكتبه في {@code out} لو مش {@code null}؛ بيرجّع الطول المستخدم. */
+    private float layOut(Paper page, OutputStream out) throws ReportException {
         try (PDDocument pdf = new PDDocument(); FontSet fonts = FontSet.load(pdf)) {
-            new PageWriter(pdf, this, fonts).write();
-            pdf.save(out);
+            PageWriter writer = new PageWriter(pdf, this, fonts, page);
+            writer.write();
+            if (out != null) {
+                pdf.save(out);
+            }
+            return writer.usedHeight();
         } catch (IOException e) {
             throw new ReportException("Failed to write the PDF document: " + e.getMessage(), e);
         }
