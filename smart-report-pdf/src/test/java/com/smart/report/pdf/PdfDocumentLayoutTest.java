@@ -142,6 +142,34 @@ class PdfDocumentLayoutTest {
         }
     }
 
+    /** نفس التقسيم في صفحة عربية ولصف إجمالي: كل جزء في عموده، وأول عمود على اليمين في كل صفحة. */
+    @Test
+    void splitTotalsRowKeepsItsColumnsInARightToLeftPage() throws Exception {
+        StringBuilder note = new StringBuilder();
+        for (int word = 1; word <= 400; word++) {
+            note.append('w').append(word).append(' ');
+        }
+        Glyphs glyphs = Glyphs.of(PdfDocument.rtl(Paper.A5).pageNumbers(PageNumbers.NONE)
+                .table(t -> t.column("Note", 1).column("Amount", 3)
+                        .row("before", "AAA").totals(note.toString().trim(), "ZZZ"))
+                .toBytes());
+
+        float lastLine = Paper.A5.height() - PdfStyle.forPaper(Paper.A5).margin();
+        assertTrue(glyphs.lowest() <= lastLine, "حرف مرسوم تحت الهامش السفلي: " + glyphs.lowest());
+
+        int pages = glyphs.pages();
+        assertTrue(pages >= 3, "400 سطر على A5 أكتر من صفحتين: " + pages);
+        assertTrue(glyphs.drawn("w1", 1));
+        assertTrue(glyphs.drawn("ZZZ", 1), "الخلية القصيرة بتترسم مرة واحدة، مع أول جزء");
+        assertTrue(glyphs.drawn("w400", pages));
+        for (int page = 2; page <= pages; page++) {
+            assertFalse(glyphs.drawn("ZZZ", page), "الخلية القصيرة اتكررت في صفحة " + page);
+        }
+        float amountColumn = glyphs.first("ZZZ", 1).x();
+        assertTrue(glyphs.first("w1", 1).x() > amountColumn, "أول عمود على اليمين");
+        assertTrue(glyphs.first("w400", pages).x() > amountColumn, "وباقي الصف في نفس العمود");
+    }
+
     @Test
     void singlePageIsNotNumberedUnlessAsked() throws Exception {
         assertFalse(Glyphs.of(PdfDocument.ltr(Paper.A4).title("One").toBytes()).drawn("Page 1 of 1", 1));

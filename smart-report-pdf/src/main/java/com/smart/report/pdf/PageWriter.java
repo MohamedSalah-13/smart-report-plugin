@@ -511,15 +511,13 @@ final class PageWriter {
                 if (rest.height() <= room) {
                     break;
                 }
-                boolean fitsFreshPage = rest.height() + headerHeight <= top - bottom;
+                // نفس حساب room في أول صفحة جديدة، فالصف اللي تكفيه بيخرج من الفحص اللي فوق بعدها.
+                boolean fitsFreshPage = rest.height() <= top - bottom - headerHeight;
                 int fitting = (int) ((room - 2 * PAD_Y) / (rest.size() * LEADING));
                 if (!atTop() && (fitsFreshPage || fitting < 1)) {
                     newPage();
                     headerDrawn = false;
                     continue;
-                }
-                if (fitsFreshPage) {
-                    break; // في أول الصفحة والرأس هو اللي زاحمه: بيترسم زي ما كان.
                 }
                 fitting = Math.max(1, fitting);
                 if (!headerDrawn && header != null) {
