@@ -1,6 +1,6 @@
 ---
 name: pdf-print
-description: Adds PDF output and printing to a Java program with the shared smart-report library (com.github.MohamedSalah-13.smart-report-plugin on JitPack) instead of new print code - an Arabic-ready document on A4, A5 or an 80/58 mm thermal roll with letterhead, tables with totals, a summary, the amount in words (تفقيط), signature boxes, a QR code (and the Saudi ZATCA invoice QR), a barcode, page numbers, a JavaFX preview, saving and printing. Use when the user wants to print or produce a PDF from Java - an invoice, a statement, a receipt, a report, a list - including "print", "PDF", "receipt printer", "طباعة", "اطبع الكشف", "فاتورة PDF", "إيصال", "طابعة حرارية", "التفقيط", "رمز QR", "باركود", "فاتورة ضريبية مبسطة", "معاينة قبل الطباعة", "زي الطباعة اللى فى naqlat" - and when a printed Arabic page comes out wrong (table reversed, text cut with "...", a minus sign or date on the wrong side, letters not joined), a long page is shrunk onto one sheet, or a program still prints a JavaFX node or uses iText.
+description: Adds PDF output and printing to a Java program with the shared smart-report library (com.github.MohamedSalah-13.smart-report-plugin on JitPack) instead of new print code - an Arabic-ready document on A4, A5 or an 80/58 mm thermal roll with letterhead, tables with totals, a summary, the amount in words (تفقيط), signature boxes, a QR code (and the Saudi ZATCA invoice QR), a barcode, page numbers, page breaks, a JavaFX preview, saving and printing, and many documents (every driver's statement for the month) as one file and one print job. Use when the user wants to print or produce a PDF from Java - an invoice, a statement, a receipt, a report, a list - including "print", "PDF", "receipt printer", "طباعة", "اطبع الكشف", "اطبع كل الكشوف", "صفحة جديدة", "فاتورة PDF", "إيصال", "طابعة حرارية", "التفقيط", "رمز QR", "باركود", "فاتورة ضريبية مبسطة", "معاينة قبل الطباعة", "زي الطباعة اللى فى naqlat" - and when a printed Arabic page comes out wrong (table reversed, text cut with "...", a minus sign or date on the wrong side, letters not joined), a long page is shrunk onto one sheet, or a program still prints a JavaFX node or uses iText.
 ---
 
 # PDF print
@@ -149,6 +149,13 @@ What each part is:
   `v2.6.0` the boxes also stay with the summary before them (and any text between, such as the
   amount in words): the summary moves to the next page with them instead of the boxes landing there alone; if
   that group cannot move, the last line of the text before the boxes goes with them.
+- `pageBreak()` - the next part starts on a new page (from the release after `v2.8.0`): an annex after a
+  statement, a section per truck in one report. It never leaves a blank page: at the top of a page (nothing
+  drawn yet below the letterhead) it does nothing, and a break with nothing after it is dropped, so a loop may
+  add a section and a break each time. The new page has the letterhead only with `letterheadOnEveryPage(true)`,
+  and the page numbers carry on. On a thermal roll it does nothing (a receipt is one page). Several customers'
+  or drivers' statements are **not** one document with breaks - their page numbers would run on from one to
+  the next - but a `PdfBatch` (see "Variants").
 - The amount in words, when the old paper had it ("فقط ... لا غير"):
   `document.text(AmountInWords.arabic(invoice.net(), AmountInWords.Currency.EGP))` (from
   `com.smart.report.util`, in `smart-report-api`, which `smart-report-pdf` brings). Ready currencies: `EGP`,
@@ -415,6 +422,35 @@ has not been on a real printer yet; the old one usually had.
     `.barcode(...)` works the same way for a shipment or waybill number.
   - Test that it is one page, about 226.8 points wide (80 mm), with the last line and the total on it. Its
     height follows the number of lines, so assert a bound, not an exact height.
+- **Many documents at once** - "print every driver's statement for the month", the day's invoices: from the
+  release after `v2.8.0`, a `PdfBatch` of the documents the program already builds, as one file and one print
+  job:
+
+  ```java
+  List<PdfDocument> statements = drivers.stream()
+          .map(driver -> StatementPdf.document(driver, company, Paper.A4))
+          .toList();
+  PdfBatch batch = PdfBatch.of(statements);
+  PdfPrinter.print(batch, printerName, copies);      // one job; copies come out as whole sets of the batch
+  batch.save(file);                                  // or one PDF file
+
+  PdfPreview.ofBatch(paper -> PdfBatch.of(drivers.stream()          // the preview, with a paper choice
+                  .map(driver -> StatementPdf.document(driver, company, paper)).toList()))
+          .papers(Paper.A4, Paper.A5)
+          .show(getScene().getWindow());
+  ```
+
+  - Each document keeps its own letterhead, page footer and page numbers ("صفحة 1 من 3" starts again), exactly
+    as if printed alone. Do not merge them into one `PdfDocument` with `pageBreak()`.
+  - Every document must be on the same paper: A4 with A4 landscape is fine, but A4 with A5, a sheet with a roll,
+    or two roll widths make `toBytes`, `save` and `print` throw a `ReportException`. Build all of a batch's
+    documents from the same `paper` variable.
+  - On a roll each document is its own receipt (a page as long as its content); the printer cuts between them
+    when its driver cuts at the end of each page.
+  - Read the data first and build the documents off the JavaFX thread, as for the preview: a month of statements
+    takes a moment.
+  - Test that the batch has as many pages as its documents together, and that each document's first page
+    carries its letterhead.
 
 ## When it does not work
 
@@ -431,7 +467,8 @@ has not been on a real printer yet; the old one usually had.
 - **Nothing happens on print.** The printer name is not one of `PdfPrinter.printerNames()`, or the call threw
   on a background thread that nobody listens to. Catch `ReportException` there and show it.
 - **The preview opens empty or says the document could not be prepared.** The function given to
-  `PdfPreview.of` threw. It runs off the JavaFX thread; the log has the stack trace.
+  `PdfPreview.of` threw. It runs off the JavaFX thread; the log has the stack trace. For a batch, the usual
+  cause is documents on different papers.
 - **Diacritics sit a little off.** They are centred over their letter without the font's fine positioning;
   this is a known limit, not a bug in the program.
 
