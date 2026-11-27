@@ -145,7 +145,8 @@ What each part is:
 - `signatures("المستلم", "المحاسب", "الختم")` - boxes side by side in reading order, each with its label and
   room to sign, kept together on one page. Put it last, where the old paper had its signature lines. From the
   release after `v2.5.0` the boxes also stay with the summary before them (and any text between, such as the
-  amount in words): the summary moves to the next page with them instead of the boxes landing there alone.
+  amount in words): the summary moves to the next page with them instead of the boxes landing there alone; if
+  that group cannot move, the last line of the text before the boxes goes with them.
 - The amount in words, when the old paper had it ("فقط ... لا غير"):
   `document.text(AmountInWords.arabic(invoice.net(), AmountInWords.Currency.EGP))` (from
   `com.smart.report.util`, in `smart-report-api`, which `smart-report-pdf` brings). Ready currencies: `EGP`,

@@ -101,6 +101,12 @@ final class PageWriter {
      * اللي قبله، زي أي جزء بيتنقل لوحده.
      */
     private boolean groupMoved;
+    /**
+     * المكان اللي آخر سطر في الفقرة الحالية بيحجزه بعده: خانات التوقيع اللي بعدها على طول. لو مجموعة الخانات
+     * ما اتنقلتش كلها (أطول من صفحة، أو مفيش فوقها غير ترويسة أول صفحة)، آخر سطر بينزل مع الخانات بدل ما
+     * تنزل هي لوحدها.
+     */
+    private float lastLineReserve;
 
     /** @param page الورقة اللي الصفحات بتترسم عليها؛ في الورق الحراري ارتفاعها بيتحدد من المحتوى */
     PageWriter(PDDocument pdf, PdfDocument document, FontSet fonts, Paper page) {
@@ -141,8 +147,10 @@ final class PageWriter {
                 if (last != null) {
                     keepTogether(blocks.subList(i, last + 1));
                 }
+                lastLineReserve = paper.roll() ? 0 : signaturesAfter(blocks, i);
                 draw(blocks.get(i));
                 groupMoved = false;
+                lastLineReserve = 0;
             }
             footer();
         } finally {
@@ -283,8 +291,7 @@ final class PageWriter {
                 case PdfDocument.SummaryBlock summary -> BLOCK_GAP + summaryHeight(summary.lines());
                 case PdfDocument.TextBlock text -> textHeight(text.text());
                 case PdfDocument.SpaceBlock space -> space.points();
-                case PdfDocument.SignaturesBlock signatures -> signatures.labels().isEmpty() ? 0
-                        : BLOCK_GAP * 2 + signaturesHeight(signatureLabels(signatures.labels())) + 2;
+                case PdfDocument.SignaturesBlock signatures -> signaturesBlockHeight(signatures.labels());
                 default -> 0;
             };
         }
@@ -293,6 +300,29 @@ final class PageWriter {
             need(height);
             groupMoved = pages > before;
         }
+    }
+
+    /**
+     * لو الجزء {@code i} نص وبعده على طول (أو بعد مسافات بس) خانات توقيع: ارتفاع المسافات والخانات اللي آخر
+     * سطر فيه بيحجزه. غير كده صفر.
+     */
+    private float signaturesAfter(List<PdfDocument.Block> blocks, int i) throws IOException, ReportException {
+        if (!(blocks.get(i) instanceof PdfDocument.TextBlock)) {
+            return 0;
+        }
+        float space = 0;
+        int next = i + 1;
+        while (next < blocks.size() && blocks.get(next) instanceof PdfDocument.SpaceBlock blank) {
+            space += blank.points();
+            next++;
+        }
+        return next < blocks.size() && blocks.get(next) instanceof PdfDocument.SignaturesBlock signatures
+                ? space + signaturesBlockHeight(signatures.labels()) : 0;
+    }
+
+    /** الخانات بالمسافة اللي قبلها، زي ما {@link #signatures} هيرسمها. */
+    private float signaturesBlockHeight(List<String> labels) throws IOException, ReportException {
+        return labels.isEmpty() ? 0 : BLOCK_GAP * 2 + signaturesHeight(signatureLabels(labels)) + 2;
     }
 
     /** مسافة رأسية، إلا في أعلى الورقة نفسها (تحت الترويسة المسافة بتفضل، زي ما كانت في أول صفحة). */
@@ -425,9 +455,10 @@ final class PageWriter {
             return;
         }
         float leading = size * LEADING;
-        for (Line line : wrap(text, bold, size, width)) {
-            need(leading);
-            drawLine(line, size, color, left, width, side, y - size * BASELINE);
+        List<Line> lines = wrap(text, bold, size, width);
+        for (int k = 0; k < lines.size(); k++) {
+            need(leading + (k == lines.size() - 1 ? lastLineReserve : 0));
+            drawLine(lines.get(k), size, color, left, width, side, y - size * BASELINE);
             y -= leading;
         }
     }

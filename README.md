@@ -136,7 +136,8 @@ document.letterheadOnEveryPage(true)                              // the letterh
 - `pageFooter(text)`: above the page number on every page, including a single page. `footer(text)` is different:
   a closing sentence drawn once after the last part.
 - `signatures(...)`: the boxes stay together, and stay with the summary before them (and any text between, such as
-  the amount in words): when they do not fit under it, the summary moves to the next page with them.
+  the amount in words): when they do not fit under it, the summary moves to the next page with them. If that
+  group cannot move, at least the last line of the text before the boxes goes with them.
 
 ### Thermal receipts (80 mm and 58 mm)
 

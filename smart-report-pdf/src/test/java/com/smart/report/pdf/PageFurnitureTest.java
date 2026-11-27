@@ -194,7 +194,28 @@ class PageFurnitureTest {
         }
     }
 
-    /** المجموعة الأطول من صفحة ما بتتنقلش: الملخص بيفضل مكانه والنص بيكمل والخانات في الآخر. */
+    /**
+     * المجموعة اللي مفيش فوقها غير ترويسة أول صفحة ما بتتنقلش (كانت هتسيب صفحة فيها الترويسة بس): النص بيبدأ
+     * تحت الترويسة، وآخر سطر فيه بينزل مع الخانات لو ما كفّاهمش المكان.
+     */
+    @Test
+    void aGroupRightUnderTheFirstLetterheadKeepsItsLastLineWithTheBoxes() throws Exception {
+        for (int count = 30; count <= 45; count++) {
+            StringBuilder text = new StringBuilder();
+            for (int line = 1; line <= count; line++) {
+                text.append(line == 1 ? "" : "\n").append("line").append(line);
+            }
+            Glyphs glyphs = Glyphs.of(PdfDocument.ltr(Paper.A5).letterhead("Company", "Address")
+                    .text(text.toString()).signatures("AAA", "BBB").pageNumbers(PageNumbers.NONE).toBytes());
+            int page = glyphs.pages();
+            assertTrue(glyphs.drawn("line1", 1), count + " سطر: النص بيبدأ تحت الترويسة");
+            assertTrue(glyphs.drawn("AAA", page) && glyphs.drawn("line" + count, page),
+                    count + " سطر: آخر سطر مع الخانات");
+            assertTrue(glyphs.lowest() <= Paper.A5.height() - PdfStyle.forPaper(Paper.A5).margin(), count + " سطر");
+        }
+    }
+
+    /** المجموعة الأطول من صفحة ما بتتنقلش: الملخص بيفضل مكانه، والنص بيكمل وآخر سطر فيه مع الخانات. */
     @Test
     void aGroupTallerThanAPageIsDrawnAsBefore() throws Exception {
         StringBuilder note = new StringBuilder();
