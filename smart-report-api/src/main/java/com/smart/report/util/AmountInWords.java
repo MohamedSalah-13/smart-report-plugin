@@ -30,6 +30,18 @@ import java.util.Objects;
  *
  * <p>«مائة» بالألف زي ما بتتكتب في الفواتير المصرية. المبلغ بيتقرّب لخانات العملة (النص لفوق)، والسالب
  * أو اللي من ألف مليار وأكتر بيرمي {@link IllegalArgumentException}. الصنف بلا حالة وآمن بين الـ threads.</p>
+ *
+ * <p><b>بالإنجليزي</b> للفواتير اللي بلغتين، بعملة من {@link EnglishCurrency}:</p>
+ *
+ * <pre>{@code
+ * AmountInWords.english(new BigDecimal("7200"), AmountInWords.EnglishCurrency.EGP)
+ *     // Seven thousand two hundred Egyptian pounds only
+ * AmountInWords.english(new BigDecimal("7200.50"), AmountInWords.EnglishCurrency.EGP)
+ *     // Seven thousand two hundred Egyptian pounds and fifty piastres only
+ * }</pre>
+ *
+ * <p>العملات الجاهزة بالاسمين: EGP وSAR وAED وKWD وUSD وQAR وBHD وOMR وJOD. خانات الكسر زي ISO 4217:
+ * 3 للدينار الكويتي والبحريني والأردني والريال العماني، و2 للباقي.</p>
  */
 public final class AmountInWords {
 
@@ -84,6 +96,22 @@ public final class AmountInWords {
         public static final Currency USD = new Currency(
                 new Noun("دولار", "دولاران", "دولارات", "دولارًا", false),
                 new Noun("سنت", "سنتان", "سنتات", "سنتًا", false), 2);
+        /** الريال القطري: 100 درهم. */
+        public static final Currency QAR = new Currency(
+                new Noun("ريال", "ريالان", "ريالات", "ريالًا", false),
+                new Noun("درهم", "درهمان", "دراهم", "درهمًا", false), 2);
+        /** الدينار البحريني: 1000 فلس، بنفس كلمات {@link #KWD}. */
+        public static final Currency BHD = new Currency(
+                new Noun("دينار", "ديناران", "دنانير", "دينارًا", false),
+                new Noun("فلس", "فلسان", "فلوس", "فلسًا", false), 3);
+        /** الريال العماني: 1000 بيسة، والبيسة مؤنثة: «ثلاث بيسات»، «إحدى عشرة بيسةً». */
+        public static final Currency OMR = new Currency(
+                new Noun("ريال", "ريالان", "ريالات", "ريالًا", false),
+                new Noun("بيسة", "بيستان", "بيسات", "بيسةً", true), 3);
+        /** الدينار الأردني: المبالغ بتتكتب بثلاث خانات (1000 فلس)، بنفس كلمات {@link #KWD}. */
+        public static final Currency JOD = new Currency(
+                new Noun("دينار", "ديناران", "دنانير", "دينارًا", false),
+                new Noun("فلس", "فلسان", "فلوس", "فلسًا", false), 3);
 
         public Currency {
             Objects.requireNonNull(unit, "unit");
@@ -92,6 +120,56 @@ public final class AmountInWords {
             }
             if (fractionDigits > 0 && fraction == null) {
                 throw new IllegalArgumentException("A currency with fraction digits needs a fraction noun.");
+            }
+        }
+    }
+
+    /**
+     * عملة بالإنجليزي، للمبلغ بالحروف الإنجليزية: «Seven thousand two hundred Egyptian pounds only». نوع منفصل عن
+     * {@link Currency} عشان الاسمين بيختلفوا من غير ما يتغيّر شكل {@code Currency}.
+     *
+     * <pre>{@code
+     * new EnglishCurrency("Libyan dinar", "Libyan dinars", "dirham", "dirhams", 3)
+     * }</pre>
+     *
+     * @param unit           الوحدة مفردة: «Egyptian pound»
+     * @param units          الوحدة جمعًا: «Egyptian pounds»
+     * @param fraction       الكسر مفردًا: «piastre»؛ {@code null} لو {@code fractionDigits} صفر
+     * @param fractions      الكسر جمعًا: «piastres» (أو نفس المفرد: «fils»)
+     * @param fractionDigits خانات الكسر: 2، أو 3 للفلس والبيسة، أو 0
+     */
+    public record EnglishCurrency(String unit, String units, String fraction, String fractions, int fractionDigits) {
+
+        public static final EnglishCurrency EGP =
+                new EnglishCurrency("Egyptian pound", "Egyptian pounds", "piastre", "piastres", 2);
+        public static final EnglishCurrency SAR =
+                new EnglishCurrency("Saudi riyal", "Saudi riyals", "halala", "halalas", 2);
+        public static final EnglishCurrency AED =
+                new EnglishCurrency("UAE dirham", "UAE dirhams", "fils", "fils", 2);
+        public static final EnglishCurrency KWD =
+                new EnglishCurrency("Kuwaiti dinar", "Kuwaiti dinars", "fils", "fils", 3);
+        public static final EnglishCurrency USD =
+                new EnglishCurrency("US dollar", "US dollars", "cent", "cents", 2);
+        public static final EnglishCurrency QAR =
+                new EnglishCurrency("Qatari riyal", "Qatari riyals", "dirham", "dirhams", 2);
+        public static final EnglishCurrency BHD =
+                new EnglishCurrency("Bahraini dinar", "Bahraini dinars", "fils", "fils", 3);
+        public static final EnglishCurrency OMR =
+                new EnglishCurrency("Omani rial", "Omani rials", "baisa", "baisa", 3);
+        public static final EnglishCurrency JOD =
+                new EnglishCurrency("Jordanian dinar", "Jordanian dinars", "fils", "fils", 3);
+
+        public EnglishCurrency {
+            if (unit == null || unit.isBlank() || units == null || units.isBlank()) {
+                throw new IllegalArgumentException("The unit's singular and plural are required.");
+            }
+            if (fractionDigits < 0 || fractionDigits > 3) {
+                throw new IllegalArgumentException("fractionDigits must be between 0 and 3: " + fractionDigits);
+            }
+            if (fractionDigits > 0 && (fraction == null || fraction.isBlank()
+                    || fractions == null || fractions.isBlank())) {
+                throw new IllegalArgumentException(
+                        "A currency with fraction digits needs the fraction's singular and plural.");
             }
         }
     }
@@ -111,6 +189,13 @@ public final class AmountInWords {
     private static final String[] HUNDREDS =
             {"", "مائة", "مائتان", "ثلاثمائة", "أربعمائة", "خمسمائة", "ستمائة", "سبعمائة", "ثمانمائة", "تسعمائة"};
 
+    private static final String[] ENGLISH_ONES = {"", "one", "two", "three", "four", "five", "six", "seven", "eight",
+            "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
+            "nineteen"};
+    private static final String[] ENGLISH_TENS =
+            {"", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"};
+    private static final String[] ENGLISH_SCALES = {"billion", "million", "thousand"};
+
     /** المبلغ كما يُكتب في الفاتورة: «فقط ... لا غير». */
     public static String arabic(BigDecimal amount, Currency currency) {
         return "فقط " + arabicWords(amount, currency) + " لا غير";
@@ -118,31 +203,96 @@ public final class AmountInWords {
 
     /** المبلغ بالحروف من غير «فقط» و«لا غير». */
     public static String arabicWords(BigDecimal amount, Currency currency) {
-        Objects.requireNonNull(amount, "amount");
         Objects.requireNonNull(currency, "currency");
+        Split split = split(amount, currency.fractionDigits());
+        if (split.units() == 0 && split.fraction() == 0) {
+            return "صفر " + currency.unit().singular();
+        }
+        List<String> parts = new ArrayList<>(2);
+        if (split.units() > 0) {
+            parts.add(whole(split.units(), currency.unit()));
+        }
+        if (split.fraction() > 0) {
+            parts.add(counted(split.fraction(), currency.fraction(), false));
+        }
+        return String.join(" و", parts);
+    }
+
+    /**
+     * المبلغ بالإنجليزي كما يُكتب في الفاتورة: «Seven thousand two hundred Egyptian pounds only»، ومع الكسر
+     * «One thousand two hundred thirty-four Egyptian pounds and fifty piastres only».
+     */
+    public static String english(BigDecimal amount, EnglishCurrency currency) {
+        String words = englishWords(amount, currency);
+        return Character.toUpperCase(words.charAt(0)) + words.substring(1) + " only";
+    }
+
+    /**
+     * المبلغ بالإنجليزي من غير الحرف الكبير في أوله ولا «only»: «seven thousand two hundred Egyptian pounds».
+     * الأعداد بالشكل المعتاد في الفواتير والشيكات: «two hundred fifty»، و«and» بس قبل الكسر.
+     */
+    public static String englishWords(BigDecimal amount, EnglishCurrency currency) {
+        Objects.requireNonNull(currency, "currency");
+        Split split = split(amount, currency.fractionDigits());
+        if (split.units() == 0 && split.fraction() == 0) {
+            return "zero " + currency.units();
+        }
+        List<String> parts = new ArrayList<>(2);
+        if (split.units() > 0) {
+            parts.add(englishNumber(split.units()) + " " + (split.units() == 1 ? currency.unit() : currency.units()));
+        }
+        if (split.fraction() > 0) {
+            parts.add(englishNumber(split.fraction()) + " "
+                    + (split.fraction() == 1 ? currency.fraction() : currency.fractions()));
+        }
+        return String.join(" and ", parts);
+    }
+
+    /** المبلغ بعد التقريب لخانات العملة: الوحدات، والكسر بعدد صحيح. */
+    private record Split(long units, int fraction) {}
+
+    private static Split split(BigDecimal amount, int fractionDigits) {
+        Objects.requireNonNull(amount, "amount");
         if (amount.signum() < 0) {
             throw new IllegalArgumentException("The amount must not be negative: " + amount
                     + ". Write its absolute value and say in the label whether it is owed.");
         }
-        BigDecimal rounded = amount.setScale(currency.fractionDigits(), RoundingMode.HALF_UP);
+        BigDecimal rounded = amount.setScale(fractionDigits, RoundingMode.HALF_UP);
         BigDecimal whole = rounded.setScale(0, RoundingMode.DOWN);
         if (whole.compareTo(BigDecimal.valueOf(LIMIT)) >= 0) {
             throw new IllegalArgumentException("Amounts of a trillion or more are not written in words: " + amount);
         }
-        long units = whole.longValueExact();
-        int fraction = rounded.subtract(whole).movePointRight(currency.fractionDigits()).intValueExact();
+        return new Split(whole.longValueExact(),
+                rounded.subtract(whole).movePointRight(fractionDigits).intValueExact());
+    }
 
-        if (units == 0 && fraction == 0) {
-            return "صفر " + currency.unit().singular();
+    /** 1 إلى أقل من ألف مليار بالإنجليزي: «one million two hundred fifty thousand». */
+    private static String englishNumber(long number) {
+        int[] groups = {
+                (int) (number / 1_000_000_000L),
+                (int) (number / 1_000_000L % 1000),
+                (int) (number / 1000 % 1000),
+                (int) (number % 1000)
+        };
+        List<String> parts = new ArrayList<>(4);
+        for (int i = 0; i < groups.length; i++) {
+            if (groups[i] > 0) {
+                parts.add(englishBelowThousand(groups[i]) + (i < ENGLISH_SCALES.length ? " " + ENGLISH_SCALES[i] : ""));
+            }
         }
-        List<String> parts = new ArrayList<>(2);
-        if (units > 0) {
-            parts.add(whole(units, currency.unit()));
+        return String.join(" ", parts);
+    }
+
+    /** 1..999: «nine hundred ninety-nine». */
+    private static String englishBelowThousand(int number) {
+        int hundreds = number / 100;
+        int rest = number % 100;
+        String below = rest < 20 ? ENGLISH_ONES[rest]
+                : ENGLISH_TENS[rest / 10] + (rest % 10 > 0 ? "-" + ENGLISH_ONES[rest % 10] : "");
+        if (hundreds == 0) {
+            return below;
         }
-        if (fraction > 0) {
-            parts.add(counted(fraction, currency.fraction(), false));
-        }
-        return String.join(" و", parts);
+        return ENGLISH_ONES[hundreds] + " hundred" + (rest > 0 ? " " + below : "");
     }
 
     /** عدد صحيح أقل من ألف مليار ومعه معدوده. */
