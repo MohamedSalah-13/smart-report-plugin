@@ -127,9 +127,11 @@ public final class ArabicFonts implements ExtensionsRegistryFactory {
         return member;
     }
 
-    /** حرف من كتل Unicode العربية. */
+    /** حرف من كتل Unicode العربية. الحرف اللي ما لوش كتلة (U+2FE0 مثلًا) مش عربي. */
     static boolean isArabic(int codePoint) {
-        return ARABIC_BLOCKS.contains(Character.UnicodeBlock.of(codePoint));
+        Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
+        // Set.of بيرمي NullPointerException لو اتسأل عن null
+        return block != null && ARABIC_BLOCKS.contains(block);
     }
 
     /** ملف Noto Naskh بيقول إنه بيعرف الحروف العربية بس؛ القياس والرسم بيستخدموا الملف نفسه. */

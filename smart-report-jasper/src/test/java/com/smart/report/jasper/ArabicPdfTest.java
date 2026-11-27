@@ -153,6 +153,15 @@ class ArabicPdfTest {
         assertEquals(NOTO, pdf.fontsOfArabic());
     }
 
+    /** حرف ما لوش كتلة Unicode (U+2FE0) كان بيوقّف التقرير كله بـ NullPointerException وقت اختيار الخط. */
+    @Test
+    void characterOutsideEveryUnicodeBlockDoesNotStopTheReport() throws Exception {
+        assertFalse(ArabicFonts.isArabic(0x2FE0));
+
+        PdfText pdf = pdf("reports/employee.jrxml", "تقرير ⿠ Report");
+        assertTrue(pdf.text().contains(canonical("تقرير")) && pdf.text().contains("Report"), pdf.text());
+    }
+
     /**
      * القالب اللي بيسمّي "SansSerif" (زي قوالب iReport القديمة) هو نفسه القالب اللي ما بيسمّيش خطًا. والقالب
      * اللي بيسمّي "Noto Naskh Arabic" بياخد النص كله بيه، اللاتيني كمان.
