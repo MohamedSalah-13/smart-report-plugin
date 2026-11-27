@@ -1,13 +1,13 @@
 # Changelog
 
-## [Unreleased]
+## [2.6.0] - 2026-11-27
 
 ### Added
 - `PdfDocument.barcode(text)` (and `barcode(text, align)`, `barcode(text, heightMm, align)`): a Code 128 barcode
   drawn as vector bars with the code written under it, at the start, centre or end of the line in the document's
   direction, kept on one page. Its narrowest bar is 0.33 mm and narrows to fit a thin roll down to 0.25 mm; a code
   too long for that fails with a `ReportException` naming it rather than printing unreadable bars. Encoded by the
-  ZXing core that `smart-report-pdf` already brings.
+  ZXing core that `smart-report-pdf` already brings. (#13)
 
 ### Fixed
 - Signature boxes no longer land alone at the top of a new page, away from the figures they sign for. When they
@@ -15,7 +15,7 @@
   and space between the two (such as the amount in words). Text written straight before the boxes (no summary)
   moves with them the same way. When the group cannot move (it is taller than a page, or nothing but the first
   page's letterhead is above it), the last line of the text before the boxes goes with them instead. A thermal
-  roll is drawn as before.
+  roll is drawn as before. (#14)
 
 ## [2.5.0] - 2026-11-27
 

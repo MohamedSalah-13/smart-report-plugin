@@ -15,18 +15,16 @@ A Java library for reports and printing, added to any project as a dependency:
 
 ## What's New
 
+### 2.6.0
+
+- **New:** a Code 128 barcode for a shipment, waybill, invoice or item number that a hand scanner reads. Vector bars with the code written under it, and it fits the 58 mm roll. See [Barcode](#barcode-code-128).
+- **Fixed:** signature boxes no longer land alone on a new page: when they do not fit under the summary, the summary (and the amount in words under it) moves with them.
+
 ### 2.5.0
 
 - **New:** a QR code on the page - a link, an invoice number, or the QR code of a Saudi simplified tax invoice (`ZatcaQr`, ZATCA phase 1). Sharp vector squares, and it fits the 58 mm roll. See [QR code](#qr-code-and-the-saudi-tax-invoice-qr).
 - **Fixed:** the preview opens a long receipt wide enough to read, and no longer needs a huge image for it.
 - **Upgrade note:** the Excel module now brings Apache POI 6.0.0 (from 5.3.0).
-
-### 2.4.0
-
-- **New:** the letterhead on every page of a long document, a footer line above the page number, and signature boxes (المستلم، المحاسب، الختم). See [On every page](#on-every-page).
-- **New:** 80 mm and 58 mm thermal receipt paper: one page as long as the receipt. See [Thermal receipts](#thermal-receipts-80-mm-and-58-mm).
-- **New:** the generic Excel report applies a column's number or date format and alignment, like the PDF.
-- **Fixed:** a very tall table header or field value no longer runs off the paper.
 
 Details of each release are in [CHANGELOG.md](CHANGELOG.md).
 
@@ -57,7 +55,7 @@ The library is served by [JitPack](https://jitpack.io) straight from the reposit
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.5.0</version>
+    <version>v2.6.0</version>
 </dependency>
 ```
 

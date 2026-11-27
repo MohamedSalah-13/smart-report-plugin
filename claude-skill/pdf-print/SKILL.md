@@ -51,9 +51,8 @@ Use the newest tag of the library:
 `gh api repos/MohamedSalah-13/smart-report-plugin/tags --jq '.[0].name'`. What needs which version: the
 preview window (`smart-report-fx`) `v2.1.0`; column formats in the generic report `v2.2.0`; `AmountInWords`
 `v2.3.0`; thermal rolls, the letterhead on every page, `pageFooter` and `signatures` `v2.4.0`; `qrCode`,
-`ZatcaQr` and the readable receipt preview `v2.5.0`; `barcode` the release after `v2.5.0`. A program on an older
-tag that needs one of these moves to the newest tag; if the newest tag is still `v2.5.0`, the barcode is not
-released yet - say so to the user instead of drawing one by hand.
+`ZatcaQr` and the readable receipt preview `v2.5.0`; `barcode`, and signature boxes that stay with the summary
+above them, `v2.6.0`. A program on an older tag that needs one of these moves to the newest tag.
 
 ```xml
 <repositories>
@@ -76,13 +75,13 @@ released yet - say so to the user instead of drawing one by hand.
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.5.0</version>
+    <version>v2.6.0</version>
 </dependency>
 <!-- Only for a JavaFX program that wants the preview window. JavaFX itself is the program's own. -->
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-fx</artifactId>
-    <version>v2.5.0</version>
+    <version>v2.6.0</version>
 </dependency>
 ```
 
@@ -143,8 +142,8 @@ What each part is:
 - `pageFooter(text)` - a small line at the bottom of **every** page, above the page number (the company's
   address or a "printed from" line). Not the same as `footer`.
 - `signatures("المستلم", "المحاسب", "الختم")` - boxes side by side in reading order, each with its label and
-  room to sign, kept together on one page. Put it last, where the old paper had its signature lines. From the
-  release after `v2.5.0` the boxes also stay with the summary before them (and any text between, such as the
+  room to sign, kept together on one page. Put it last, where the old paper had its signature lines. From
+  `v2.6.0` the boxes also stay with the summary before them (and any text between, such as the
   amount in words): the summary moves to the next page with them instead of the boxes landing there alone; if
   that group cannot move, the last line of the text before the boxes goes with them.
 - The amount in words, when the old paper had it ("فقط ... لا غير"):
