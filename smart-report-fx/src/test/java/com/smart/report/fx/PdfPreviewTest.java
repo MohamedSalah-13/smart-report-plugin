@@ -480,6 +480,7 @@ class PdfPreviewTest {
             PrintOutcome first = onFx(() -> preview.printOrShow(null)).get(20, TimeUnit.SECONDS);
             Stage stage = assertInstanceOf(PrintOutcome.Shown.class, first).window();
             assertTrue(system.jobs.isEmpty());
+            assertNull(rememberedNode(key).get("paper", null), "فتح النافذة مش طباعة: مفيش مقاس اتحفظ");
             await("the print button", () -> !PdfPreviewTest.<Button>node(stage, "print").isDisabled());
             assertEquals("Till", onFx(() -> PdfPreviewTest.<ComboBox<String>>node(stage, "printer").getValue()));
             onFx(() -> {
@@ -518,6 +519,54 @@ class PdfPreviewTest {
             assertEquals(Paper.A5, failed.paper());
             assertSame(system.failure, failed.reason());
             assertTrue(noWindowOpen());
+        } finally {
+            rememberedNode(key).removeNode();
+        }
+    }
+
+    /**
+     * المقاس اللي الطباعة المباشرة طلعت عليه بيبقى آخر مقاس اتطبع: {@code paper(A5)} والمحفوظ A4،
+     * والنداء اللي بعده من غير مقاس بيطبع على A5.
+     */
+    @Test
+    void directPrintRemembersThePaperItPrintedOn() throws Exception {
+        assumeTrue(toolkit, "no display");
+        String key = "test-" + System.nanoTime();
+        try {
+            rememberedNode(key).put("printer", "Till");
+            rememberedNode(key).put("paper", "A4");
+            FakeSystem system = new FakeSystem("Till");
+
+            PrintOutcome first = onFx(() -> faked(PdfPreview.of(PdfPreviewTest::report).remember(key).paper(Paper.A5),
+                    system).printOrShow(null)).get(20, TimeUnit.SECONDS);
+            assertEquals(new PrintOutcome.Sent("Till", Paper.A5), first);
+            assertEquals("A5", rememberedNode(key).get("paper", null));
+
+            PrintOutcome second = onFx(() -> faked(PdfPreview.of(PdfPreviewTest::report).remember(key), system)
+                    .printOrShow(null)).get(20, TimeUnit.SECONDS);
+            assertEquals(new PrintOutcome.Sent("Till", Paper.A5), second);
+            assertEquals(List.of(Paper.A5, Paper.A5), system.jobs.stream().map(FakeSystem.Job::paper).toList());
+            assertTrue(noWindowOpen());
+        } finally {
+            rememberedNode(key).removeNode();
+        }
+    }
+
+    /** الطباعة اللي فشلت ما بتغيّرش المقاس المحفوظ. */
+    @Test
+    void failedDirectPrintLeavesTheSavedPaperAlone() throws Exception {
+        assumeTrue(toolkit, "no display");
+        String key = "test-" + System.nanoTime();
+        try {
+            rememberedNode(key).put("printer", "Till");
+            rememberedNode(key).put("paper", "A4");
+            FakeSystem system = new FakeSystem("Till");
+            system.failure = new ReportException("Out of paper");
+
+            PrintOutcome outcome = onFx(() -> faked(PdfPreview.of(PdfPreviewTest::report).remember(key).paper(Paper.A5),
+                    system).printOrShow(null)).get(20, TimeUnit.SECONDS);
+            assertEquals(Paper.A5, assertInstanceOf(PrintOutcome.Failed.class, outcome).paper());
+            assertEquals("A4", rememberedNode(key).get("paper", null));
         } finally {
             rememberedNode(key).removeNode();
         }

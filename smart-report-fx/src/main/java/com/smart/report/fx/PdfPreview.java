@@ -193,7 +193,7 @@ public final class PdfPreview {
      *       بتتحفظ للمرة الجاية.</li>
      *   <li>غير كده نسخة واحدة بتتبعت للطابعة المحفوظة على المقاس اللي النافذة كانت هتفتح عليه
      *       ({@link #paper(Paper)}، ثم آخر مقاس اتطبع، ثم أول المقاسات)، والنتيجة
-     *       {@link PrintOutcome.Sent}.</li>
+     *       {@link PrintOutcome.Sent}. المقاس ده بيتحفظ كآخر مقاس اتطبع.</li>
      *   <li>لو المستند ما اتبناش أو الطابعة رفضت المهمة، النتيجة {@link PrintOutcome.Failed}
      *       و<b>النافذة ما بتتفتحش</b>: نافذة بتطلع لوحدها وسط البيعة اللي بعدها بتاخد الكيبورد من
      *       الكاشير. البرنامج يقول للمستخدم، ويقدر يفتح النافذة بنفسه بـ {@link #show(Window)}.</li>
@@ -234,6 +234,15 @@ public final class PdfPreview {
             } catch (Error e) {
                 Platform.runLater(() -> outcome.completeExceptionally(e));
                 throw e;
+            }
+            if (done instanceof PrintOutcome.Sent) {
+                // آخر مقاس اتطبع، زي طباعة النافذة: paper(...) المختلف عن المحفوظ بيبقى هو المحفوظ.
+                // بيتحفظ قبل ما النتيجة تكمل، فالنداء اللي بعدها بيلاقيه.
+                try {
+                    remembered.put("paper", paperKey(chosen));
+                } catch (IllegalStateException removed) {
+                    log.debug("The remembered settings for {} were removed while printing", rememberKey, removed);
+                }
             }
             PrintOutcome result = done;
             Platform.runLater(() -> outcome.complete(result));
