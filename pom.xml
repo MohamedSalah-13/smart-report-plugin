@@ -41,7 +41,29 @@
         <jasperreports.version>6.21.5</jasperreports.version>
         <slf4j.version>2.0.20</slf4j.version>
         <junit.version>6.1.3</junit.version>
+
+        <!-- The release each module's jar is compared with (japicmp, below): a binary-incompatible change to the
+             public API breaks the build. Move it to the new tag once JitPack has built that release. -->
+        <api.baseline.version>v2.6.0</api.baseline.version>
     </properties>
+
+    <!-- Central first, so every dependency still comes from there; JitPack only for the baseline release above. -->
+    <repositories>
+        <repository>
+            <id>central</id>
+            <url>https://repo.maven.apache.org/maven2</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 
     <dependencyManagement>
         <dependencies>
@@ -155,6 +177,65 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- A program built against the baseline release must keep working with this jar dropped in its place:
+                 a removed or changed public class, method, field or record component fails the build here.
+                 Source-only breaks (an added interface method, say) do not. The parent pom has no jar and is skipped.
+                 Reports in target/japicmp. -Djapicmp.skip=true turns it off, for a deliberate break in a major
+                 release. -->
+            <plugin>
+                <groupId>com.github.siom79.japicmp</groupId>
+                <artifactId>japicmp-maven-plugin</artifactId>
+                <version>0.27.0</version>
+                <configuration>
+                    <oldVersion>
+                        <dependency>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>${project.artifactId}</artifactId>
+                            <version>${api.baseline.version}</version>
+                            <type>jar</type>
+                        </dependency>
+                    </oldVersion>
+                    <newVersion>
+                        <file>
+                            <path>${project.build.directory}/${project.build.finalName}.jar</path>
+                        </file>
+                    </newVersion>
+                    <parameter>
+                        <includes>
+                            <include>com.smart.report</include>
+                        </includes>
+                        <onlyModified>true</onlyModified>
+                        <breakBuildOnBinaryIncompatibleModifications>true</breakBuildOnBinaryIncompatibleModifications>
+                        <skipPomModules>true</skipPomModules>
+                    </parameter>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>api-compatibility</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>cmp</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- JitPack builds a release from its tag, and CI has already compared that tag with the baseline. Fetching
+             the baseline there too would only add a way for the release build to fail, and JitPack serves a failed
+             build's error until someone deletes it on jitpack.io. -->
+        <profile>
+            <id>jitpack</id>
+            <activation>
+                <property>
+                    <name>env.JITPACK</name>
+                </property>
+            </activation>
+            <properties>
+                <japicmp.skip>true</japicmp.skip>
+            </properties>
+        </profile>
+    </profiles>
 </project>
