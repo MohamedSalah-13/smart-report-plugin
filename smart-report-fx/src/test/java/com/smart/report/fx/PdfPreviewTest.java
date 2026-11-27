@@ -476,8 +476,10 @@ class PdfPreviewTest {
             CompletableFuture<Boolean> onFxThread = outcome.thenApply(any -> Platform.isFxApplicationThread());
             system.gate.countDown();
 
-            assertEquals(new PrintOutcome.Sent("Till", Paper.A5), outcome.get(20, TimeUnit.SECONDS));
+            // onFxThread الأول: اللي بيستنى outcome.get() ممكن هو اللي يشغّل الـ thenApply لما يصحى، فالفحص
+            // كان بيطلع false أحيانًا مع إن outcome كملت على thread الواجهة.
             assertTrue(onFxThread.get(20, TimeUnit.SECONDS), "النتيجة بتكمل على thread الواجهة");
+            assertEquals(new PrintOutcome.Sent("Till", Paper.A5), outcome.get(20, TimeUnit.SECONDS));
             assertEquals(1, system.jobs.size());
             FakeSystem.Job job = system.jobs.get(0);
             assertEquals("Till", job.printer());
