@@ -7,15 +7,19 @@ import net.sf.jasperreports.engine.JRStaticText;
 import net.sf.jasperreports.engine.JRTextField;
 import net.sf.jasperreports.engine.JasperReport;
 import net.sf.jasperreports.engine.JasperReportsContext;
+import net.sf.jasperreports.engine.TabStop;
 import net.sf.jasperreports.engine.fill.JRFillElement;
 import net.sf.jasperreports.engine.fill.JRMeasuredText;
 import net.sf.jasperreports.engine.fill.JRTextMeasurer;
+import net.sf.jasperreports.engine.fill.TextLineWrapper;
 import net.sf.jasperreports.engine.fill.TextMeasurer;
 import net.sf.jasperreports.engine.type.TextAdjustEnum;
 import net.sf.jasperreports.engine.util.AbstractTextMeasurerFactory;
 import net.sf.jasperreports.engine.util.JRStyledText;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.List;
 
 /**
  * مقياس النص بتاع JasperReports نفسه، ومعاه حاجتين للنص اللي أول سطر فيه أطول من خانته: السطر العربي اللي قرّب
@@ -68,8 +72,27 @@ public final class ArabicTextMeasurerFactory extends AbstractTextMeasurerFactory
 
         private boolean warned;
 
+        /** وقت قياس الإنقاذ: سطر واحد بس. */
+        private boolean firstLineOnly;
+
         FirstLineMeasurer(JasperReportsContext jasperReportsContext, JRCommonText textElement) {
             super(jasperReportsContext, textElement);
+        }
+
+        /**
+         * في قياس الإنقاذ، أي سطر بعد أول سطر "ما بيدخلش"، زي خانة طولها على قد أول سطر بالظبط: JasperReports بيكمّل
+         * من هنا زي ما بيعمل مع أي نص اتقطع (لاحقة القطع {@code net.sf.jasperreports.text.truncate.suffix}، والقطع
+         * عند حرف، و {@code isParagraphCut} و {@code lineBreakOffsets})، فالنتيجة فيها أول سطر بس، بمكانه وارتفاعه.
+         * إعادة رسم أول سطر عشان اللاحقة بتبدأ من الحالة اللي قبله (ارتفاعها صفر)، فبتعدّي.
+         */
+        @Override
+        protected boolean renderNextLine(TextLineWrapper lineWrapper, List<Integer> tabIndexes,
+                int[] currentTabHolder, TabStop[] nextTabStopHolder, boolean[] requireNextWordHolder) {
+            if (firstLineOnly && measuredState.getTextHeight() > 0) {
+                return false;
+            }
+            return super.renderNextLine(lineWrapper, tabIndexes, currentTabHolder, nextTabStopHolder,
+                    requireNextWordHolder);
         }
 
         @Override
@@ -89,10 +112,16 @@ public final class ArabicTextMeasurerFactory extends AbstractTextMeasurerFactory
             boolean arabic = hasArabic(text);
             int room = (int) Math.ceil(box * FIRST_LINE_ROOM);
             if (arabic && room > box) {
-                // نفس القياس بمساحة أكبر. أول سطر أطول من الخانة، فمرة ونص منها بتشيله هو بس، مش هو والسطر اللي
-                // بعده لو بنفس حجم الخط
-                JRMeasuredText firstLine = super.measure(styledText, remainingTextStart,
-                        availableStretchHeight + room - box, indentFirstLine, canOverflow);
+                // نفس القياس بمساحة أكبر لأول سطر، ومن غير أي سطر بعده: سطر بخط أصغر (styled أو html) كان ممكن
+                // يدخل في المساحة الزيادة، ويروح لـ HTML و XLSX والـ PDF ما يرسمهوش في ارتفاع الخانة
+                JRMeasuredText firstLine;
+                firstLineOnly = true;
+                try {
+                    firstLine = super.measure(styledText, remainingTextStart,
+                            availableStretchHeight + room - box, indentFirstLine, canOverflow);
+                } finally {
+                    firstLineOnly = false;
+                }
                 if (firstLine.getTextOffset() > remainingTextStart) {
                     if (!warned) {
                         warned = true;

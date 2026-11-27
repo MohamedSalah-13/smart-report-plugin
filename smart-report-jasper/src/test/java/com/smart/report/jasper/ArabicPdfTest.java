@@ -73,16 +73,36 @@ class ArabicPdfTest {
                 "<style name=\"Base\" isDefault=\"true\" " + fontAttributes + "/>\n    <parameter ");
     }
 
-    /** قالب الاختبار بعد تبديل {@code target} (موجود فيه مرة واحدة). */
-    private static String templateWith(Path dir, String target, String replacement) throws Exception {
+    /** قالب الاختبار بعد تبديل كل {@code target} (موجود فيه مرة واحدة) باللي بعده: target، replacement، ... */
+    private static String templateWith(Path dir, String... targetsAndReplacements) throws Exception {
         String jrxml;
         try (InputStream in = ArabicPdfTest.class.getClassLoader().getResourceAsStream("reports/employee.jrxml")) {
             jrxml = new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
-        assertTrue(jrxml.contains(target), target);
+        for (int i = 0; i < targetsAndReplacements.length; i += 2) {
+            assertTrue(jrxml.contains(targetsAndReplacements[i]), targetsAndReplacements[i]);
+            jrxml = jrxml.replace(targetsAndReplacements[i], targetsAndReplacements[i + 1]);
+        }
         Path template = dir.resolve("changed.jrxml");
-        Files.writeString(template, jrxml.replace(target, replacement));
+        Files.writeString(template, jrxml);
         return template.toString();
+    }
+
+    /** خلايا أول ورقة في الـ XLSX ورا بعض. */
+    private static String xlsxText(byte[] xlsx) throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(xlsx))) {
+            StringBuilder cells = new StringBuilder();
+            workbook.getSheetAt(0).forEach(row -> row.forEach(cell -> cells.append(cell).append(' ')));
+            return cells.toString();
+        }
+    }
+
+    private static int count(String text, String word) {
+        int count = 0;
+        for (int at = text.indexOf(word); at >= 0; at = text.indexOf(word, at + word.length())) {
+            count++;
+        }
+        return count;
     }
 
     /** قالب الاختبار وخانة العنوان (18 نقطة عريض) بالارتفاع ده. */
@@ -172,12 +192,86 @@ class ArabicPdfTest {
         String html = new String(report(template, "تقرير الموظفين", JasperExportFormat.HTML), StandardCharsets.UTF_8);
         assertTrue(html.contains(">تقرير<") && html.contains(">الموظفين<"), html);
 
-        byte[] xlsx = report(template, "تقرير الموظفين", JasperExportFormat.XLSX);
-        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(xlsx))) {
-            StringBuilder cells = new StringBuilder();
-            workbook.getSheetAt(0).forEach(row -> row.forEach(cell -> cells.append(cell).append(' ')));
-            assertTrue(cells.toString().contains("تقرير الموظفين"), cells.toString());
+        String cells = xlsxText(report(template, "تقرير الموظفين", JasperExportFormat.XLSX));
+        assertTrue(cells.contains("تقرير الموظفين"), cells);
+    }
+
+    /**
+     * سطر عربي 18 نقطة وبعده سطر 8 نقط (styled): السطرين يدخلوا في مرة ونص من خانة الـ 30، بس الإنقاذ بياخد أول
+     * سطر بس، زي خانة على قده بالظبط. لو أخد التاني كان هيروح لـ HTML و XLSX والـ PDF ما يرسمهوش.
+     */
+    @Test
+    void theRescueKeepsOnlyTheFirstLineOfStyledText(@TempDir Path dir) throws Exception {
+        String template = templateWith(dir, "height=\"36\"", "height=\"30\"",
+                "<textElement textAlignment=\"Center\">", "<textElement textAlignment=\"Center\" markup=\"styled\">");
+
+        // سطر تاني في فقرة تانية
+        String title = "تقرير الموظفين\n<style size=\"8\">ملاحظة صغيرة</style>";
+        PdfText pdf = pdf(template, title);
+        String html = new String(report(template, title, JasperExportFormat.HTML), StandardCharsets.UTF_8);
+        String cells = xlsxText(report(template, title, JasperExportFormat.XLSX));
+
+        assertTrue(pdf.drawnRightToLeft("تقرير الموظفين"), pdf.rightToLeftLines().toString());
+        assertTrue(html.contains(">تقرير<") && cells.contains("تقرير الموظفين"), cells);
+        assertFalse(pdf.text().contains(canonical("ملاحظة")), pdf.text());
+        assertFalse(html.contains("ملاحظة"), html);
+        assertFalse(cells.contains("ملاحظة"), cells);
+
+        // سطر تاني في نفس الفقرة: الكلام الصغير اللي بيلف بعد أول سطر مش في أي صيغة
+        title = "تقرير الموظفين <style size=\"8\">" + "كلمة ".repeat(150) + "</style>";
+        pdf = pdf(template, title);
+        html = new String(report(template, title, JasperExportFormat.HTML), StandardCharsets.UTF_8);
+        cells = xlsxText(report(template, title, JasperExportFormat.XLSX));
+
+        int drawn = count(pdf.text(), canonical("كلمة"));
+        assertTrue(drawn > 0 && drawn < 150, "أول سطر ما فيهوش الكلام الصغير أو فيه كله: " + drawn);
+        assertEquals(drawn, count(html, "كلمة"), "الـ HTML فيه سطر مش في الـ PDF");
+        assertEquals(drawn, count(cells, "كلمة"), "الـ XLSX فيه سطر مش في الـ PDF");
+        assertEquals(yOf(pdf(template, "Employee Report"), "Department"), yOf(pdf, "Department"), 0.01f);
+    }
+
+    /**
+     * الخانة اللي اتنقذت بتطلع نفس نص خانة طولها على قد سطر واحد (36: السطر 31 والسطرين 44 على الأقل) في كل
+     * الصيغ، ومعاه لاحقة القطع ({@code net.sf.jasperreports.text.truncate.suffix}) اللي JasperReports بيحطها
+     * في آخر سطر بيدخل.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"plain|", "plain|…", "styled|", "styled|…"})
+    void theRescueGivesTheTextOfABoxOneLineHigh(String variant, @TempDir Path dir) throws Exception {
+        boolean styled = variant.startsWith("styled");
+        String suffix = variant.substring(variant.indexOf('|') + 1);
+        String title = styled
+                ? "تقرير الموظفين <style size=\"8\">" + "كلمة ".repeat(150) + "</style>"
+                : "تقرير الموظفين " + "قسم الهندسة والمالية والمبيعات ".repeat(4) + "ختام";
+
+        String rescued = titleTemplate(Files.createDirectories(dir.resolve("tight")), 30, styled, suffix);
+        String oneLine = titleTemplate(Files.createDirectories(dir.resolve("one-line")), 36, styled, suffix);
+
+        PdfText pdf = pdf(rescued, title);
+        assertEquals(pdf(oneLine, title).text(), pdf.text());
+        assertEquals(htmlText(oneLine, title), htmlText(rescued, title));
+        assertEquals(xlsxText(report(oneLine, title, JasperExportFormat.XLSX)),
+                xlsxText(report(rescued, title, JasperExportFormat.XLSX)));
+        assertTrue(pdf.drawnRightToLeft("تقرير الموظفين"), pdf.rightToLeftLines().toString());
+        if (!suffix.isEmpty()) {
+            assertTrue(pdf.text().contains(suffix), "اللاحقة مش مرسومة: " + pdf.text());
         }
+    }
+
+    /** خانة العنوان بالارتفاع ده، styled أو لأ، وبلاحقة قطع لو مش فاضية. */
+    private static String titleTemplate(Path dir, int height, boolean styled, String suffix) throws Exception {
+        String property = suffix.isEmpty() ? ""
+                : "<property name=\"net.sf.jasperreports.text.truncate.suffix\" value=\"" + suffix + "\"/>";
+        return templateWith(dir,
+                "height=\"36\"/>", "height=\"" + height + "\">" + property + "</reportElement>",
+                "<textElement textAlignment=\"Center\">",
+                "<textElement textAlignment=\"Center\"" + (styled ? " markup=\"styled\"" : "") + ">");
+    }
+
+    /** نص الـ HTML من غير الوسوم (اللي فيها المقاسات). */
+    private static String htmlText(String template, String title) throws Exception {
+        return new String(report(template, title, JasperExportFormat.HTML), StandardCharsets.UTF_8)
+                .replaceAll("<[^>]*>", "");
     }
 
     /**
