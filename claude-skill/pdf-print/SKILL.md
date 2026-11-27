@@ -303,9 +303,10 @@ has not been on a real printer yet; the old one usually had.
     printer must have its system driver installed: if it is not in `PdfPrinter.printerNames()`, the program
     cannot print a PDF to it, and the user has to install the driver - say so rather than writing ESC/POS
     code.
-  - In the preview give the roll alone, `.papers(Paper.ROLL_80)`, so there is no paper choice. The window
-    opens with the whole page fitted ("الصفحة كاملة"), which shows a long receipt as a narrow strip; "ملء
-    العرض" makes it readable. Tell the user, or have them try it, before they report it as a bug.
+  - In the preview give the roll alone, `.papers(Paper.ROLL_80)`, so there is no paper choice. From the
+    release after `v2.4.0` the window opens a receipt at a readable size by itself. On `v2.4.0` it opens with
+    the whole page fitted ("الصفحة كاملة"), which shows a long receipt as a narrow strip, and "ملء العرض"
+    makes it readable - tell the user, or move to the newer tag.
   - `Paper.parse("80mm")` / `"58mm"` reads a saved setting; `Paper.roll("76mm", 76)` is another width.
   - Test that it is one page, about 226.8 points wide (80 mm), with the last line and the total on it. Its
     height follows the number of lines, so assert a bound, not an exact height.

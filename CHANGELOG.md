@@ -10,6 +10,13 @@
 - Build plugins (compiler, surefire, jar, source) updated, the JavaFX the preview compiles against is 21.0.13.1, and
   the tests run on JUnit 6.1.3. (#6, #7)
 
+### Fixed
+- The preview window opened a long receipt fitted whole into the window, as a strip too narrow to read. A roll now
+  opens as wide as the window allows, up to twice its size; "Whole page" and "Fit width" still do what they say,
+  and the view the user picks stays.
+- The preview draws a page into an image of at most 8192 pixels a side, so a very long receipt no longer asks for
+  an image hundreds of megabytes large; past that it is shown a little softer. Printing and saving are not affected.
+
 ## [2.4.0] - 2026-11-26
 
 ### Added
