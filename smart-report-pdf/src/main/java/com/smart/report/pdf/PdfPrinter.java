@@ -77,7 +77,11 @@ public final class PdfPrinter {
      */
     public static void print(byte[] pdf, String printerName, Paper paper, int copies) throws ReportException {
         Objects.requireNonNull(pdf, "pdf");
-        PrintService printer = find(printerName);
+        printOn(find(printerName), pdf, paper, copies);
+    }
+
+    /** يطبع على خدمة طباعة بعينها؛ الاختبارات بتديها خدمة بتكتب في stream بدل طابعة من النظام. */
+    static void printOn(PrintService printer, byte[] pdf, Paper paper, int copies) throws ReportException {
         try (PDDocument document = Loader.loadPDF(pdf)) {
             PrinterJob job = PrinterJob.getPrinterJob();
             job.setPrintService(printer);

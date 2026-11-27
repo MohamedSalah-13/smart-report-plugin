@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Noto Naskh Arabic for templates that name it, registered by jasperreports_extension.properties at the root of
+    this jar. The fonts are the ones smart-report-pdf embeds, under the SIL Open Font License 1.1 (OFL.txt next to them).
+
+    Templates that name no font need nothing: com.smart.report.jasper.ArabicFonts gives the default font its Arabic
+    letters.
+-->
+<fontFamilies>
+
+    <!-- Every character of the text in Noto Naskh Arabic, Latin included. The regular file only: the bold file has no
+         Latin letters and would lose them, so bold text is drawn with the regular file thickened. -->
+    <fontFamily name="Noto Naskh Arabic">
+        <normal>com/smart/report/jasper/fonts/NotoNaskhArabic-Regular.ttf</normal>
+        <pdfEncoding>Identity-H</pdfEncoding>
+        <pdfEmbedded>true</pdfEmbedded>
+        <exportFonts>
+            <export key="net.sf.jasperreports.html">'Noto Naskh Arabic', Tahoma, Arial, sans-serif</export>
+        </exportFonts>
+    </fontFamily>
+
+</fontFamilies>
