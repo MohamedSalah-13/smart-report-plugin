@@ -44,7 +44,7 @@
 
         <!-- The release each module's jar is compared with (japicmp, below): a binary-incompatible change to the
              public API breaks the build. Move it to the new tag once JitPack has built that release. -->
-        <api.baseline.version>v2.6.0</api.baseline.version>
+        <api.baseline.version>v2.7.1</api.baseline.version>
     </properties>
 
     <!-- Central first, so every dependency still comes from there; JitPack only for the baseline release above. -->
