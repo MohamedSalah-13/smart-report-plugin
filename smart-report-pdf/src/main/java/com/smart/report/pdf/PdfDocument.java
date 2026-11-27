@@ -1,7 +1,6 @@
 package com.smart.report.pdf;
 
 import com.smart.report.ReportException;
-import org.apache.pdfbox.pdmodel.PDDocument;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -412,6 +411,16 @@ public final class PdfDocument {
         return blocks;
     }
 
+    /** عنوان الملف (واسم مهمة الطباعة): نص أول {@link #title(String)} مش {@code null}. */
+    String firstTitle() {
+        for (Block block : blocks) {
+            if (block instanceof TitleBlock title && title.text() != null) {
+                return title.text();
+            }
+        }
+        return null;
+    }
+
     String letterheadName() {
         return letterheadName;
     }
@@ -450,44 +459,7 @@ public final class PdfDocument {
     /** يكتب المستند في {@code out} ولا يقفله. */
     public void writeTo(OutputStream out) throws ReportException {
         Objects.requireNonNull(out, "out");
-        if (paper.roll()) {
-            // الورق الحراري بيتقص على قد المكتوب: المستند بيترسم مرة على ورقة بأقصى طول عشان يتقاس، وبعدين
-            // على ورقة بالطول اللي احتاجه. لو ما كفّتهوش ورقة بأقصى طول بيفضل صفحات بالطول ده.
-            float used = layOut(paper, null);
-            if (used > 0) {
-                // نقطتين زيادة: الجزء الأخير بيقف على الحد بالظبط، وفرق تقريب صغير كان هيفتح له صفحة.
-                float height = Math.max((float) Math.ceil(used) + 2, paper.width());
-                // القياس بيحسب المكان المحجوز كمان، فالمحاولة الأولى بتكفي؛ ولو حاجة لسه فتحت صفحة تانية
-                // الورقة بتطول بوصة وتتجرّب تاني بدل ما الإيصال يطلع على ورقتين.
-                for (int attempt = 0; attempt < 4 && height < paper.height(); attempt++) {
-                    ByteArrayOutputStream cut = new ByteArrayOutputStream();
-                    if (layOut(new Paper(paper.name(), paper.width(), height, true), cut) > 0) {
-                        try {
-                            cut.writeTo(out);
-                        } catch (IOException e) {
-                            throw new ReportException("Failed to write the PDF document: " + e.getMessage(), e);
-                        }
-                        return;
-                    }
-                    height += 72;
-                }
-            }
-        }
-        layOut(paper, out);
-    }
-
-    /** يرسم المستند على {@code page} ويكتبه في {@code out} لو مش {@code null}؛ بيرجّع الطول المستخدم. */
-    private float layOut(Paper page, OutputStream out) throws ReportException {
-        try (PDDocument pdf = new PDDocument(); FontSet fonts = FontSet.load(pdf, font, failOnMissingGlyphs)) {
-            PageWriter writer = new PageWriter(pdf, this, fonts, page);
-            writer.write();
-            if (out != null) {
-                pdf.save(out);
-            }
-            return writer.usedHeight();
-        } catch (IOException e) {
-            throw new ReportException("Failed to write the PDF document: " + e.getMessage(), e);
-        }
+        PageWriter.write(this, font, failOnMissingGlyphs, out);
     }
 
     /** يحفظ المستند في ملف، وينشئ المجلدات الناقصة في مساره. */

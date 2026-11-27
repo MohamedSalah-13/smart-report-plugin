@@ -1,0 +1,663 @@
+document 380
+title -
+pages 1
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 436.246 359.986 "Section"
+  line 462.420 100.902 "Amount Day"
+  line 481.180 200.845 "1 r1"
+  line 499.940 200.845 "2 r2"
+  line 515.700 373.376 "after"
+document 383
+title -
+pages 1
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 439.246 359.986 "Section"
+  line 465.420 100.902 "Amount Day"
+  line 484.180 200.845 "1 r1"
+  line 502.940 200.845 "2 r2"
+  line 518.700 373.376 "after"
+document 386
+title -
+pages 1
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 442.246 359.986 "Section"
+  line 468.420 100.902 "Amount Day"
+  line 487.180 200.845 "1 r1"
+  line 505.940 200.845 "2 r2"
+  line 521.700 373.376 "after"
+document 389
+title -
+pages 1
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 445.246 359.986 "Section"
+  line 471.420 100.902 "Amount Day"
+  line 490.180 200.845 "1 r1"
+  line 508.940 200.845 "2 r2"
+  line 524.700 373.376 "after"
+document 392
+title -
+pages 1
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 448.246 359.986 "Section"
+  line 474.420 100.902 "Amount Day"
+  line 493.180 200.845 "1 r1"
+  line 511.940 200.845 "2 r2"
+  line 527.700 373.376 "after"
+document 395
+title -
+pages 1
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 451.246 359.986 "Section"
+  line 477.420 100.902 "Amount Day"
+  line 496.180 200.845 "1 r1"
+  line 514.940 200.845 "2 r2"
+  line 530.700 373.376 "after"
+document 398
+title -
+pages 1
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 454.246 359.986 "Section"
+  line 480.420 100.902 "Amount Day"
+  line 499.180 200.845 "1 r1"
+  line 517.940 200.845 "2 r2"
+  line 533.700 373.376 "after"
+document 401
+title -
+pages 1
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 457.246 359.986 "Section"
+  line 483.420 100.902 "Amount Day"
+  line 502.180 200.845 "1 r1"
+  line 520.940 200.845 "2 r2"
+  line 536.700 373.376 "after"
+document 404
+title -
+pages 1
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 460.246 359.986 "Section"
+  line 486.420 100.902 "Amount Day"
+  line 505.180 200.845 "1 r1"
+  line 523.940 200.845 "2 r2"
+  line 539.700 373.376 "after"
+document 407
+title -
+pages 1
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 463.246 359.986 "Section"
+  line 489.420 100.902 "Amount Day"
+  line 508.180 200.845 "1 r1"
+  line 526.940 200.845 "2 r2"
+  line 542.700 373.376 "after"
+document 410
+title -
+pages 1
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 466.246 359.986 "Section"
+  line 492.420 100.902 "Amount Day"
+  line 511.180 200.845 "1 r1"
+  line 529.940 200.845 "2 r2"
+  line 545.700 373.376 "after"
+document 413
+title -
+pages 1
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 469.246 359.986 "Section"
+  line 495.420 100.902 "Amount Day"
+  line 514.180 200.845 "1 r1"
+  line 532.940 200.845 "2 r2"
+  line 548.700 373.376 "after"
+document 416
+title -
+pages 1
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 472.246 359.986 "Section"
+  line 498.420 100.902 "Amount Day"
+  line 517.180 200.845 "1 r1"
+  line 535.940 200.845 "2 r2"
+  line 551.700 373.376 "after"
+document 419
+title -
+pages 1
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 475.246 359.986 "Section"
+  line 501.420 100.902 "Amount Day"
+  line 520.180 200.845 "1 r1"
+  line 538.940 200.845 "2 r2"
+  line 554.700 373.376 "after"
+document 422
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 478.246 359.986 "Section"
+  line 504.420 100.902 "Amount Day"
+  line 523.180 200.845 "1 r1"
+  line 541.940 200.845 "2 r2"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 34.624 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 425
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 481.246 359.986 "Section"
+  line 507.420 100.902 "Amount Day"
+  line 526.180 200.845 "1 r1"
+  line 544.940 200.845 "2 r2"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 34.624 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 428
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 484.246 359.986 "Section"
+  line 510.420 100.902 "Amount Day"
+  line 529.180 200.845 "1 r1"
+  line 547.940 200.845 "2 r2"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 34.624 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 431
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 487.246 359.986 "Section"
+  line 513.420 100.902 "Amount Day"
+  line 532.180 200.845 "1 r1"
+  line 550.940 200.845 "2 r2"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 34.624 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 434
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 490.246 359.986 "Section"
+  line 516.420 100.902 "Amount Day"
+  line 535.180 200.845 "1 r1"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 37.624 100.902 "Amount Day"
+  line 56.384 200.845 "2 r2"
+  line 72.144 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 437
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 493.246 359.986 "Section"
+  line 519.420 100.902 "Amount Day"
+  line 538.180 200.845 "1 r1"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 37.624 100.902 "Amount Day"
+  line 56.384 200.845 "2 r2"
+  line 72.144 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 440
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 496.246 359.986 "Section"
+  line 522.420 100.902 "Amount Day"
+  line 541.180 200.845 "1 r1"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 37.624 100.902 "Amount Day"
+  line 56.384 200.845 "2 r2"
+  line 72.144 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 443
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 446
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 449
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 452
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 455
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 458
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 461
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 464
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 467
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 470
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 473
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 476
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 479
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 482
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 485
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 488
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 491
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 494
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 497
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 500
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 503
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 506
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 509
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 512
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 515
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 518
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 521
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 524
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 527
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 530
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 533
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 536
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
+document 539
+title -
+pages 2
+page 1 419.528 595.276
+  line 34.624 379.949 "top"
+  line 580.976 191.766 "2 ﻦﻣ 1 ﺔﺤﻔﺻ"
+page 2 419.528 595.276
+  line 35.486 359.986 "Section"
+  line 61.660 100.902 "Amount Day"
+  line 80.420 200.845 "1 r1"
+  line 99.180 200.845 "2 r2"
+  line 114.940 373.376 "after"
+  line 580.976 191.766 "2 ﻦﻣ 2 ﺔﺤﻔﺻ"
