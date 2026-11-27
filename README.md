@@ -337,7 +337,11 @@ runs right to left). The PDF report is on portrait A4. To change that:
 In the PDF, numbers get thousands separators (`1,234,567.5`, `1,200.50`), dates are written `2026-11-26` and
 `2026-11-26 10:30:00`, and a column holding only numbers is aligned to the end of the line so the numbers line up.
 
-In Excel, numbers, booleans and dates are written with their own types, not as text.
+In Excel, numbers, booleans and dates are written with their own types, not as text. The header row stays in view
+as you scroll and has filter buttons, so the sheet can be sorted and filtered straight away. Each column is as wide as
+its header and content, up to Excel's limit of 255 characters; the title does not count. To keep a large report fast,
+text is measured in the first 500 rows only: a longer text further down is cut at the column's edge (the cell still
+holds all of it). Numbers and dates fit in every row, so none shows as `####`.
 
 If you ask for a type whose module is not on the classpath, a `ReportException` tells you which dependency
 to add.

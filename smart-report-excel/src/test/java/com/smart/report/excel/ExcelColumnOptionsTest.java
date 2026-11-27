@@ -154,6 +154,50 @@ class ExcelColumnOptionsTest {
         assertEquals(HorizontalAlignment.LEFT, rtl.getCell(1).getCellStyle().getAlignment());
     }
 
+    /** عرض أول عمود في تقرير بالبيانات دي. */
+    private static int firstColumnWidth(List<Sale> data, ColumnDefinition column) throws Exception {
+        byte[] xlsx = ReportService.generate(ReportType.EXCEL, ReportRequest.<Sale>builder()
+                .data(data).columns(List.of(column)).build());
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(xlsx))) {
+            return workbook.getSheetAt(0).getColumnWidth(0);
+        }
+    }
+
+    private static Sale sale(double amount, LocalDate day) {
+        return new Sale("Ahmed", amount, day, day.atTime(9, 5));
+    }
+
+    /**
+     * النصوص بتتقاس من أول الصفوف بس، بس الرقم الأعرض بعدها لازم ياخد عرضه هو كمان: الرقم اللي
+     * مش واخد عرضه Excel بيعرضه {@code ####}.
+     */
+    @Test
+    void formattedNumberPastTheSampleStillFits() throws Exception {
+        ColumnDefinition amount = ColumnDefinition.of("amount", "Amount").withFormat("#,##0.00");
+        LocalDate day = LocalDate.of(2026, 11, 26);
+        List<Sale> data = new java.util.ArrayList<>();
+        for (int i = 0; i < ExcelReportProvider.WIDTH_SAMPLE_ROWS; i++) {
+            data.add(sale(12.5, day));
+        }
+        int small = firstColumnWidth(data, amount);
+        data.add(sale(-1_234_567_890.25, day));
+
+        int withBig = firstColumnWidth(data, amount);
+        assertTrue(withBig > small, withBig + " مش أعرض من " + small);
+        assertEquals(firstColumnWidth(List.of(sale(-1_234_567_890.25, day)), amount), withBig,
+                "نفس عرضه لو كان في أول صف");
+    }
+
+    /** عمود التاريخ بأسماء الشهور واخد عرض أطول شهر، حتى لو الصفوف كلها في شهر قصير. */
+    @Test
+    void dateColumnFitsItsLongestMonthName() throws Exception {
+        ColumnDefinition day = ColumnDefinition.of("day", "Day").withFormat("d MMMM yyyy");
+        int may = firstColumnWidth(List.of(sale(1, LocalDate.of(2026, 5, 1))), day);
+        int september = firstColumnWidth(List.of(sale(1, LocalDate.of(2026, 9, 30))), day);
+
+        assertTrue(may >= september, "مايو " + may + " وسبتمبر " + september);
+    }
+
     @Test
     void weightIsIgnoredInExcel() throws Exception {
         Row row = firstRow(ColumnDefinition.of("name", "Name").withWeight(5));
