@@ -1,0 +1,3 @@
+# The Maven wrapper script runs on Linux (JitPack) and must keep LF line endings; the Windows one keeps CRLF.
+mvnw text eol=lf
+*.cmd text eol=crlf
