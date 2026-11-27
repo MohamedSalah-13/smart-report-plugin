@@ -50,10 +50,9 @@ and says whether the page runs right to left.
 Use the newest tag of the library:
 `gh api repos/MohamedSalah-13/smart-report-plugin/tags --jq '.[0].name'`. What needs which version: the
 preview window (`smart-report-fx`) `v2.1.0`; column formats in the generic report `v2.2.0`; `AmountInWords`
-`v2.3.0`; thermal rolls, the letterhead on every page, `pageFooter` and `signatures` `v2.4.0`; `qrCode` and
-`ZatcaQr` the release after `v2.4.0`. A program on an older tag that needs one of these moves to the newest tag;
-if the newest tag is still `v2.4.0`, the QR code is not released yet - say so to the user instead of drawing one
-by hand.
+`v2.3.0`; thermal rolls, the letterhead on every page, `pageFooter` and `signatures` `v2.4.0`; `qrCode`,
+`ZatcaQr` and the readable receipt preview `v2.5.0`. A program on an older tag that needs one of these moves to
+the newest tag.
 
 ```xml
 <repositories>
@@ -72,17 +71,17 @@ by hand.
     </repository>
 </repositories>
 
-<!-- The page itself, saving and printing. Brings PDFBox (and, after v2.4.0, ZXing core for the QR code). -->
+<!-- The page itself, saving and printing. Brings PDFBox and ZXing core (for the QR code). -->
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.4.0</version>
+    <version>v2.5.0</version>
 </dependency>
 <!-- Only for a JavaFX program that wants the preview window. JavaFX itself is the program's own. -->
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-fx</artifactId>
-    <version>v2.4.0</version>
+    <version>v2.5.0</version>
 </dependency>
 ```
 
@@ -308,7 +307,7 @@ has not been on a real printer yet; the old one usually had.
   column's format (as an Excel format, so numbers stay numbers) and alignment, and ignores the weight. A date
   pattern Excel would show differently - `hh` without `a`, `HH` with `a`, `k`, or a time zone `z` - fails
   with a `ReportException` naming the column: use `HH:mm`, or `hh:mm a`. The Excel module brings Apache POI
-  6 from the release after `v2.4.0`; a program that uses POI itself should know that.
+  6 from `v2.5.0`; a program that uses POI itself should know that.
 - **A page designed in Jaspersoft Studio** - add `smart-report-jasper` and ask for `ReportType.JASPER` with
   the template's path. Only for a program that already has templates; a new page is quicker as a
   `PdfDocument`.
@@ -338,8 +337,8 @@ has not been on a real printer yet; the old one usually had.
     printer must have its system driver installed: if it is not in `PdfPrinter.printerNames()`, the program
     cannot print a PDF to it, and the user has to install the driver - say so rather than writing ESC/POS
     code.
-  - In the preview give the roll alone, `.papers(Paper.ROLL_80)`, so there is no paper choice. From the
-    release after `v2.4.0` the window opens a receipt at a readable size by itself. On `v2.4.0` it opens with
+  - In the preview give the roll alone, `.papers(Paper.ROLL_80)`, so there is no paper choice. From
+    `v2.5.0` the window opens a receipt at a readable size by itself. On `v2.4.0` it opens with
     the whole page fitted ("الصفحة كاملة"), which shows a long receipt as a narrow strip, and "ملء العرض"
     makes it readable - tell the user, or move to the newer tag.
   - `Paper.parse("80mm")` / `"58mm"` reads a saved setting; `Paper.roll("76mm", 76)` is another width.

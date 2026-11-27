@@ -15,16 +15,18 @@ A Java library for reports and printing, added to any project as a dependency:
 
 ## What's New
 
+### 2.5.0
+
+- **New:** a QR code on the page - a link, an invoice number, or the QR code of a Saudi simplified tax invoice (`ZatcaQr`, ZATCA phase 1). Sharp vector squares, and it fits the 58 mm roll. See [QR code](#qr-code-and-the-saudi-tax-invoice-qr).
+- **Fixed:** the preview opens a long receipt wide enough to read, and no longer needs a huge image for it.
+- **Upgrade note:** the Excel module now brings Apache POI 6.0.0 (from 5.3.0).
+
 ### 2.4.0
 
 - **New:** the letterhead on every page of a long document, a footer line above the page number, and signature boxes (المستلم، المحاسب، الختم). See [On every page](#on-every-page).
 - **New:** 80 mm and 58 mm thermal receipt paper: one page as long as the receipt. See [Thermal receipts](#thermal-receipts-80-mm-and-58-mm).
 - **New:** the generic Excel report applies a column's number or date format and alignment, like the PDF.
 - **Fixed:** a very tall table header or field value no longer runs off the paper.
-
-### 2.3.0
-
-- **New:** amount in words (تفقيط) for invoices and receipts: «فقط سبعة آلاف ومائتا جنيه لا غير», with the right noun form and gender agreement, for EGP, SAR, AED, KWD, USD or your own currency. See [Amount in words](#amount-in-words-amountinwords).
 
 Details of each release are in [CHANGELOG.md](CHANGELOG.md).
 
@@ -55,7 +57,7 @@ The library is served by [JitPack](https://jitpack.io) straight from the reposit
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.4.0</version>
+    <version>v2.5.0</version>
 </dependency>
 ```
 
