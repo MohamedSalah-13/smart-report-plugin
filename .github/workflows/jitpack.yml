@@ -1,0 +1,50 @@
+# After a release tag is pushed: asks JitPack to build it, waits for the build and checks that every module's jar can
+# be downloaded. CI (ci.yml) runs JitPack's build command before the tag, but only JitPack can say it built the tag:
+# v2.7.0 passed CI and JitPack could not build it, and nobody knew until someone looked. A red run here is that news.
+# The script and what to do when it fails: .github/scripts/jitpack-check.sh and RELEASING.md.
+name: JitPack
+
+on:
+  push:
+    tags: ['v*']
+  # Check a tag again by hand, from the Actions tab or: gh workflow run jitpack.yml -f tag=v2.7.1
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The tag to check, such as v2.7.1
+        required: true
+  # A change to the check is tried on the newest tag.
+  pull_request:
+    paths:
+      - .github/workflows/jitpack.yml
+      - .github/scripts/jitpack-check.sh
+
+# Reads the repository and talks to JitPack; it changes nothing on GitHub.
+permissions:
+  contents: read
+
+jobs:
+  jitpack:
+    name: JitPack built the tag
+    runs-on: ubuntu-latest
+    # JitPack gives a build up to 15 minutes, and the script waits 20.
+    timeout-minutes: 30
+    steps:
+      # On a tag push, the tag itself: the modules and the API baseline the script reads from pom.xml are that
+      # release's. Otherwise the branch or pull request, since an older tag has no script.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Wait for JitPack's build and download every jar
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          if [ -n "$INPUT_TAG" ]; then
+            tag=$INPUT_TAG
+          elif [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag=$GITHUB_REF_NAME
+          else
+            tag=$(git ls-remote --tags --refs "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" 'v*' | sed 's:.*refs/tags/::' | sort -V | tail -n 1)
+          fi
+          bash .github/scripts/jitpack-check.sh "$tag"

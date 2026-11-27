@@ -478,9 +478,13 @@ printing".
 ## Tests and build
 
 ```bash
-mvn test       # every module
-mvn install    # builds the modules and installs them in the local repository
+./mvnw test       # every module
+./mvnw verify     # the tests, and each module's API checked against the last release
+./mvnw install    # builds the modules and installs them in the local repository
 ```
+
+`./mvnw` (`mvnw.cmd` in a Windows command prompt) downloads and runs Maven 3.9.16, the Maven JitPack builds the
+library with. How a release is made, and what to do when JitPack cannot build one: [RELEASING.md](RELEASING.md).
 
 The PDF tests read the **positions** of the drawn glyphs, not only the extracted text: direction faults
 (a column on the wrong side, a total under another column, the end of a sentence on the first line) do not
