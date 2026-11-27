@@ -1,31 +1,49 @@
 package com.smart.report.fx;
 
+import com.smart.report.ReportException;
 import com.smart.report.pdf.Paper;
 import com.smart.report.pdf.PdfDocument;
 import com.smart.report.pdf.PdfTable;
 import javafx.application.Platform;
+import javafx.event.Event;
 import javafx.geometry.NodeOrientation;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Spinner;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.prefs.Preferences;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -296,6 +314,280 @@ class PdfPreviewTest {
         assertTrue(14400f * roll <= PreviewWindow.MAX_IMAGE_SIDE + 0.5f, "" + roll);
         float square = PreviewWindow.renderScale(3000f, 3000f, 4);
         assertTrue(3000.0 * square * 3000.0 * square <= PreviewWindow.MAX_IMAGE_PIXELS * 1.0001, "" + square);
+    }
+
+    // ===================== الطباعة المباشرة والاختصارات =====================
+
+    /**
+     * طابعات مزيفة: بتسجّل اللي اتبعت لها بدل ما تطبعه، ونافذة حفظ بترجع ملفًا جاهزًا من غير ما
+     * تتفتح. ما فيش اختبار بيوصل لطابعة حقيقية.
+     */
+    private static final class FakeSystem implements PreviewSystem {
+
+        record Job(byte[] pdf, String printer, Paper paper, int copies) {
+        }
+
+        private final List<String> names;
+        final List<Job> jobs = new CopyOnWriteArrayList<>();
+        volatile ReportException failure;
+        volatile File saveTo;
+        /** لو اتحدد، الطباعة بتستنى لحد ما الاختبار يفتحه. */
+        volatile CountDownLatch gate;
+
+        FakeSystem(String... names) {
+            this.names = List.of(names);
+        }
+
+        @Override
+        public List<String> printerNames() {
+            return names;
+        }
+
+        @Override
+        public Optional<String> defaultPrinter() {
+            return Optional.empty();
+        }
+
+        @Override
+        public void print(byte[] pdf, String printer, Paper paper, int copies) throws ReportException {
+            try {
+                if (gate != null && !gate.await(20, TimeUnit.SECONDS)) {
+                    throw new AssertionError("The test never released the printer");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            }
+            if (failure != null) {
+                throw failure;
+            }
+            jobs.add(new Job(pdf, printer, paper, copies));
+        }
+
+        @Override
+        public File chooseSaveFile(FileChooser chooser, Window owner) {
+            return saveTo;
+        }
+    }
+
+    private static PdfPreview faked(PdfPreview preview, FakeSystem system) {
+        preview.system = system;
+        return preview;
+    }
+
+    private static Preferences rememberedNode(String key) {
+        return Preferences.userRoot().node(PdfPreview.PREFERENCES + key);
+    }
+
+    private static boolean noWindowOpen() throws Exception {
+        return onFx(() -> Window.getWindows().isEmpty());
+    }
+
+    /** مفتاح بيتداس والنافذة نفسها في المقدمة. */
+    private static void press(Stage stage, KeyCode code, boolean shortcut) throws Exception {
+        press(stage.getScene().getRoot(), code, shortcut);
+    }
+
+    /** Ctrl+المفتاح (⌘ على الماك) بيتداس والمؤشر في {@code target}. */
+    private static void press(Node target, KeyCode code, boolean shortcut) throws Exception {
+        boolean mac = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("mac");
+        onFx(() -> {
+            Event.fireEvent(target, new KeyEvent(KeyEvent.KEY_PRESSED, "", "", code,
+                    false, shortcut && !mac, false, shortcut && mac));
+            return null;
+        });
+    }
+
+    /** خانة عدد النسخ: نص بياكل المفاتيح اللي بتوصله. */
+    private static Node copiesBox(Stage stage) throws Exception {
+        return onFx(() -> PdfPreviewTest.<Spinner<?>>node(stage, "copies").getEditor());
+    }
+
+    private static boolean isPdf(byte[] bytes) {
+        return bytes.length > 4 && "%PDF".equals(new String(bytes, 0, 4, StandardCharsets.US_ASCII));
+    }
+
+    /** الإيصال بيطلع على الطابعة المحفوظة بنسخة واحدة على المقاس المحفوظ، من غير ما نافذة تتفتح. */
+    @Test
+    void printOrShowPrintsOnTheRememberedPrinterWithoutAWindow() throws Exception {
+        assumeTrue(toolkit, "no display");
+        String key = "test-" + System.nanoTime();
+        try {
+            rememberedNode(key).put("printer", "Till");
+            rememberedNode(key).put("paper", "A5");
+            FakeSystem system = new FakeSystem("Office", "Till");
+            system.gate = new CountDownLatch(1);
+            PdfPreview preview = faked(PdfPreview.of(PdfPreviewTest::report).remember(key), system);
+
+            CompletableFuture<PrintOutcome> outcome = onFx(() -> preview.printOrShow(null));
+            assertFalse(outcome.isDone(), "بترجع قبل ما الطباعة تخلص");
+            CompletableFuture<Boolean> onFxThread = outcome.thenApply(any -> Platform.isFxApplicationThread());
+            system.gate.countDown();
+
+            assertEquals(new PrintOutcome.Sent("Till", Paper.A5), outcome.get(20, TimeUnit.SECONDS));
+            assertTrue(onFxThread.get(20, TimeUnit.SECONDS), "النتيجة بتكمل على thread الواجهة");
+            assertEquals(1, system.jobs.size());
+            FakeSystem.Job job = system.jobs.get(0);
+            assertEquals("Till", job.printer());
+            assertEquals(Paper.A5, job.paper());
+            assertEquals(1, job.copies());
+            assertTrue(isPdf(job.pdf()));
+            assertTrue(noWindowOpen(), "ما فيش نافذة اتفتحت");
+        } finally {
+            rememberedNode(key).removeNode();
+        }
+    }
+
+    /** من غير طابعة محفوظة النافذة بتتفتح على طول، ومفيش حاجة بتتبعت للطابعة. */
+    @Test
+    void printOrShowWithoutARememberedPrinterOpensTheWindow() throws Exception {
+        assumeTrue(toolkit, "no display");
+        String key = "test-" + System.nanoTime();
+        try {
+            FakeSystem system = new FakeSystem("Till");
+            for (PdfPreview preview : List.of(
+                    faked(PdfPreview.of(PdfPreviewTest::report).rightToLeft(false), system),
+                    faked(PdfPreview.of(PdfPreviewTest::report).rightToLeft(false).remember(key), system))) {
+                CompletableFuture<PrintOutcome> outcome = onFx(() -> preview.printOrShow(null));
+                assertTrue(outcome.isDone(), "النافذة بتتفتح في نفس النداء");
+                Stage stage = assertInstanceOf(PrintOutcome.Shown.class, outcome.get()).window();
+                assertTrue(onFx(stage::isShowing));
+                onFx(() -> {
+                    stage.hide();
+                    return null;
+                });
+            }
+            assertTrue(system.jobs.isEmpty());
+        } finally {
+            rememberedNode(key).removeNode();
+        }
+    }
+
+    /**
+     * الطابعة المحفوظة اتشالت من الجهاز: النافذة بتتفتح، والطابعة اللي المستخدم يطبع عليها منها
+     * بتتحفظ، والإيصال اللي بعده بيطلع عليها على طول.
+     */
+    @Test
+    void missingPrinterOpensTheWindowAndThePrinterChosenThereIsUsedNextTime() throws Exception {
+        assumeTrue(toolkit, "no display");
+        String key = "test-" + System.nanoTime();
+        try {
+            rememberedNode(key).put("printer", "Old printer");
+            FakeSystem system = new FakeSystem("Till");
+            PdfPreview preview = faked(PdfPreview.of(paper -> receipt(paper, 5)).papers(Paper.ROLL_80)
+                    .rightToLeft(false).remember(key), system);
+
+            PrintOutcome first = onFx(() -> preview.printOrShow(null)).get(20, TimeUnit.SECONDS);
+            Stage stage = assertInstanceOf(PrintOutcome.Shown.class, first).window();
+            assertTrue(system.jobs.isEmpty());
+            await("the print button", () -> !PdfPreviewTest.<Button>node(stage, "print").isDisabled());
+            assertEquals("Till", onFx(() -> PdfPreviewTest.<ComboBox<String>>node(stage, "printer").getValue()));
+            onFx(() -> {
+                PdfPreviewTest.<Button>node(stage, "print").fire();
+                return null;
+            });
+            await("the window's print", () -> system.jobs.size() == 1);
+            onFx(() -> {
+                stage.hide();
+                return null;
+            });
+
+            PrintOutcome second = onFx(() -> preview.printOrShow(null)).get(20, TimeUnit.SECONDS);
+            assertEquals(new PrintOutcome.Sent("Till", Paper.ROLL_80), second);
+            assertEquals(2, system.jobs.size());
+            assertTrue(noWindowOpen());
+        } finally {
+            rememberedNode(key).removeNode();
+        }
+    }
+
+    /** الطابعة رفضت المهمة: النتيجة بتقول كده ومعاها السبب، ونافذة ما بتطلعش لوحدها. */
+    @Test
+    void failedDirectPrintIsReportedAndOpensNoWindow() throws Exception {
+        assumeTrue(toolkit, "no display");
+        String key = "test-" + System.nanoTime();
+        try {
+            rememberedNode(key).put("printer", "Till");
+            FakeSystem system = new FakeSystem("Till");
+            system.failure = new ReportException("Out of paper");
+            PdfPreview preview = faked(PdfPreview.of(report(Paper.A5)).remember(key), system);
+
+            PrintOutcome outcome = onFx(() -> preview.printOrShow(null)).get(20, TimeUnit.SECONDS);
+            PrintOutcome.Failed failed = assertInstanceOf(PrintOutcome.Failed.class, outcome);
+            assertEquals("Till", failed.printer());
+            assertEquals(Paper.A5, failed.paper());
+            assertSame(system.failure, failed.reason());
+            assertTrue(noWindowOpen());
+        } finally {
+            rememberedNode(key).removeNode();
+        }
+    }
+
+    /** المستند اللي فشل بناؤه نتيجته فشل برضه، مش نافذة. */
+    @Test
+    void documentThatFailsToBuildIsAFailedDirectPrint() throws Exception {
+        assumeTrue(toolkit, "no display");
+        String key = "test-" + System.nanoTime();
+        try {
+            rememberedNode(key).put("printer", "Till");
+            FakeSystem system = new FakeSystem("Till");
+            PdfPreview preview = faked(PdfPreview.of(paper -> {
+                throw new IllegalStateException("no data");
+            }).remember(key), system);
+
+            PrintOutcome outcome = onFx(() -> preview.printOrShow(null)).get(20, TimeUnit.SECONDS);
+            assertInstanceOf(IllegalStateException.class, assertInstanceOf(PrintOutcome.Failed.class, outcome).reason());
+            assertTrue(system.jobs.isEmpty());
+            assertTrue(noWindowOpen());
+        } finally {
+            rememberedNode(key).removeNode();
+        }
+    }
+
+    /**
+     * Ctrl+S بيحفظ و Ctrl+P بيطبع زي الزرّين، حتى والمؤشر في خانة عدد النسخ؛ و PageDown و Esc لسه
+     * شغالين.
+     */
+    @Test
+    void shortcutsSaveAndPrint(@TempDir Path folder) throws Exception {
+        assumeTrue(toolkit, "no display");
+        FakeSystem system = new FakeSystem("Till");
+        system.saveTo = folder.resolve("report.pdf").toFile();
+        Stage stage = onFx(() -> faked(PdfPreview.of(PdfPreviewTest::report).rightToLeft(false), system).show(null));
+        await("the print button", () -> !PdfPreviewTest.<Button>node(stage, "print").isDisabled());
+
+        press(copiesBox(stage), KeyCode.S, true);
+        assertTrue(isPdf(Files.readAllBytes(system.saveTo.toPath())), "Ctrl+S حفظ الملف");
+        assertEquals(String.format(PreviewTexts.english().saved(), system.saveTo.getAbsolutePath()),
+                onFx(() -> PdfPreviewTest.<Label>node(stage, "status").getText()));
+
+        press(copiesBox(stage), KeyCode.P, true);
+        await("the print", () -> system.jobs.size() == 1);
+        assertEquals("Till", system.jobs.get(0).printer());
+        assertEquals(Paper.A4, system.jobs.get(0).paper());
+        await("the sent message", () -> String.format(PreviewTexts.english().sent(), "Till")
+                .equals(PdfPreviewTest.<Label>node(stage, "status").getText()));
+
+        press(stage, KeyCode.PAGE_DOWN, false);
+        await("the second page", () -> pageText(stage).startsWith("Page 2 of "));
+        press(stage, KeyCode.ESCAPE, false);
+        assertFalse(onFx(stage::isShowing), "Esc بيقفل النافذة");
+    }
+
+    /** زر الطباعة مقفول (مفيش طابعة): Ctrl+P ما بيعملش حاجة. */
+    @Test
+    void printShortcutDoesNothingWhileThePrintButtonIsDisabled() throws Exception {
+        assumeTrue(toolkit, "no display");
+        FakeSystem system = new FakeSystem();
+        Stage stage = onFx(() -> faked(PdfPreview.of(PdfPreviewTest::report).rightToLeft(false), system).show(null));
+        await("the document and the empty printer list", () -> pageCount(stage) > 0
+                && PreviewTexts.english().noPrinter().equals(PdfPreviewTest.<Label>node(stage, "status").getText()));
+        assertTrue(onFx(() -> PdfPreviewTest.<Button>node(stage, "print").isDisabled()));
+
+        press(stage, KeyCode.P, true);
+        Thread.sleep(300);
+        assertTrue(system.jobs.isEmpty());
+        assertEquals(PreviewTexts.english().noPrinter(), onFx(() -> PdfPreviewTest.<Label>node(stage, "status").getText()));
     }
 
     @Test

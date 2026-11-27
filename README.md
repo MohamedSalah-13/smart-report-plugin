@@ -7,7 +7,7 @@
 A Java library for reports and printing, added to any project as a dependency:
 
 - **Print-ready Arabic PDF documents** on A4 and A5 (portrait and landscape): letterhead, title, fields, several tables with a totals row, a summary, page numbers, a QR code, a barcode — and direct output to a printer. Apache PDFBox (and ZXing core to encode the QR code and the barcode).
-- **A ready JavaFX preview window**: the pages as they will print, a choice of printer, paper and copies, print and save as PDF.
+- **A ready JavaFX preview window**: the pages as they will print, a choice of printer, paper and copies, print and save as PDF — or print straight to the printer last chosen, with no window.
 - **A generic PDF or Excel report from a `List<POJO>`**, with no template.
 - **JasperReports** (visually designed `.jrxml`/`.jasper` templates): export to PDF, XLSX, HTML or CSV.
 
@@ -264,7 +264,40 @@ PdfPreview.of(document).show(ownerWindow);   // or a ready document on its own p
 - When the user changes the paper, the document is built again for the new paper.
 - The function that builds the document is called **off the UI thread**: read your data before it and touch no JavaFX node inside it.
 - The window's wording is Arabic or English by `rightToLeft`, and `texts(PreviewTexts)` replaces it with your program's terms.
+- Keys: Ctrl+P prints (only when the Print button can), Ctrl+S saves, PageUp/PageDown turn the pages and Esc closes the window. On a Mac it is ⌘P and ⌘S.
 - To draw pages as images yourself (a custom preview, a thumbnail): `PdfPages.open(pdf).render(pageIndex, scale)` in `smart-report-pdf`.
+
+#### Print straight away (`printOrShow`)
+
+A cashier should not have to open the preview for every receipt. With `remember(key)`, `printOrShow` sends
+the document to the printer the user last printed on from the window, and opens the window only when there
+is no such printer yet:
+
+```java
+PdfPreview.of(paper -> ReceiptPdf.document(sale, shop, paper))
+        .papers(Paper.ROLL_80)
+        .remember("receipt")
+        .printOrShow(ownerWindow)
+        .thenAccept(outcome -> {
+            switch (outcome) {
+                case PrintOutcome.Sent sent -> status.setText("Sent to " + sent.printer());
+                case PrintOutcome.Failed failed -> showError("The receipt was not printed", failed.reason());
+                case PrintOutcome.Shown shown -> { }   // no printer remembered yet: the window is open
+            }
+        });
+```
+
+- The first time, or when the remembered printer is no longer on the computer, the preview window opens. The
+  printer the user prints on from it is remembered, and from then on the document goes straight to it.
+- It prints one copy, on the paper the window would open on: the one given to `paper(...)`, else the last
+  one printed, else the first of `papers(...)`.
+- It returns at once: the printers are asked, and the document is built and printed, off the UI thread. The
+  future completes on the JavaFX thread, so its handler may update your nodes.
+- When the remembered printer is there but printing fails (the document could not be built, or the printer
+  refused the job), the outcome is `Failed` and **no window opens**: a window popping up by itself in the
+  middle of the next sale would take the keyboard from the till. `failed.reason()` is for the log; to let the
+  user choose another printer, call `show(ownerWindow)` from that branch.
+- To change the printer later, open the window with `show(ownerWindow)` and print once from it.
 
 ### Font
 
