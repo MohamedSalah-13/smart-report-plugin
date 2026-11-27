@@ -439,16 +439,21 @@ ReportRequest<Expense> request = ReportRequest.<Expense>builder()
 ```
 
 Each total sits under its own column, in that column's format. The label goes under the first column that is not
-totalled (with every column totalled, the row has no label). The sum is exact: the values are added as `BigDecimal`,
-a `double` or `float` by the decimal it shows (`0.1 + 0.2` totals `0.3`), and an empty value (`null`) adds nothing.
-A value that is not a number in a totalled column (text, a date, `NaN`) fails with a `ReportException` naming the
-column and the row: a total that skipped it would be wrong without anyone noticing. With no data the total is 0.
+totalled (with every column totalled, the row has no label). An empty value (`null`) adds nothing. A value that is
+not a number in a totalled column (text, a date, `NaN`) fails with a `ReportException` naming the column and the row,
+in both reports: a total that skipped it would be wrong without anyone noticing. With no data the total is 0.
 
-In the PDF the totals row looks like `PdfTable.totals`: bold, on a shaded background. In Excel it is a bold row with
-a line above and a double line below, after one empty row. Each total there is a real `=SUM(...)` formula over the
-data rows, so it follows any change made to the sheet, and the file carries its computed value too, so the right
-number shows before anything is recalculated. The filter covers the header and the data only, and the empty row keeps
-Excel from taking the totals row into a sort. The two extra rows count towards the sheet's limit of 1,048,576 rows.
+In the PDF the totals row looks like `PdfTable.totals`: bold, on a shaded background. Its sum is exact: the values
+are added as `BigDecimal`, a `double` or `float` by the decimal it shows (`0.1 + 0.2` totals `0.3`).
+
+In Excel it is a bold row with a line above and a double line below, after one empty row. Each total there is a real
+`=SUM(...)` formula over the data rows, so it follows any change made to the sheet. The file also carries the value
+of that formula, for programs that show a file without recalculating it. That value is Excel's own arithmetic: the
+numbers as stored in the cells (`double`, about 15 significant digits) added from the first row down, so recalculating
+never changes it. So the Excel total can differ from the exact PDF total in the last digits of a `float`
+(`0.1f` is stored as `0.10000000149011612`) or of a number with more than about 15 digits. For amounts in two
+decimals whose total stays under 15 digits, both show the same total. The filter covers the header and the data only, and the empty row keeps Excel
+from taking the totals row into a sort. The two extra rows count towards the sheet's limit of 1,048,576 rows.
 
 ## JasperReports (a visually designed template)
 

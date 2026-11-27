@@ -12,8 +12,12 @@ import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * صف الإجمالي في التقرير العام ({@link ColumnDefinition#withTotal()}). القاعدة واحدة لكل الأنواع، فنفس
- * الطلب بيطلع نفس الإجمالي في الـ PDF والـ Excel، أو نفس الخطأ.
+ * صف الإجمالي في التقرير العام ({@link ColumnDefinition#withTotal()}): كلمته ومكانها، وأنهي قيم تتجمع.
+ * القيمة اللي ما تتجمعش بتطلع نفس الخطأ في الـ PDF والـ Excel ({@link #check}).
+ *
+ * <p>المجموع نفسه بيختلف: الـ PDF بيطبع المجموع بالظبط ({@link #add})، والـ Excel بيكتب معادلة
+ * {@code SUM} وقيمتها بحساب Excel نفسه (أرقام {@code double} بالترتيب) على القيم اللي في خلاياه — غير
+ * كده كانت القيمة المحفوظة هتتغير أول ما Excel يعيد الحساب.</p>
  *
  * <ul>
  *     <li><b>المجموع بالظبط:</b> كل قيمة بتتحوّل لـ {@link BigDecimal} وبتتجمع من غير تقريب، فمبالغ
@@ -79,9 +83,28 @@ public final class Totals {
         try {
             return sum.add(amount(value));
         } catch (IllegalArgumentException e) {
-            throw new ReportException("Column '" + column.fieldName() + "', row " + (row + 1) + ": "
-                    + e.getMessage(), e);
+            throw notANumber(column, row, e);
         }
+    }
+
+    /**
+     * يتأكد إن القيمة تتجمع، من غير ما يجمعها — للتقرير اللي بيحسب مجموعه بطريقته (الـ Excel)، فالقيمة
+     * الغلط بتطلع بنفس الرسالة في كل الأنواع.
+     *
+     * @param row مكان العنصر في البيانات (من صفر)؛ الرسالة بتعدّ من 1
+     * @throws ReportException باسم العمود ورقم الصف، لو القيمة ما تتجمعش ({@link #amount})
+     */
+    public static void check(Object value, ColumnDefinition column, int row) throws ReportException {
+        try {
+            amount(value);
+        } catch (IllegalArgumentException e) {
+            throw notANumber(column, row, e);
+        }
+    }
+
+    private static ReportException notANumber(ColumnDefinition column, int row, IllegalArgumentException cause) {
+        return new ReportException("Column '" + column.fieldName() + "', row " + (row + 1) + ": "
+                + cause.getMessage(), cause);
     }
 
     /**

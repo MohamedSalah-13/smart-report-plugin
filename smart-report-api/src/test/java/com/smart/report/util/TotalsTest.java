@@ -69,6 +69,13 @@ class TotalsTest {
                 () -> Totals.add(BigDecimal.ZERO, "n/a", amount, 4));
         assertEquals("Column 'amount', row 5: only numbers can be totalled, but the value is the String \"n/a\".",
                 thrown.getMessage());
+
+        // check: نفس القاعدة ونفس الرسالة، من غير جمع (الـ Excel بيجمع بطريقته)
+        Totals.check(0.1f, amount, 0);
+        Totals.check(null, amount, 0);
+        com.smart.report.ReportException checked = assertThrows(com.smart.report.ReportException.class,
+                () -> Totals.check("n/a", amount, 4));
+        assertEquals(thrown.getMessage(), checked.getMessage());
     }
 
     @Test

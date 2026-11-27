@@ -11,6 +11,7 @@ import com.smart.report.util.Totals;
 import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.FillPatternType;
@@ -28,7 +29,6 @@ import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -37,7 +37,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
@@ -61,8 +60,10 @@ import java.util.Set;
  *
  * <p><b>الإجمالي:</b> لو في عمود متجمّع ({@link ColumnDefinition#withTotal()})، صف إجمالي بخط عريض بعد
  * البيانات بسطر فاضي: تحت كل عمود متجمّع معادلة {@code SUM} حقيقية على صفوف البيانات (فالإجمالي بيتغير لو
- * المستخدم عدّل رقم) بنمط العمود، ومعاها قيمتها محسوبة ({@link Totals})، فالرقم بيظهر صح حتى في برنامج
- * ما بيحسبش المعادلات وهو بيفتح الملف. الكلمة ({@link Totals#label}) تحت أول عمود مش متجمّع. السطر الفاضي
+ * المستخدم عدّل رقم) بنمط العمود، ومعاها قيمتها محسوبة، فالرقم بيظهر صح حتى في برنامج ما بيحسبش المعادلات
+ * وهو بيفتح الملف. القيمة دي بحساب Excel نفسه: أرقام {@code double} زي اللي في الخلايا، متجمّعة بالترتيب، فإعادة
+ * الحساب ما بتغيرهاش — بس ممكن تختلف عن إجمالي الـ PDF اللي بالظبط في أرقام أطول من 15-17 خانة أو
+ * {@code float}. القيمة اللي ما تتجمعش بترمي نفس خطأ الـ PDF ({@link Totals#check}). الكلمة ({@link Totals#label}) تحت أول عمود مش متجمّع. السطر الفاضي
  * بيفصل الإجمالي عن البيانات: Excel بيمد الفلتر والترتيب على الصفوف اللازقة في الجدول، فصف الإجمالي اللازق
  * كان ممكن يتفرز وسط البيانات. من غير بيانات، الإجمالي صفر (من غير معادلة: مفيش صفوف تتجمع).</p>
  */
@@ -154,8 +155,11 @@ public final class ExcelReportProvider implements ReportProvider {
                 widths.header(cell, i);
             }
 
-            BigDecimal[] sums = new BigDecimal[columns.size()];
-            Arrays.fill(sums, BigDecimal.ZERO);
+            // مجموع كل عمود متجمّع زي ما Excel هيحسبه: الأرقام اللي اتكتبت في خلاياه فعلًا (double)، بالترتيب
+            // من فوق لتحت. المجموع بالظبط (Totals.add) كان ممكن يختلف عنها — float زي 0.1f بيتكتب
+            // 0.10000000149011612، وBigDecimal أطول من خانات الـ double بيتقرّب — فالقيمة المحفوظة كانت هتتغير
+            // أول ما Excel يعيد الحساب.
+            double[] sums = new double[columns.size()];
             int dataRow = 0;
             for (Object item : request.data()) {
                 Row row = sheet.createRow(rowIndex++);
@@ -164,13 +168,16 @@ public final class ExcelReportProvider implements ReportProvider {
                     ColumnDefinition column = columns.get(i);
                     Object value = BeanPropertyReader.read(item, column.fieldName());
                     if (column.total()) {
-                        sums[i] = Totals.add(sums[i], value, column, dataRow);
+                        Totals.check(value, column, dataRow);
                     }
                     Cell cell = row.createCell(i);
                     try {
                         writeCell(cell, value, columnStyles[i]);
                     } catch (IllegalArgumentException e) {
                         throw new ReportException("Column '" + column.fieldName() + "': " + e.getMessage(), e);
+                    }
+                    if (column.total() && cell.getCellType() == CellType.NUMERIC) {
+                        sums[i] += cell.getNumericCellValue();
                     }
                     widths.cell(cell, i, sampled);
                 }
@@ -206,10 +213,11 @@ public final class ExcelReportProvider implements ReportProvider {
      * بيحسبش وهو بيفتح. الكلمة تحت أول عمود مش متجمّع، والخلايا الفاضية بنفس الشكل فخطوط الإجمالي بعرض
      * الجدول كله.
      *
+     * @param sums         مجموع الأرقام المكتوبة في كل عمود، بنفس حساب Excel، فإعادة الحساب ما بتغيرهوش
      * @param firstDataRow أول صف بيانات (من صفر)
      * @param lastDataRow  آخر صف بيانات؛ أقل من {@code firstDataRow} لو مفيش بيانات
      */
-    private static void writeTotals(Row row, ReportRequest<?> request, BigDecimal[] sums, int firstDataRow,
+    private static void writeTotals(Row row, ReportRequest<?> request, double[] sums, int firstDataRow,
                                     int lastDataRow, ColumnStyles[] columnStyles, ColumnWidths widths,
                                     boolean rightToLeft) {
         List<ColumnDefinition> columns = request.columns();
@@ -222,7 +230,7 @@ public final class ExcelReportProvider implements ReportProvider {
                     cell.setCellFormula("SUM(" + column + (firstDataRow + 1) + ":" + column + (lastDataRow + 1) + ")");
                 }
                 // على خلية فيها معادلة دي القيمة المحسوبة المحفوظة معاها؛ من غير معادلة، صفر عادي.
-                cell.setCellValue(sums[i].doubleValue());
+                cell.setCellValue(sums[i]);
                 cell.setCellStyle(columnStyles[i].total(true));
             } else {
                 if (i == labelAt) {

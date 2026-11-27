@@ -74,12 +74,56 @@ class ExcelReportTotalsTest {
             assertEquals(43, totals.getCell(2).getNumericCellValue(), 1e-9, "الخلية الفاضية ما بتزوّدش حاجة");
 
             FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
-            assertEquals(1250.85, evaluator.evaluate(amount).getNumberValue(), 1e-9, "المعادلة بتحسب نفس الرقم");
-            assertEquals(43, evaluator.evaluate(totals.getCell(2)).getNumberValue(), 1e-9);
+            assertEquals(amount.getNumericCellValue(), evaluator.evaluate(amount).getNumberValue(), 0.0,
+                    "المعادلة بتحسب نفس الرقم المحفوظ بالظبط");
+            assertEquals(43, evaluator.evaluate(totals.getCell(2)).getNumberValue(), 0.0);
 
             assertEquals("1,250.85", new DataFormatter(Locale.ENGLISH).formatCellValue(amount),
                     "المجموع بنمط عموده");
         }
+    }
+
+    /** القيمة المحفوظة للإجمالي، وقيمة معادلته لو اتحسبت من جديد على نفس الورقة. */
+    private static double[] cachedAndRecalculated(List<Line> rows) throws Exception {
+        try (XSSFWorkbook workbook = open(request(null, rows, NAME, ColumnDefinition.of("amount", "Amount").withTotal()))) {
+            Cell total = workbook.getSheetAt(0).getRow(rows.size() + 2).getCell(1);
+            assertEquals(CellType.FORMULA, total.getCellType());
+            double cached = total.getNumericCellValue();
+            double recalculated = workbook.getCreationHelper().createFormulaEvaluator().evaluate(total).getNumberValue();
+            return new double[]{cached, recalculated};
+        }
+    }
+
+    /**
+     * الـ float بيتكتب في الخلية double: 0.1f = 0.10000000149011612. القيمة المحفوظة كانت المجموع العشري
+     * (0.3)، وأول ما Excel يعيد الحساب كانت هتبقى 0.30000000447034836.
+     */
+    @Test
+    void cachedTotalOfFloatsIsWhatTheFormulaGives() throws Exception {
+        double[] total = cachedAndRecalculated(List.of(new Line("a", 0.1f, 1), new Line("b", 0.1f, 1),
+                new Line("c", 0.1f, 1)));
+        assertEquals(total[1], total[0], 0.0, "إعادة الحساب ما بتغيرش الإجمالي");
+        assertEquals((double) 0.1f + (double) 0.1f + (double) 0.1f, total[0], 0.0);
+    }
+
+    /**
+     * أرقام أطول من خانات الـ double بتتقرّب وهي بتتكتب: 9007199254740993 بقت 9007199254740992 في خليتها.
+     * المجموع بالظبط (1) كان بيتحفظ، والمعادلة على نفس الخلايا بتدّي 0.
+     */
+    @Test
+    void cachedTotalOfDecimalsBeyondADoubleIsWhatTheFormulaGives() throws Exception {
+        double[] total = cachedAndRecalculated(List.of(new Line("a", new BigDecimal("9007199254740993"), 1),
+                new Line("b", new BigDecimal("-9007199254740992"), 1)));
+        assertEquals(total[1], total[0], 0.0, "إعادة الحساب ما بتغيرش الإجمالي");
+        assertEquals(0, total[0], 0.0);
+    }
+
+    /** الترتيب بيفرق في جمع الـ double: القيمة المحفوظة بنفس ترتيب SUM، من أول صف لآخره. */
+    @Test
+    void cachedTotalAddsTheCellsInTheFormulasOrder() throws Exception {
+        double[] total = cachedAndRecalculated(List.of(new Line("a", 1e16, 1), new Line("b", 1.0, 1),
+                new Line("c", 1.0, 1), new Line("d", -1e16, 1), new Line("e", 0.1, 1)));
+        assertEquals(total[1], total[0], 0.0);
     }
 
     /** المعادلة بتتبع البيانات مهما كان مكانها: العنوان بيزق الجدول تلات صفوف. */
