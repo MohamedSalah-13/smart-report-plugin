@@ -597,7 +597,9 @@ final class PageWriter {
      * المتجاورة بتترسم مستطيلًا واحدًا، والكل مسار واحد بيتملى مرة واحدة زي رمز QR.
      *
      * <p>النص بيترسم من الشمال لليمين زي ما هو، من غير ترتيب الاتجاه العربي: الكود حروف وأرقام بترتيبها،
-     * و«2026-0042-SHP» في سطر عربي كانت هتتقلب أجزاؤها.</p>
+     * و«2026-0042-SHP» في سطر عربي كانت هتتقلب أجزاؤها. النص اللي أعرض من السطر (خط كبير في
+     * {@link PdfStyle} وكود طويل) بيصغر لحد ما يكفي، لحد أصغر خط؛ ولو لسه أعرض بيكمل على سطر تاني محسوب
+     * في مكان الباركود. وهو في منتصف الخطوط، من غير ما يخرج برّه الهامش.</p>
      */
     private void barcode(PdfDocument.BarcodeBlock barcode) throws IOException, ReportException {
         BarcodeSymbol symbol = barcode.symbol();
@@ -610,9 +612,12 @@ final class PageWriter {
                     symbol.text(), span * MIN_BAR_MODULE / POINTS_PER_MM, width / POINTS_PER_MM));
         }
         float size = style.bodySize();
-        List<FontSet.Run> runs = fonts.runs(symbol.text(), false);
-        Line caption = new Line(runs, FontSet.width(runs, size));
-        float captionHeight = BARCODE_CAPTION_GAP + size * LEADING;
+        float natural = FontSet.width(fonts.runs(symbol.text(), false), size);
+        if (natural > width) {
+            size = Math.max(PdfStyle.MIN_FONT_SIZE, size * width / natural);
+        }
+        List<Line> captions = captionLines(symbol.text(), size);
+        float captionHeight = BARCODE_CAPTION_GAP + captions.size() * size * LEADING;
         float bars = Math.max(1f, Math.min(barcode.height(), freshRoom() - captionHeight));
         gap(BLOCK_GAP);
         need(bars + captionHeight);
@@ -641,8 +646,31 @@ final class PageWriter {
         }
         stream.fill();
         y -= bars + BARCODE_CAPTION_GAP;
-        drawLine(caption, size, style.textColor(), originX, barsWidth, Side.CENTER, y - size * BASELINE);
-        y -= size * LEADING;
+        float centre = originX + barsWidth / 2;
+        for (Line caption : captions) {
+            float captionLeft = Math.clamp(centre - caption.width() / 2, left, right - caption.width());
+            drawLine(caption, size, style.textColor(), captionLeft, caption.width(), Side.LEFT, y - size * BASELINE);
+            y -= size * LEADING;
+        }
+    }
+
+    /**
+     * نص الباركود سطورًا تكفي عرض السطر بالخط {@code size}: سطر واحد في العادي، وبيتكسر على حروفه بس لو
+     * أعرض من السطر حتى بأصغر خط.
+     */
+    private List<Line> captionLines(String text, float size) throws IOException, ReportException {
+        List<Line> lines = new ArrayList<>(1);
+        int start = 0;
+        while (start < text.length()) {
+            int end = text.length();
+            while (end > start + 1 && FontSet.width(fonts.runs(text.substring(start, end), false), size) > width) {
+                end--;
+            }
+            List<FontSet.Run> runs = fonts.runs(text.substring(start, end), false);
+            lines.add(new Line(runs, FontSet.width(runs, size)));
+            start = end;
+        }
+        return lines;
     }
 
     /** الملخص: جدول بلا رأس من عمودين، وسطر الإجمالي فيه بخط أكبر. */

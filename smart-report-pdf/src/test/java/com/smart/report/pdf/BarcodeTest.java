@@ -171,6 +171,31 @@ class BarcodeTest {
     }
 
     /**
+     * الكود تحت الخطوط بيكفي السطر حتى بخط كبير: بيصغر (ولو لزم بيكمل على سطر تاني) وما بيخرجش برّه
+     * الهامش، والباركود بيتقرا.
+     */
+    @Test
+    void captionFitsTheLineWithALargeFont() throws Exception {
+        String code = "1234567890123456789012345678";
+        PdfStyle large = PdfStyle.forPaper(Paper.ROLL_58).scaled(2);
+        PdfDocument receipt = PdfDocument.rtl(Paper.ROLL_58).style(large).barcode(code);
+        Page page = only(receipt, 3f, ImageType.RGB);
+        float[] ink = page.ink(0, page.height());
+
+        assertEquals(code, text(receipt).replaceAll("\\s", ""), "الكود كله مكتوب");
+        assertTrue(ink[0] >= large.margin() - 0.5f && ink[1] <= Paper.ROLL_58.width() - large.margin() + 0.5f,
+                ink[0] + " .. " + ink[1]);
+        assertEquals(code, page.decode());
+
+        // الكود عند بداية السطر وخطه أعرض من خطوطه: بيفضل جوّه الهامش اليمين.
+        PdfStyle big = PdfStyle.forPaper(Paper.A5).scaled(2.5f);
+        PdfDocument atStart = PdfDocument.rtl(Paper.A5).style(big).barcode("SHP-2026-0042", Align.START);
+        Page start = only(atStart, 3f, ImageType.RGB);
+        assertTrue(start.ink(0, start.height())[1] <= Paper.A5.width() - big.margin() + 0.5f);
+        assertTrue(text(atStart).contains("SHP-2026-0042"));
+    }
+
+    /**
      * الإيصال اللي آخره باركود: صفحة واحدة، والباركود وسطره فوق الهامش، ومفيش ورق فاضي كتير بعده. الإيصال
      * أطول من عرض اللفة: الأقصر منه بيتقص مربع بعرضها، فالورق الفاضي تحته مقصود.
      */
