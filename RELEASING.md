@@ -7,11 +7,21 @@ therefore a tag that JitPack has built, and a tag, once pushed, is never moved o
 With Claude Code, the `release-notes` skill writes the changelog entry and the GitHub release, and `maven-release-tag`
 does the merge, the version bump, the build, the tag and the push. Neither does the steps after the tag.
 
+## Adding to the public API
+
+A new option is a new method or builder step, never a new component of a public record (`PdfStyle`,
+`ColumnDefinition`, `Paper`, `PreviewTexts`, ...). A new component breaks, at the source level, every record pattern
+that takes the record apart, even when the old constructor is kept. japicmp checks binary compatibility only, so the
+build does not catch it: 2.8.0 needed an upgrade note because `ColumnDefinition` got `total`. 2.9.0 followed the rule:
+the document font and the strict glyph mode are `PdfDocument.font(PdfFont)` and
+`PdfDocument.failOnMissingGlyphs(boolean)`, not components of `PdfStyle`.
+
 ## Before the tag
 
 1. **Merge** the work into `master` through pull requests, with CI green.
 2. **Pick the version**, `vMAJOR.MINOR.PATCH`: a new feature is a minor version, a fix a patch. A binary-incompatible
-   change to the public API needs a major version: the API check (japicmp, step 5) fails the build otherwise.
+   change to the public API needs a major version: the API check (japicmp, step 5) fails the build otherwise. It does
+   not see a new component in a public record ([Adding to the public API](#adding-to-the-public-api)).
 3. **Release notes**, one commit (`docs: release notes for X.Y.Z`):
    - `CHANGELOG.md`: a `## [X.Y.Z] - YYYY-MM-DD` entry with Added / Changed / Fixed.
    - The "What's New" section of `README.md` and "ما الجديد" of `README.ar.md`: a `### X.Y.Z` section on top.
