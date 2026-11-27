@@ -1,6 +1,6 @@
 ---
 name: pdf-print
-description: Adds PDF output and printing to a Java program using the shared smart-report library (com.github.MohamedSalah-13.smart-report-plugin on JitPack) instead of writing print code again - an Arabic-ready document on A4 or A5, or a receipt on an 80 mm or 58 mm thermal roll, with letterhead (on every page if asked), tables with totals rows, a summary, the amount in Arabic words (تفقيط), signature boxes, a page footer and page numbers, a JavaFX preview window, saving as a file and sending to a chosen printer. Use this whenever the user wants to print something or produce a PDF from a desktop or backend Java program - an invoice, a statement, a cashier's receipt, a report, a list - including phrasings like "print", "PDF", "preview before printing", "A5", "receipt printer", "طباعة", "اطبع الكشف", "فاتورة PDF", "إيصال", "طابعة الكاشير", "طابعة حرارية", "ورق 80 مم", "التفقيط", "المبلغ بالحروف", "خانة توقيع المستلم", "معاينة قبل الطباعة", "حفظ PDF", "تقرير يتطبع", "زي الطباعة اللى فى naqlat" - and also when a program's printed page comes out wrong in Arabic (table running the wrong way, text cut with "...", a minus sign or a date on the wrong side, letters not joined), when a long page is shrunk onto one sheet, or when a program still prints a JavaFX node or uses iText.
+description: Adds PDF output and printing to a Java program with the shared smart-report library (com.github.MohamedSalah-13.smart-report-plugin on JitPack) instead of new print code - an Arabic-ready document on A4, A5 or an 80/58 mm thermal roll with letterhead, tables with totals, a summary, the amount in words (تفقيط), signature boxes, a QR code (and the Saudi ZATCA invoice QR), page numbers, a JavaFX preview, saving and printing. Use when the user wants to print or produce a PDF from Java - an invoice, a statement, a receipt, a report, a list - including "print", "PDF", "preview before printing", "receipt printer", "طباعة", "اطبع الكشف", "فاتورة PDF", "إيصال", "طابعة حرارية", "التفقيط", "رمز QR", "فاتورة ضريبية مبسطة", "معاينة قبل الطباعة", "زي الطباعة اللى فى naqlat" - and when a printed Arabic page comes out wrong (table reversed, text cut with "...", a minus sign or date on the wrong side, letters not joined), a long page is shrunk onto one sheet, or a program still prints a JavaFX node or uses iText.
 ---
 
 # PDF print
@@ -50,8 +50,10 @@ and says whether the page runs right to left.
 Use the newest tag of the library:
 `gh api repos/MohamedSalah-13/smart-report-plugin/tags --jq '.[0].name'`. What needs which version: the
 preview window (`smart-report-fx`) `v2.1.0`; column formats in the generic report `v2.2.0`; `AmountInWords`
-`v2.3.0`; thermal rolls, the letterhead on every page, `pageFooter` and `signatures` `v2.4.0`. A program on an
-older tag that needs one of these moves to the newest tag.
+`v2.3.0`; thermal rolls, the letterhead on every page, `pageFooter` and `signatures` `v2.4.0`; `qrCode` and
+`ZatcaQr` the release after `v2.4.0`. A program on an older tag that needs one of these moves to the newest tag;
+if the newest tag is still `v2.4.0`, the QR code is not released yet - say so to the user instead of drawing one
+by hand.
 
 ```xml
 <repositories>
@@ -70,7 +72,7 @@ older tag that needs one of these moves to the newest tag.
     </repository>
 </repositories>
 
-<!-- The page itself, saving and printing. Brings PDFBox only. -->
+<!-- The page itself, saving and printing. Brings PDFBox (and, after v2.4.0, ZXing core for the QR code). -->
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
@@ -148,6 +150,29 @@ What each part is:
   `SAR`, `AED`, `KWD`, `USD`; another is a `new AmountInWords.Currency(...)` with its noun forms (see the
   README). `arabicWords` gives the words without "فقط ... لا غير". Pass the `BigDecimal` itself, not a
   formatted string; a negative amount is rejected, so write a refund's words from its absolute value.
+- `qrCode(text)` - a QR code, 30 mm and centred; `qrCode(text, Align.START)` puts it at the start of the line
+  (right on an Arabic page), and `qrCode(text, sizeMm, align)` sets its side in millimetres. It is drawn as
+  vector squares with its empty border, never split across pages, and shrinks if the line is too narrow. Arabic
+  text is fine. Use it for a link, an invoice number, or the ZATCA code below - not an image made with another
+  library and passed to `logo`.
+- **The Saudi simplified tax invoice QR** (ZATCA e-invoicing, phase 1) - when the program issues invoices in
+  Saudi Arabia, the receipt or invoice ends with this code:
+
+  ```java
+  String qr = ZatcaQr.payload(company.legalName(), company.vatNumber(),     // com.smart.report.util
+          invoice.issuedAt().atZone(ZoneId.of("Asia/Riyadh")).toInstant(),  // a LocalDateTime made an Instant
+          invoice.totalWithVat(), invoice.vatTotal());                       // BigDecimal, not formatted text
+  document.qrCode(qr);
+  ```
+
+  It returns the Base64 of the five TLV fields (seller name, VAT number, time, total with VAT, VAT) with each
+  length in UTF-8 bytes, so an Arabic seller name is right. The VAT number must be 15 digits beginning and
+  ending with 3, and the amounts must not be negative; otherwise it throws `IllegalArgumentException` -
+  validate where the company's settings are saved, not at the till. Use the seller name exactly as registered,
+  and the same totals the page prints. **Phase 2 (integration)** invoices carry more fields in the QR (the
+  hash of the signed XML invoice and its signature) that only come from signing the invoice with the
+  program's ZATCA certificate; `ZatcaQr` does not do that. If the business is already in phase 2, tell the
+  user rather than printing a phase 1 code.
 
 Things that matter and are easy to get wrong:
 
@@ -235,6 +260,16 @@ try (PDDocument pdf = Loader.loadPDF(InvoicePdf.document(invoice, company, Paper
 - Text extraction says *what* is on the page, not *where*. To see the page, draw it:
   `ImageIO.write(new PDFRenderer(pdf).renderImageWithDPI(0, 110), "png", file)` - and look at the picture
   before telling the user it is right. Send it to them too; it is what they will judge.
+- A QR code is squares, not text, so the text stripper does not see it. Read it back from the drawn page with
+  ZXing, which `smart-report-pdf` already brings, and compare it with what was given:
+
+  ```java
+  BufferedImage page = new PDFRenderer(pdf).renderImage(0, 3f, ImageType.RGB);
+  int w = page.getWidth(), h = page.getHeight();
+  BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(
+          new RGBLuminanceSource(w, h, page.getRGB(0, 0, w, h, null, 0, w))));
+  assertThat(new QRCodeReader().decode(bitmap, Map.of(DecodeHintType.TRY_HARDER, true)).getText()).isEqualTo(qr);
+  ```
 
 ### 6. Packaging
 
@@ -308,6 +343,8 @@ has not been on a real printer yet; the old one usually had.
     the whole page fitted ("الصفحة كاملة"), which shows a long receipt as a narrow strip, and "ملء العرض"
     makes it readable - tell the user, or move to the newer tag.
   - `Paper.parse("80mm")` / `"58mm"` reads a saved setting; `Paper.roll("76mm", 76)` is another width.
+  - A receipt can end with `.qrCode(...)` (the ZATCA code in Saudi Arabia, or a link): the default 30 mm fits
+    the 58 mm roll, a larger size shrinks to the roll's width, and the paper is cut just under the code.
   - Test that it is one page, about 226.8 points wide (80 mm), with the last line and the total on it. Its
     height follows the number of lines, so assert a bound, not an exact height.
 
@@ -339,3 +376,6 @@ has not been on a real printer yet; the old one usually had.
 - Do not send anything to a printer to "test" it. Draw the page to a picture instead, and leave the real
   printer to the user.
 - Do not tell the user the page is correct from the extracted text alone. Look at the rendered picture.
+- Do not make a QR image with another library (or ZXing's `javase`) to put on the page, and do not hand-build
+  the ZATCA TLV: `qrCode` and `ZatcaQr` already do it, and a length counted in characters instead of bytes
+  breaks every Arabic seller name.
