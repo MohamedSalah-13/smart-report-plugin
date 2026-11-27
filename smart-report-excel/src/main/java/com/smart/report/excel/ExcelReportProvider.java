@@ -309,8 +309,8 @@ public final class ExcelReportProvider implements ReportProvider {
      *     <li><b>رأس الأعمدة</b> بيتقاس ومعاه مكان زرار الفلتر.</li>
      *     <li><b>النصوص</b> من أول {@link #WIDTH_SAMPLE_ROWS} صف بس؛ النص الأطول بعدها بيتقص عند حافة
      *         العمود وبيبان كامل في الخلية نفسها.</li>
-     *     <li><b>الأرقام</b> في كل الصفوف، بس الرقم بيتقاس لما يكون فيه خانة أكتر من اللي اتقاس قبله
-     *         (أو قرب منها والتقريب ممكن يزوّدها)، عشان الرقم الأعرض ما يطلعش {@code ####}.</li>
+     *     <li><b>الأرقام</b> في كل الصفوف، بس الرقم بيتقاس لما نصه بنمطه يبقى أطول من اللي اتقاس قبله،
+     *         عشان الرقم الأعرض ما يطلعش {@code ####} (شوف {@link #number}).</li>
      *     <li><b>التواريخ</b> مرة لكل نمط في العمود، بأعرض تاريخ ممكن ({@link #WIDEST_DATE}).</li>
      * </ul>
      *
@@ -319,9 +319,8 @@ public final class ExcelReportProvider implements ReportProvider {
     private static final class ColumnWidths {
 
         private final double[] widths;
-        /** أي رقم موجب (أو سالب) أصغر من الحد ده مش أعرض من اللي اتقاس في عموده. */
-        private final double[] positiveLimit;
-        private final double[] negativeLimit;
+        /** طول نص أطول رقم اتقاس في كل عمود (زي ما بيظهر بنمطه). */
+        private final int[] longestNumber;
         /** أنماط التواريخ اللي اتقاست في كل عمود، برقم الـ style. */
         private final List<Set<Short>> datesMeasured;
         /** رقم الـ style ← هل صيغته تاريخ؟ (الخلية من غير style بيرجع لها كائن جديد كل مرة، فالمفتاح رقمه.) */
@@ -331,8 +330,7 @@ public final class ExcelReportProvider implements ReportProvider {
 
         ColumnWidths(Workbook workbook, int columns) {
             widths = new double[columns];
-            positiveLimit = new double[columns];
-            negativeLimit = new double[columns];
+            longestNumber = new int[columns];
             datesMeasured = new ArrayList<>(columns);
             for (int i = 0; i < columns; i++) {
                 datesMeasured.add(new HashSet<>());
@@ -369,29 +367,18 @@ public final class ExcelReportProvider implements ReportProvider {
             }
         }
 
-        private void number(Cell cell, int column, boolean sampled) {
-            double value = cell.getNumericCellValue();
-            if (!Double.isFinite(value)) {
-                return;
-            }
-            double magnitude = Math.abs(value);
-            double[] limits = value < 0 ? negativeLimit : positiveLimit;
-            if (sampled || magnitude >= limits[column]) {
-                measure(cell, column, 0);
-                limits[column] = Math.max(limits[column], limitAbove(magnitude));
-            }
-        }
-
         /**
-         * أول حد فوق الرقم من 0.95 و9.5 و95...: الرقم الأصغر منه ما فيهوش خانات أكتر، حتى لو التقريب
-         * زوّده (9,999.996 بنمط {@code #,##0.00} بيبقى 10,000.00).
+         * الرقم بيتنسّق زي ما هيظهر (من غير قياس خط، فده أرخص بكتير) وبيتقاس بس لو نصه أطول من أطول رقم
+         * اتقاس في عموده. حجم الرقم لوحده ما بيكفيش: بنمط {@code 0.########} الـ 1 والـ 1.12345678 في
+         * نفس الخانات الصحيحة والتاني أعرض بكتير. النص اللي في نفس الطول فرقه بالكتير رقم مكان فاصلة أو علامة، والـ {@code 0} اللي القياس
+         * بيزوّده على النص بيغطيه.
          */
-        private static double limitAbove(double magnitude) {
-            double limit = 0.95;
-            while (limit <= magnitude) {
-                limit *= 10;
+        private void number(Cell cell, int column, boolean sampled) {
+            int length = formatter.formatCellValue(cell).length();
+            if (sampled || length > longestNumber[column]) {
+                measure(cell, column, 0);
+                longestNumber[column] = Math.max(longestNumber[column], length);
             }
-            return limit;
         }
 
         private boolean isDate(CellStyle style) {
