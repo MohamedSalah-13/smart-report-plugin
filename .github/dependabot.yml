@@ -15,6 +15,10 @@ updates:
       # The program brings its own JavaFX (provided scope): the library only compiles against the oldest it supports.
       - dependency-name: org.openjfx:*
         update-types: [version-update:semver-major]
+      # JasperReports 7 reads a different .jrxml format: the programs' own templates would stop loading. Moving to it
+      # is a major release of this library with the templates migrated, not a dependency bump.
+      - dependency-name: net.sf.jasperreports:*
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /

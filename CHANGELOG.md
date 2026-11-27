@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Upgrade notes
+- `smart-report-excel` now brings Apache POI 6.0.0 (from 5.3.0), with its new dependencies (`jakarta.xml.bind-api`,
+  `xmlsec` 4). A program that uses POI itself as well gets 6.0.0 unless it pins its own version. (#9)
+
+### Changed
+- Build plugins (compiler, surefire, jar, source) updated, the JavaFX the preview compiles against is 21.0.13.1, and
+  the tests run on JUnit 6.1.3. (#6, #7)
+
 ## [2.4.0] - 2026-11-26
 
 ### Added
