@@ -53,7 +53,8 @@ preview window (`smart-report-fx`) `v2.1.0`; column formats in the generic repor
 `v2.3.0`; thermal rolls, the letterhead on every page, `pageFooter` and `signatures` `v2.4.0`; `qrCode`,
 `ZatcaQr` and the readable receipt preview `v2.5.0`; `barcode`, and signature boxes that stay with the summary
 above them, `v2.6.0`; `printOrShow` and the preview's Ctrl+P / Ctrl+S, `ZatcaQr.phase2`, the Gulf currencies and
-amounts in English words, and Arabic in Jasper PDFs `v2.7.1`. A program on an older tag that needs one of these
+amounts in English words, and Arabic in Jasper PDFs `v2.7.1`; totals in the generic report, and the first line of
+Arabic in a Jasper box a little too short for it, `v2.8.0`. A program on an older tag that needs one of these
 moves to the newest tag.
 
 ```xml
@@ -77,13 +78,13 @@ moves to the newest tag.
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.7.1</version>
+    <version>v2.8.0</version>
 </dependency>
 <!-- Only for a JavaFX program that wants the preview window. JavaFX itself is the program's own. -->
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-fx</artifactId>
-    <version>v2.7.1</version>
+    <version>v2.8.0</version>
 </dependency>
 ```
 
@@ -352,7 +353,7 @@ has not been on a real printer yet; the old one usually had.
   (from `v2.2.0`):
   `.addColumn(ColumnDefinition.of("salary", "الراتب").withFormat("#,##0.00").withAlign(Alignment.END).withWeight(2))`
   - a `DecimalFormat` pattern for numbers, a `DateTimeFormatter` pattern for dates (`d MMMM yyyy` gives
-  Arabic month names in an Arabic report). For a total under the table (the release after `v2.7.1`), add
+  Arabic month names in an Arabic report). For a total under the table (from `v2.8.0`), add
   `.withTotal()` to each column to sum - `ColumnDefinition.of("amount", "المبلغ").withFormat("#,##0.00").withTotal()`:
   each sum sits under its column in the column's format, exact in the PDF (`BigDecimal`; a `double` adds as the
   decimal it shows; `null` adds nothing), with the label `الإجمالى` (`Total` in a left-to-right report) under the first
@@ -372,8 +373,8 @@ has not been on a real printer yet; the old one usually had.
   the template's path. Only for a program that already has templates; a new page is quicker as a
   `PdfDocument`. From `v2.7.1` Arabic in a template that names no font is drawn with Noto Naskh Arabic; give
   each Arabic text box about 1.7 times its font size in height so the line sits inside it, and merge
-  `jasperreports_extension.properties` in a fat jar (see the README). A shorter Arabic box, down to about 1.15
-  times the font size, still shows its first line, running past the box, and a text that prints nothing is
+  `jasperreports_extension.properties` in a fat jar (see the README). From `v2.8.0` a shorter Arabic box, down to
+  about 1.15 times the font size, still shows its first line, running past the box, and a text that prints nothing is
   logged as a warning naming the report and the field: when the program's log has these warnings, make the
   boxes they name taller.
 - **A program with `module-info.java`** - the jars have no module descriptor, only stable automatic names:

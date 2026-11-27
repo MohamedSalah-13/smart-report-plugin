@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.8.0] - 2026-11-27
+
+### Upgrade notes
+- `ColumnDefinition` has a sixth component, `total`, so a record pattern that takes it apart
+  (`case ColumnDefinition(var field, var header, var format, var align, var weight)`) needs a sixth variable.
+  Compiled programs and every other use of the class keep working. (#23)
+
+### Added
+- Totals in the generic PDF and Excel report: `ColumnDefinition.withTotal()` adds a column up in a row under the
+  table, in the column's format, and `totalsLabel` changes the row's label. In Excel each total is a `SUM` formula.
+  (#23)
+
+### Fixed
+- An Arabic text in a Jasper template whose box is a little shorter than its line no longer prints nothing: its
+  first line is drawn. A text that still prints nothing, in any language, is logged as a warning naming the report
+  and the field. (#24)
+
 ## [2.7.1] - 2026-11-27
 
 ### Fixed
