@@ -360,6 +360,28 @@ byte[] pdf = ReportService.generate(ReportType.JASPER, request);  // needs smart
 `request.data()` is turned into a `JRBeanCollectionDataSource` automatically, and `request.parameters()` are
 passed as report parameters (`$P{...}`). Compiled templates are cached and reused.
 
+### Arabic in the PDF
+
+A PDF draws every letter from a font embedded in the file. The font JasperReports uses when a template names none
+(`SansSerif`, drawn as Helvetica) has no Arabic, so Arabic text used to vanish from the PDF without an error.
+`smart-report-jasper` carries **Noto Naskh Arabic** (regular and bold, the font `smart-report-pdf` uses) as a
+JasperReports font extension, and a template chooses its font like this:
+
+- **A template that names no font** (or names `SansSerif`) needs nothing. Its Arabic letters, Arabic digits and
+  Arabic punctuation (، ؛ ؟) are drawn with Noto Naskh Arabic, bold ones with the bold file, right to left. Every
+  other character keeps JasperReports' default font, so a report without Arabic comes out exactly as before.
+- **A template that names a font** keeps it, and so does a program that changed JasperReports' default font
+  (`net.sf.jasperreports.default.font.name`). If that font has no Arabic, set `fontName="Noto Naskh Arabic"` on the
+  fields that show Arabic: all of their text is then drawn with it, Latin included, and bold is drawn thickened.
+- **Give Arabic room.** A line of Noto Naskh is about 1.7 times the font size high (room for the vowel marks), and
+  JasperReports does not print a text whose first line does not fit its box: a 10 pt field needs 18 pt, an 18 pt
+  title 31 pt.
+
+The extension is registered by `jasperreports_extension.properties` at the root of the jar. A fat jar has to merge
+that file from all jars rather than keep one (maven-shade-plugin: `AppendingTransformer`). With
+`jasperreports-fonts` (DejaVu) on the classpath, its own `SansSerif` entry wins and the default font has no Arabic
+again: name `DejaVu Sans` or `Noto Naskh Arabic` in the template.
+
 ## With Claude Code
 
 The `claude-skill/pdf-print` folder holds a skill that wires the library into any existing or new project:
