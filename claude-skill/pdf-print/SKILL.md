@@ -228,7 +228,32 @@ The function given to `PdfPreview.of` runs **off the JavaFX thread**, once per p
 everything it needs before the call, as above, and keep JavaFX nodes and lazy-loaded entities out of it -
 otherwise the preview fails only sometimes, which is the worst way to fail.
 
-Without the preview (a backend, or a "print now" button):
+In the window Ctrl+P prints and Ctrl+S saves (⌘ on a Mac); PageUp/PageDown turn the pages and Esc closes it.
+
+For a document printed many times a day (a cashier's receipt), print straight to the remembered printer
+instead of opening the window each time. This needs a tag newer than `v2.6.0`:
+
+```java
+PdfPreview.of(paper -> ReceiptPdf.document(sale, shop, paper))
+        .papers(Paper.ROLL_80)
+        .remember("receipt")                            // required: the printer is remembered per key
+        .printOrShow(getScene().getWindow())
+        .thenAccept(outcome -> {                        // runs on the JavaFX thread
+            switch (outcome) {
+                case PrintOutcome.Sent sent -> { }
+                case PrintOutcome.Failed failed -> Ui.error("تعذرت طباعة الإيصال", failed.reason());
+                case PrintOutcome.Shown shown -> { }    // no printer remembered yet: the window opened
+            }
+        });
+```
+
+The first time (or when that printer is no longer installed) the window opens; the printer the person prints
+on from it is remembered, and later receipts go straight to it, one copy, on the paper the window would open
+on. A failure on an installed printer is `Failed` and opens **no** window, so the program must handle it -
+show its own message, and offer `show(owner)` if the person should pick another printer. Give the person a
+way to change the printer: a button that calls `show(owner)`, where they print once.
+
+Without the preview (a backend, or a program without JavaFX):
 
 ```java
 byte[] pdf = InvoicePdf.document(invoice, company, Paper.A5).toBytes();      // or .save(Path)
@@ -349,6 +374,8 @@ has not been on a real printer yet; the old one usually had.
     `v2.5.0` the window opens a receipt at a readable size by itself. On `v2.4.0` it opens with
     the whole page fitted ("الصفحة كاملة"), which shows a long receipt as a narrow strip, and "ملء العرض"
     makes it readable - tell the user, or move to the newer tag.
+  - At the till, print each receipt with `printOrShow(owner)` and `.remember("receipt")` (see step 3), so
+    the cashier chooses the printer once instead of opening the preview for every sale.
   - `Paper.parse("80mm")` / `"58mm"` reads a saved setting; `Paper.roll("76mm", 76)` is another width.
   - A receipt can end with `.qrCode(...)` (the ZATCA code in Saudi Arabia, or a link): the default 30 mm fits
     the 58 mm roll, a larger size shrinks to the roll's width, and the paper is cut just under the code.

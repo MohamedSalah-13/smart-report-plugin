@@ -23,6 +23,8 @@ import javafx.scene.image.ImageView;
 import javafx.scene.image.PixelFormat;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -74,6 +76,9 @@ final class PreviewWindow {
      */
     static final int MAX_IMAGE_SIDE = 8192;
     static final double MAX_IMAGE_PIXELS = 8192.0 * 2048;
+    /** Ctrl+P و Ctrl+S (⌘ على الماك): بيدوسوا زرّي الطباعة والحفظ، فالزر المقفول مفتاحه مقفول. */
+    static final KeyCombination PRINT_KEY = new KeyCodeCombination(KeyCode.P, KeyCombination.SHORTCUT_DOWN);
+    static final KeyCombination SAVE_KEY = new KeyCodeCombination(KeyCode.S, KeyCombination.SHORTCUT_DOWN);
 
     /** {@code ROLL}: عرض الورق اللفة الافتراضي، لحد ما المستخدم يختار عرض بنفسه. */
     private enum Fit { PAGE, WIDTH, ROLL, NONE }
@@ -127,8 +132,7 @@ final class PreviewWindow {
     PreviewWindow(PdfPreview setup, Window owner) {
         this.setup = setup;
         this.texts = setup.resolvedTexts();
-        this.remembered = setup.rememberKey == null ? null
-                : Preferences.userRoot().node("com/smart/report/preview/" + setup.rememberKey);
+        this.remembered = setup.remembered();
         if (owner != null) {
             stage.initOwner(owner);
         }
@@ -165,13 +169,14 @@ final class PreviewWindow {
                 return null;
             }
         });
-        paper.setValue(initialPaper());
+        paper.setValue(setup.startingPaper(remembered));
         paper.valueProperty().addListener((property, before, after) -> {
             if (after != null) {
-                remember("paper", after.isLandscape() ? after.name() + "-landscape" : after.name());
+                remember("paper", PdfPreview.paperKey(after));
                 load(after);
             }
         });
+        copies.setId("copies");
         copies.setPrefWidth(80);
 
         print.setId("print");
@@ -179,10 +184,12 @@ final class PreviewWindow {
         print.setDefaultButton(true);
         print.setDisable(true);
         print.setOnAction(event -> print());
+        print.setTooltip(new Tooltip(PRINT_KEY.getDisplayText()));
         save.setId("save");
         save.setText(texts.savePdf());
         save.setDisable(true);
         save.setOnAction(event -> save());
+        save.setTooltip(new Tooltip(SAVE_KEY.getDisplayText()));
 
         HBox top = new HBox(8, labelled(texts.printer(), printer), printer);
         if (setup.papers.size() > 1) {
@@ -257,7 +264,13 @@ final class PreviewWindow {
         scene.setNodeOrientation(setup.rightToLeft ? NodeOrientation.RIGHT_TO_LEFT : NodeOrientation.LEFT_TO_RIGHT);
         scene.getStylesheets().addAll(setup.stylesheets);
         scene.setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.PAGE_DOWN) {
+            if (PRINT_KEY.match(event)) {
+                print.fire();   // Button.fire ما بيعملش حاجة والزر مقفول
+                event.consume();
+            } else if (SAVE_KEY.match(event)) {
+                save.fire();
+                event.consume();
+            } else if (event.getCode() == KeyCode.PAGE_DOWN) {
                 show(pageIndex + 1);
             } else if (event.getCode() == KeyCode.PAGE_UP) {
                 show(pageIndex - 1);
@@ -276,25 +289,6 @@ final class PreviewWindow {
         return label;
     }
 
-    /** المقاس المطلوب صراحة، ثم المحفوظ من آخر مرة، ثم أول المقاسات. */
-    private Paper initialPaper() {
-        if (setup.paper != null && setup.papers.contains(setup.paper)) {
-            return setup.paper;
-        }
-        String last = remembered == null ? null : remembered.get("paper", null);
-        if (last != null) {
-            try {
-                Paper parsed = Paper.parse(last);
-                if (setup.papers.contains(parsed)) {
-                    return parsed;
-                }
-            } catch (IllegalArgumentException unknown) {
-                // مقاس محفوظ من نسخة تانية من البرنامج: بيتجاهل.
-            }
-        }
-        return setup.papers.get(0);
-    }
-
     private void remember(String key, String value) {
         if (remembered != null && value != null) {
             remembered.put(key, value);
@@ -309,8 +303,8 @@ final class PreviewWindow {
      */
     private void loadPrinters() {
         Thread thread = new Thread(() -> {
-            List<String> names = PdfPrinter.printerNames();
-            String preferred = PdfPrinter.defaultPrinter().orElse(null);
+            List<String> names = setup.system.printerNames();
+            String preferred = setup.system.defaultPrinter().orElse(null);
             Platform.runLater(() -> {
                 if (closed) {
                     return;
@@ -522,11 +516,13 @@ final class PreviewWindow {
         int count = copies.getValue();
         printing = true;
         updateActions();
+        // الطابعة والمقاس اللي اتطبع عليهم هم اللي printOrShow بتطبع عليهم المرة الجاية.
         remember("printer", target);
+        remember("paper", PdfPreview.paperKey(current.paper()));
         Thread thread = new Thread(() -> {
             boolean sent;
             try {
-                PdfPrinter.print(current.bytes(), target, current.paper(), count);
+                setup.system.print(current.bytes(), target, current.paper(), count);
                 sent = true;
             } catch (ReportException | RuntimeException e) {
                 log.warn("Printing on {} failed", target, e);
@@ -552,7 +548,7 @@ final class PreviewWindow {
         chooser.setTitle(texts.saveTitle());
         chooser.setInitialFileName(setup.fileName);
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF", "*.pdf"));
-        File target = chooser.showSaveDialog(stage);
+        File target = setup.system.chooseSaveFile(chooser, stage);
         if (target == null) {
             return;
         }
