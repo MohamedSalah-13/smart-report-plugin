@@ -15,20 +15,19 @@ A Java library for reports and printing, added to any project as a dependency:
 
 ## What's New
 
+### 2.9.0
+
+- **New:** `pageBreak()` starts the next part on a new page, and never leaves a blank one. See [Page breaks](#page-breaks-pagebreak).
+- **New:** several documents in one PDF and one print job, each with its own page numbers (`PdfBatch`), with a preview for the batch. See [Several documents in one file](#several-documents-in-one-file-and-one-print-job-pdfbatch).
+- **New:** a font for one document (`PdfDocument.font`), and `failOnMissingGlyphs(true)` to stop with an error instead of printing `?`. See [Font](#font).
+- **Fixed:** `²`, `³`, `½` and `±` no longer print as `?` on a computer without Arial or DejaVu, and invisible characters such as the one after `©` print nothing. See [Font](#font).
+- **Changed:** copies of a document with several pages print as whole sets.
+
 ### 2.8.0
 
 - **New:** a totals row under the table of the generic PDF and Excel report: add `withTotal()` to the columns to sum. See [Totals](#totals).
 - **Fixed:** Arabic in a Jasper text box a little shorter than its line is no longer lost: its first line is drawn. A text that still prints nothing is logged as a warning naming the report and the field. See [Arabic in the PDF](#arabic-in-the-pdf).
 - **Upgrade note:** a record pattern that takes `ColumnDefinition` apart needs a sixth variable, `total`.
-
-### 2.7.1
-
-- 2.7.1 is 2.7.0 that JitPack can build; 2.7.0 itself cannot be downloaded. Everything below came with it.
-- **New:** print a receipt straight on the printer the user last chose, without opening the preview each time (`printOrShow`), and Ctrl+P / Ctrl+S in the preview window. See [Preview](#preview-pdfpreview).
-- **New:** the QR code of a ZATCA phase 2 simplified tax invoice (`ZatcaQr.phase2`). See [QR code](#qr-code-and-the-saudi-tax-invoice-qr).
-- **New:** the amount in words for QAR, BHD, OMR and JOD, and in English. See [Amount in words](#amount-in-words-amountinwords).
-- **Fixed:** Arabic no longer disappears from PDFs exported from Jasper templates; give Arabic text boxes about 1.7 times the font size in height. See [Arabic in the PDF](#arabic-in-the-pdf).
-- **Changed:** the generic Excel report freezes a filtered header, keeps its title out of the column widths, and is much faster on large reports.
 
 Details of each release are in [CHANGELOG.md](CHANGELOG.md).
 
@@ -59,7 +58,7 @@ The library is served by [JitPack](https://jitpack.io) straight from the reposit
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.8.0</version>
+    <version>v2.9.0</version>
 </dependency>
 ```
 

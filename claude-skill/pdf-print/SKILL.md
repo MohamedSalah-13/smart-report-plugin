@@ -54,7 +54,8 @@ preview window (`smart-report-fx`) `v2.1.0`; column formats in the generic repor
 `ZatcaQr` and the readable receipt preview `v2.5.0`; `barcode`, and signature boxes that stay with the summary
 above them, `v2.6.0`; `printOrShow` and the preview's Ctrl+P / Ctrl+S, `ZatcaQr.phase2`, the Gulf currencies and
 amounts in English words, and Arabic in Jasper PDFs `v2.7.1`; totals in the generic report, and the first line of
-Arabic in a Jasper box a little too short for it, `v2.8.0`. A program on an older tag that needs one of these
+Arabic in a Jasper box a little too short for it, `v2.8.0`; `pageBreak()`, `PdfBatch`, a font per document,
+`failOnMissingGlyphs` and the symbols drawn from Liberation Sans, `v2.9.0`. A program on an older tag that needs one of these
 moves to the newest tag.
 
 ```xml
@@ -78,13 +79,13 @@ moves to the newest tag.
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.8.0</version>
+    <version>v2.9.0</version>
 </dependency>
 <!-- Only for a JavaFX program that wants the preview window. JavaFX itself is the program's own. -->
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-fx</artifactId>
-    <version>v2.8.0</version>
+    <version>v2.9.0</version>
 </dependency>
 ```
 
@@ -149,7 +150,7 @@ What each part is:
   `v2.6.0` the boxes also stay with the summary before them (and any text between, such as the
   amount in words): the summary moves to the next page with them instead of the boxes landing there alone; if
   that group cannot move, the last line of the text before the boxes goes with them.
-- `pageBreak()` - the next part starts on a new page (from the release after `v2.8.0`): an annex after a
+- `pageBreak()` - the next part starts on a new page (from `v2.9.0`): an annex after a
   statement, a section per truck in one report. It never leaves a blank page: at the top of a page (nothing
   drawn yet below the letterhead) it does nothing, and the page it opens is kept only if something is drawn on
   it, so a loop may add a section and a break each time, and a break before notes that turn out empty is fine. The new page has the letterhead only with `letterheadOnEveryPage(true)`,
@@ -390,15 +391,15 @@ has not been on a real printer yet; the old one usually had.
   complains, say so to the user rather than working round it silently.
 - **Another font** - for the whole program, the program's own TTF as the classpath resource
   `fonts/report-font.ttf` (and `fonts/report-font-bold.ttf`), or `-Dsmart.report.pdf.font=/path/to/font.ttf`.
-  For one document (from the release after `v2.8.0`), `document.font(PdfFont.of(regularPath, boldPath))`, or
+  For one document (from `v2.9.0`), `document.font(PdfFont.of(regularPath, boldPath))`, or
   `PdfFont.of(bytes)` for a font inside the jar; other documents keep the program's font. Make the `PdfFont`
   once and reuse it: it reads and checks the files, and throws `ReportException` for a `.ttc`, a CFF `.otf` or
   a font that forbids embedding. An Arabic document needs a font with the Arabic presentation forms (Noto Naskh
   Arabic, Amiri, Arial and Tahoma have them); with another font its Arabic comes from a system font and the log
   warns once - check the drawn PDF, not only that it was written. The generic report takes it as
   `.parameter(PdfReportProvider.FONT, font)`.
-- **Invoices, statements and other money documents** - add `.failOnMissingGlyphs(true)` (from the release
-  after `v2.8.0`): a character no font has then stops the document with a `ReportException` naming the
+- **Invoices, statements and other money documents** - add `.failOnMissingGlyphs(true)` (from `v2.9.0`):
+  a character no font has then stops the document with a `ReportException` naming the
   character, its code point and the text it is in, instead of printing `?`. Show that message where the
   program shows its errors. It is off unless set; the generic report takes
   `.parameter(PdfReportProvider.FAIL_ON_MISSING_GLYPHS, true)`.
@@ -434,8 +435,8 @@ has not been on a real printer yet; the old one usually had.
     `.barcode(...)` works the same way for a shipment or waybill number.
   - Test that it is one page, about 226.8 points wide (80 mm), with the last line and the total on it. Its
     height follows the number of lines, so assert a bound, not an exact height.
-- **Many documents at once** - "print every driver's statement for the month", the day's invoices: from the
-  release after `v2.8.0`, a `PdfBatch` of the documents the program already builds, as one file and one print
+- **Many documents at once** - "print every driver's statement for the month", the day's invoices: from
+  `v2.9.0`, a `PdfBatch` of the documents the program already builds, as one file and one print
   job:
 
   ```java
@@ -473,7 +474,7 @@ has not been on a real printer yet; the old one usually had.
 - **A `?` on the page.** A character no font has. The log names it (`No PDF font has a glyph for ...`).
   Use a font that covers it, as under "Variants", and `failOnMissingGlyphs(true)` where a `?` must never be
   printed. Up to `v2.8.0`, `²`, `³`, `½` and `±` (as in "م³") come out as `?` on a computer without Arial or
-  DejaVu; from the release after `v2.8.0` they are drawn from Liberation Sans, which ships inside PDFBox.
+  DejaVu; from `v2.9.0` they are drawn from Liberation Sans, which ships inside PDFBox.
 - **Text in the wrong order.** Almost always text that was shaped or reversed before it reached the library,
   or cells written in visual order. Give it logical text and logical columns.
 - **A table too wide.** Too many columns for an upright page: use `paper.landscape()`, or fewer columns.

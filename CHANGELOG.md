@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.9.0] - 2026-11-27
+
+### Added
+- `PdfDocument.pageBreak()`: the next part starts on a new page. It never leaves a blank page, and does nothing on a
+  thermal roll. (#27)
+- `PdfBatch`: several documents as one PDF and one print job, each with its own letterhead and page numbers.
+  `PdfPreview.ofBatch` previews a batch and prints it. (#27)
+- `PdfDocument.font(PdfFont)`: a font for one document, from a file or from bytes; other documents keep the
+  program's font. (#26)
+- `failOnMissingGlyphs(true)`: a character no font has stops the document with an error naming it, instead of
+  printing `?`. The generic report takes both as parameters. (#26)
+
+### Changed
+- Copies of a document with more than one page are printed collated, as whole sets. (#27)
+
+### Fixed
+- `²`, `³`, `½`, `±` and other common symbols missing from the bundled font no longer print as `?` on a computer
+  without Arial or DejaVu: they are drawn from Liberation Sans, which ships inside PDFBox. (#26)
+- Invisible characters, such as the one phones add after `©`, no longer print as `?`. (#26)
+
 ## [2.8.0] - 2026-11-27
 
 ### Upgrade notes
