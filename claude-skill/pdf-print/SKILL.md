@@ -387,7 +387,8 @@ has not been on a real printer yet; the old one usually had.
   `PdfFont.of(bytes)` for a font inside the jar; other documents keep the program's font. Make the `PdfFont`
   once and reuse it: it reads and checks the files, and throws `ReportException` for a `.ttc`, a CFF `.otf` or
   a font that forbids embedding. An Arabic document needs a font with the Arabic presentation forms (Noto Naskh
-  Arabic, Amiri, Arial and Tahoma have them). The generic report takes it as
+  Arabic, Amiri, Arial and Tahoma have them); with another font its Arabic comes from a system font and the log
+  warns once - check the drawn PDF, not only that it was written. The generic report takes it as
   `.parameter(PdfReportProvider.FONT, font)`.
 - **Invoices, statements and other money documents** - add `.failOnMissingGlyphs(true)` (from the release
   after `v2.8.0`): a character no font has then stops the document with a `ReportException` naming the

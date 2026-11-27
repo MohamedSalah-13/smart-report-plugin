@@ -418,12 +418,15 @@ PdfDocument.rtl(Paper.A4)
 - الملف لازم يكون خط TrueType (`.ttf`) مسموح بتضمينه. مجموعة خطوط (`.ttc`) أو OpenType بحدود CFF (أغلب ملفات
   `.otf`) بترمي `ReportException` وقت عمل الـ `PdfFont`، مش وقت الطباعة.
 - العربي بيترسم بصور الحروف الجاهزة (U+FB50–U+FDFF و U+FE70–U+FEFF)، فالمستند العربي محتاج خطًا فيه الصور دي،
-  زي Noto Naskh Arabic و Amiri و Arial و Tahoma.
+  زي Noto Naskh Arabic و Amiri و Arial و Tahoma. الخط اللي ما فيهوش الصور دي مقبول (المستند اللاتيني مش محتاجها)،
+  بس العربي فيه بيترسم من خط النظام، وده بيختلف من جهاز لجهاز ومش موجود في container فاضي؛ الـ log بيحذّر من ده
+  مرة لكل خط.
 - التقرير العام بياخده في الـ parameters: `.parameter(PdfReportProvider.FONT, amiri)`.
 
 **الحرف اللي مش في الخط** بيترسم من **Liberation Sans** اللي جاي جوّه PDFBox (رخصة SIL Open Font License)،
 فهو واحد على كل جهاز: `²` و `³` و `½` و `±` و `µ` و `‰` و `≤` و `≥` ورموز تانية مش في Noto Naskh، فـ"م³" بتتطبع صح.
 الحرف اللي مش في Liberation Sans كمان بيتجرّب في خط النظام (Arial وغيره)، وآخر حل بيتطبع `?` مع تحذير في الـ log.
+والمحارف اللي ما لهاش شكل، زي محدد الشكل U+FE0F اللي الموبايل بيحطه بعد `©` أو `✔`، بتتشال بدل ما تتطبع `?`.
 
 **وقّف بدل ما تطبع `?`.** في فاتورة أو كشف حساب، `?` مكان حرف معناها مستند غلط. `failOnMissingGlyphs(true)`
 بيوقّف كتابته بـ `ReportException` فيها الحرف وكوده والنص اللي هو فيه:
@@ -637,6 +640,8 @@ report parameters (`$P{...}`). القوالب المصرَّفة بتتخزّن 
 ## الرخص
 
 المشروع مرخّص تحت [MIT License](LICENSE). الخط المضمَّن Noto Naskh Arabic مرخّص تحت
-[SIL Open Font License 1.1](smart-report-pdf/src/main/resources/com/smart/report/pdf/fonts/OFL.txt).
+[SIL Open Font License 1.1](smart-report-pdf/src/main/resources/com/smart/report/pdf/fonts/OFL.txt). الرموز اللي
+مش فيه بتترسم من Liberation Sans، اللي جاي جوّه jar الـ PDFBox بنفس الرخصة (شوف `META-INF/LICENSE` في PDFBox)؛
+والـ PDF اللي بيستخدمها بيتضمّن فيه جزء منه.
 
 </div>

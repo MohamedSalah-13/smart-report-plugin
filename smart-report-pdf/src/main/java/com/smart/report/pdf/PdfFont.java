@@ -10,6 +10,7 @@ import org.apache.pdfbox.pdmodel.font.PDType0Font;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -25,7 +26,8 @@ import java.util.Objects;
  * <p><b>الملف:</b> خط TrueType ({@code .ttf}، أو {@code .otf} بحدود TrueType) مسموح بتضمينه. مجموعة الخطوط
  * ({@code .ttc}) و OpenType بحدود CFF (أغلب ملفات {@code .otf}) مش مدعومين في PDFBox، فبيترفضوا هنا برسالة
  * بدل ما يفشلوا وقت الطباعة. العربي بيترسم بصور الحروف الجاهزة (U+FB50–U+FDFF و U+FE70–U+FEFF)، فخط المستند
- * العربي لازم يكون فيه الصور دي — Noto Naskh Arabic و Amiri و Arial و Tahoma فيهم.</p>
+ * العربي لازم يكون فيه الصور دي — Noto Naskh Arabic و Amiri و Arial و Tahoma فيهم. خط من غيرها مقبول (لمستند
+ * لاتيني مثلًا)، بس العربي فيه بيترسم من خط النظام وبيتسجّل تحذير في الـ log أول مرة.</p>
  *
  * <p>الحرف اللي مش في الخط بيتدوّر عليه في الخطوط الاحتياطية زي أي مستند (شوف
  * {@link PdfDocument#failOnMissingGlyphs(boolean)}).</p>
@@ -51,7 +53,7 @@ public final class PdfFont {
     /**
      * خط عادي وعريض من ملفين.
      *
-     * @param bold {@code null} معناه النص العريض بيترسم من العادي بتسميك مصطنع
+     * @param bold {@code null} (أو نفس ملف العادي) معناه النص العريض بيترسم من العادي بتسميك مصطنع
      * @throws ReportException لو ملف منهم ما اتقراش، أو مش خط TrueType ينفع يتضمّن في PDF
      */
     public static PdfFont of(Path regular, Path bold) throws ReportException {
@@ -80,8 +82,8 @@ public final class PdfFont {
     private static PdfFont create(byte[] regular, String regularSource, byte[] bold, String boldSource)
             throws ReportException {
         String name = check(regular, regularSource);
-        if (bold == null) {
-            // نفس المصفوفة للاتنين: FontSet بيفهم منها إن العريض تسميك مصطنع.
+        if (bold == null || Arrays.equals(regular, bold)) {
+            // من غير ملف عريض، أو بنفس الملف للاتنين: نفس المصفوفة، و FontSet بيفهم منها إن العريض تسميك مصطنع.
             return new PdfFont(new PdfFontResolver.Fonts(regular, regular), name);
         }
         check(bold, boldSource);

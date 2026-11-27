@@ -199,6 +199,68 @@ class DocumentFontTest {
         assertEquals("قصير", FontSet.excerpt("قصير", 'x'));
     }
 
+    /** ① و ١ (العرض الكامل) حروف قايمة بذاتها: الاقتطاع حواليهم هم، مش حوالين أول "1" في النص. */
+    @Test
+    void excerptIsCentredOnTheCharacterItself() {
+        for (String symbol : List.of("①", "１")) {
+            String text = "1 " + "أ".repeat(200) + symbol + "ب".repeat(200);
+            String excerpt = FontSet.excerpt(text, symbol.codePointAt(0));
+            assertTrue(excerpt.contains(symbol) && excerpt.startsWith("…"), excerpt);
+        }
+        // الصورة العربية الجاهزة مش في النص المكتوب: الاقتطاع حوالين حرفها.
+        String text = "x".repeat(200) + "ة" + "y".repeat(200);
+        assertTrue(FontSet.excerpt(text, 0xFE93).contains("ة"));
+    }
+
+    /**
+     * محارف ما لهاش شكل ما بتترسمش: الموبايل بيحط U+FE0F بعد ©، وكانت بتطلع "?©" — وفي الوضع الصارم كانت
+     * هتوقّف المستند كله.
+     */
+    @Test
+    void invisibleCharactersAreSkippedNotPrintedAsQuestionMarks() throws Exception {
+        withoutSystemFont();
+        String text = "العلامة ©️ 2026 a͏b c󠄁d";   // U+FE0F و U+034F و U+E0101
+
+        List<Drawn> glyphs = drawn(PdfDocument.rtl(Paper.A5).text(text).toBytes());
+        assertTrue(glyphs.stream().noneMatch(glyph -> glyph.text().equals("?")), glyphs.toString());
+        glyph(glyphs, "©");
+        assertTrue(PdfDocument.rtl(Paper.A5).failOnMissingGlyphs(true).text(text).toBytes().length > 0);
+        assertTrue(FontSet.ignorable(0xFE0F) && FontSet.ignorable(0x200D) && FontSet.ignorable(0xE0001));
+        assertFalse(FontSet.ignorable(0x0600), "علامة الرقم العربية (Cf) ليها شكل");
+    }
+
+    /**
+     * خط مالوش حروف عربية مقبول، والعربي بيترسم من خط احتياطي مع تحذير مرة لكل خط؛ الوضع الصارم ما بيفشلش
+     * عليه، لأن الحرف اترسم صح. خط النظام هنا Noto Naskh عشان الاختبار يبقى واحد على كل جهاز.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void arabicDrawnFromAFallbackIsAcceptedWithAWarning() throws Exception {
+        Field fallback = PdfFontResolver.class.getDeclaredField("FALLBACK");
+        fallback.setAccessible(true);
+        ((AtomicReference<byte[]>) fallback.get(null)).set(bundled("NotoNaskhArabic-Regular.ttf"));
+        FontSet.ARABIC_WARNED.remove("LiberationSans");
+
+        byte[] pdf = PdfDocument.rtl(Paper.A5).font(liberation()).failOnMissingGlyphs(true)
+                .text("فاتورة 120").toBytes();
+
+        assertEquals("NotoNaskhArabic-Regular", fontName(fontOf(drawn(pdf), "ﻓ")));
+        assertEquals("LiberationSans", fontName(fontOf(drawn(pdf), "1")));
+        assertTrue(FontSet.ARABIC_WARNED.contains("LiberationSans"));
+    }
+
+    /** نفس الملف للعادي والعريض = خط واحد، والعريض بيتسمّك زي ما بيحصل من غير ملف عريض. */
+    @Test
+    void sameFileForRegularAndBoldFakesTheBold(@TempDir Path dir) throws Exception {
+        Path file = Files.write(dir.resolve("font.ttf"), PdfFontResolver.symbolFallback());
+        for (PdfFont font : List.of(PdfFont.of(file, file), PdfFont.of(file), PdfFont.of(Files.readAllBytes(file),
+                Files.readAllBytes(file)))) {
+            try (PDDocument pdf = new PDDocument(); FontSet fonts = FontSet.load(pdf, font, false)) {
+                assertTrue(fonts.runs("Total", true).get(0).fakeBold(), font.toString());
+            }
+        }
+    }
+
     @Test
     void fileThatIsNotAFontIsRejectedWhenTheFontIsMade(@TempDir Path dir) throws Exception {
         Path text = Files.writeString(dir.resolve("font.ttf"), "not a font");
@@ -237,14 +299,17 @@ class DocumentFontTest {
         assertEquals("LiberationSans", fontName(fontOf(drawn(ReportService.generate(ReportType.PDF, request)), "B")));
 
         withoutSystemFont();
+        // الرسالة بتقول الخلية كلها، مش الكلمة اللي اتقاست وقت حساب عرض العمود بس.
+        String cell = "مسمار حديد مقاس 5 مم 中 للأبواب";
         ReportRequest<Row> strict = ReportRequest.<Row>builder()
-                .data(List.of(new Row("Bolt 中")))
-                .addColumn("name", "Name")
+                .data(List.of(new Row(cell)))
+                .addColumn("name", "الصنف")
                 .parameter(PdfReportProvider.FAIL_ON_MISSING_GLYPHS, true)
                 .build();
         ReportException thrown = assertThrows(ReportException.class,
                 () -> ReportService.generate(ReportType.PDF, strict));
-        assertTrue(thrown.getMessage().contains("U+4E2D"), thrown.getMessage());
+        assertTrue(thrown.getMessage().contains("'中' (U+4E2D)"), thrown.getMessage());
+        assertTrue(thrown.getMessage().contains("\"" + cell + "\""), thrown.getMessage());
 
         ReportRequest<Row> wrong = ReportRequest.<Row>builder()
                 .data(List.of(new Row("Bolt")))

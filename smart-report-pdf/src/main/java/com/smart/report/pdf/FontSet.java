@@ -18,12 +18,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * خطوط مستند واحد: العادي والعريض (خط المستند أو الخط العام) وخطان احتياطيان، مع تقسيم أي نص لمقاطع
@@ -156,6 +158,9 @@ final class FontSet implements Closeable {
     /** أطول نص (بالحروف) بيتكتب كامل في رسالة الحرف الناقص؛ الأطول بيتقص حوالين الحرف. */
     private static final int EXCERPT = 80;
 
+    /** الخطوط اللي اتقال عنها إن العربي بيترسم من خط احتياطي: مرة واحدة لكل خط في الـ JVM. */
+    static final Set<String> ARABIC_WARNED = ConcurrentHashMap.newKeySet();
+
     private final PDDocument pdf;
     private final Face regular;
     private final Face bold;
@@ -178,8 +183,9 @@ final class FontSet implements Closeable {
             this.unicode = true;
             this.regular = load(bytes.regular());
             this.name = opened.get(0).getName();
-            // PdfFontResolver و PdfFont بيرجّعوا نفس البايتات للعريض لو مفيش ملف عريض: يبقى التسميك مصطنعًا.
-            this.bold = bytes.bold() == null || bytes.bold() == bytes.regular() ? regular : load(bytes.bold());
+            // من غير ملف عريض (أو بنفس الملف للاتنين، -D لنفس المسار مثلًا) التسميك بيبقى مصطنعًا.
+            this.bold = bytes.bold() == null || Arrays.equals(bytes.bold(), bytes.regular())
+                    ? regular : load(bytes.bold());
         } else {
             this.unicode = false;
             this.name = "Helvetica";
@@ -231,6 +237,9 @@ final class FontSet implements Closeable {
         for (int i = 0; i < text.length(); ) {
             int codePoint = text.codePointAt(i);
             i += Character.charCount(codePoint);
+            if (ignorable(codePoint)) {
+                continue;
+            }
             Face face;
             boolean fake;
             int drawn = codePoint;
@@ -244,6 +253,9 @@ final class FontSet implements Closeable {
                 Face spare = spare(codePoint);
                 if (spare != null) {
                     face = spare;
+                    if (Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.ARABIC) {
+                        arabicFromSpare(codePoint, spare);
+                    }
                 } else {
                     missing(codePoint, source);
                     face = regular;
@@ -340,18 +352,58 @@ final class FontSet implements Closeable {
      * في النص نفسه (م U+0645) عشان القارئ يلاقيه.
      */
     static String describe(int codePoint) {
-        String glyph = Character.toString(codePoint);
-        StringBuilder text = new StringBuilder(String.format(Locale.ROOT, "'%s' (U+%04X", glyph, codePoint));
-        Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
-        if (block == Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_A
-                || block == Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_B) {
-            String letters = Normalizer.normalize(glyph, Normalizer.Form.NFKC);
-            if (!letters.equals(glyph)) {
-                text.append(", the shaped form of '").append(letters).append('\'');
-                letters.codePoints().forEach(letter -> text.append(String.format(Locale.ROOT, " U+%04X", letter)));
-            }
+        StringBuilder text = new StringBuilder(String.format(Locale.ROOT, "'%s' (U+%04X",
+                Character.toString(codePoint), codePoint));
+        String letters = written(codePoint);
+        if (letters != null) {
+            text.append(", the shaped form of '").append(letters).append('\'');
+            letters.codePoints().forEach(letter -> text.append(String.format(Locale.ROOT, " U+%04X", letter)));
         }
         return text.append(')').toString();
+    }
+
+    /**
+     * الحرف (أو الحرفين، زي لا) اللي الصورة العربية الجاهزة اتعملت منه وقت التشكيل؛ {@code null} لأي حرف
+     * تاني. التطبيع على الصور العربية بس: ① و ١ (العرض الكامل) و ³ حروف قايمة بذاتها في النص.
+     */
+    private static String written(int codePoint) {
+        Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
+        if (block != Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_A
+                && block != Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_B) {
+            return null;
+        }
+        String glyph = Character.toString(codePoint);
+        String letters = Normalizer.normalize(glyph, Normalizer.Form.NFKC);
+        return letters.equals(glyph) ? null : letters;
+    }
+
+    /**
+     * محارف ما لهاش شكل (Default_Ignorable_Code_Point في Unicode): محددات الشكل زي U+FE0F اللي الموبايل
+     * بيحطه بعد © و ✔، والمسافة الصفرية، وعلامات الاتجاه. ما بتترسمش، فبتتشال قبل البحث عن خط بدل ما تطلع
+     * '?' — أو تفشّل المستند في الوضع الصارم.
+     */
+    static boolean ignorable(int cp) {
+        return cp == 0x00AD || cp == 0x034F || cp == 0x061C || cp == 0x115F || cp == 0x1160
+                || cp == 0x17B4 || cp == 0x17B5 || cp >= 0x180B && cp <= 0x180F
+                || cp >= 0x200B && cp <= 0x200F || cp >= 0x202A && cp <= 0x202E || cp >= 0x2060 && cp <= 0x206F
+                || cp == 0x3164 || cp >= 0xFE00 && cp <= 0xFE0F || cp == 0xFEFF || cp == 0xFFA0
+                || cp >= 0xFFF0 && cp <= 0xFFF8 || cp >= 0x1BCA0 && cp <= 0x1BCA3
+                || cp >= 0x1D173 && cp <= 0x1D17A || cp >= 0xE0000 && cp <= 0xE0FFF;
+    }
+
+    /**
+     * حرف عربي اترسم من خط احتياطي (خط النظام غالبًا) لأن خط المستند ما فيهوش صور الحروف العربية: المستند
+     * مش غلط، بس العربي بخط تاني، وبيختلف من جهاز لجهاز، وبيطلع '?' على جهاز ما فيهوش خط بيرسمه. تحذير مرة
+     * واحدة لكل خط.
+     */
+    private void arabicFromSpare(int codePoint, Face spare) {
+        if (ARABIC_WARNED.add(name)) {
+            log.warn(String.format("The PDF font %s has no glyph for the Arabic %s; Arabic is drawn from the"
+                    + " fallback font %s instead, so it differs from computer to computer and prints as '?' where"
+                    + " no installed font has it. Use a font with the Arabic presentation forms (U+FB50-U+FDFF,"
+                    + " U+FE70-U+FEFF), such as Noto Naskh Arabic, Amiri, Arial or Tahoma.",
+                    name, describe(codePoint), spare.font().getName()));
+        }
     }
 
     /** النص اللي فيه الحرف؛ الطويل بيتقص حوالين أول ظهور للحرف (أو لحرفه في النص لو صورة جاهزة). */
@@ -360,17 +412,24 @@ final class FontSet implements Closeable {
         if (letters.length <= EXCERPT) {
             return source;
         }
-        String plain = Normalizer.normalize(Character.toString(codePoint), Normalizer.Form.NFKC);
-        int at = 0;
-        for (int i = 0; i < letters.length; i++) {
-            if (letters[i] == codePoint || letters[i] == plain.codePointAt(0)) {
-                at = i;
-                break;
-            }
+        int at = indexOf(letters, codePoint);
+        String written = written(codePoint);
+        if (at < 0 && written != null) {
+            at = indexOf(letters, written.codePointAt(0));
         }
+        at = Math.max(at, 0);
         int start = Math.max(0, Math.min(at - EXCERPT / 2, letters.length - EXCERPT));
         int end = start + EXCERPT;
         return (start > 0 ? "…" : "") + new String(letters, start, EXCERPT) + (end < letters.length ? "…" : "");
+    }
+
+    private static int indexOf(int[] letters, int codePoint) {
+        for (int i = 0; i < letters.length; i++) {
+            if (letters[i] == codePoint) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** بعد حفظ المستند: PDFBox بيقرا من ملفات الخطوط لحد لحظة الحفظ، فما تتقفلش قبلها. */

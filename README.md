@@ -369,13 +369,16 @@ PdfDocument.rtl(Paper.A4)
 - The file must be a TrueType font (`.ttf`) that allows embedding. A font collection (`.ttc`) or an OpenType font
   with CFF outlines (most `.otf` files) fails with a `ReportException` when the `PdfFont` is made, not when printing.
 - Arabic is drawn with the Arabic presentation forms (U+FB50–U+FDFF and U+FE70–U+FEFF), so an Arabic document
-  needs a font that has them, as Noto Naskh Arabic, Amiri, Arial and Tahoma do.
+  needs a font that has them, as Noto Naskh Arabic, Amiri, Arial and Tahoma do. A font without them is accepted
+  (a Latin document needs none), but its Arabic is drawn from a system font, which differs from computer to
+  computer and is missing in a bare container; the log warns about it once per font.
 - The generic report takes it as a parameter: `.parameter(PdfReportProvider.FONT, amiri)`.
 
 **A character the font lacks** is drawn from **Liberation Sans**, which ships inside PDFBox (SIL Open Font
 License), so it is the same on every computer: `²`, `³`, `½`, `±`, `µ`, `‰`, `≤`, `≥` and other symbols that Noto
 Naskh lacks, so "م³" prints right. A character Liberation Sans lacks too is tried in a system font (Arial and
-others), and as a last resort is printed as `?` with a warning in the log.
+others), and as a last resort is printed as `?` with a warning in the log. Invisible characters, such as the
+variation selector U+FE0F that phones add after `©` or `✔`, are skipped rather than printed as `?`.
 
 **Fail instead of printing `?`.** On an invoice or a statement, a `?` in place of a character is a wrong
 document. `failOnMissingGlyphs(true)` stops writing it with a `ReportException` that names the character, its
@@ -573,4 +576,6 @@ show in the text.
 ## Licenses
 
 The project is licensed under the [MIT License](LICENSE). The bundled Noto Naskh Arabic font is licensed under the
-[SIL Open Font License 1.1](smart-report-pdf/src/main/resources/com/smart/report/pdf/fonts/OFL.txt).
+[SIL Open Font License 1.1](smart-report-pdf/src/main/resources/com/smart/report/pdf/fonts/OFL.txt). Symbols it
+lacks are drawn from Liberation Sans, which ships inside the PDFBox jar under the same license (see PDFBox's
+`META-INF/LICENSE`); a PDF that uses them embeds a subset of it.
