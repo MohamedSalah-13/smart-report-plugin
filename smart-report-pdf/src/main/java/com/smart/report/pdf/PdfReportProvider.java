@@ -8,8 +8,11 @@ import com.smart.report.ReportRequest;
 import com.smart.report.ReportType;
 import com.smart.report.util.BeanPropertyReader;
 import com.smart.report.util.TextDirection;
+import com.smart.report.util.Totals;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -25,6 +28,11 @@ import java.util.Locale;
  * قيمه كلها أرقام بيتحاذى لنهاية السطر فالأرقام تيجي تحت بعض. خيارات كل عمود (نمط التنسيق، المحاذاة،
  * الوزن) في {@link ColumnDefinition} بتغلب الافتراضي؛ النمط اللي ما ينفعش مع قيمة بيرمي
  * {@link ReportException} باسم العمود.</p>
+ *
+ * <p><b>الإجمالي:</b> لو في عمود متجمّع ({@link ColumnDefinition#withTotal()})، صف إجمالي تحت الجدول: كل
+ * مجموع تحت عموده بنمط العمود، والكلمة ({@link Totals#label}) تحت أول عمود مش متجمّع. المجموع بالظبط
+ * ({@link java.math.BigDecimal})، والقيمة اللي مش رقم في عمود متجمّع بترمي {@link ReportException} باسم
+ * العمود ورقم الصف (شوف {@link Totals}). من غير بيانات، الإجمالي صفر.</p>
  *
  * <p><b>الورق:</b> A4 طولي، إلا لو {@link #PAPER} اتحدد في {@code parameters} بكائن {@link Paper}
  * أو باسمه ({@code "A5"}، {@code "A4-landscape"}).</p>
@@ -63,14 +71,20 @@ public final class PdfReportProvider implements ReportProvider {
         List<Object[]> rows = new ArrayList<>(request.data().size());
         boolean[] numeric = new boolean[count];
         boolean[] other = new boolean[count];
+        BigDecimal[] sums = new BigDecimal[count];
+        Arrays.fill(sums, BigDecimal.ZERO);
         for (Object item : request.data()) {
             Object[] values = new Object[count];
             for (int i = 0; i < count; i++) {
-                values[i] = BeanPropertyReader.read(item, columns.get(i).fieldName());
+                ColumnDefinition column = columns.get(i);
+                values[i] = BeanPropertyReader.read(item, column.fieldName());
                 if (values[i] instanceof Number) {
                     numeric[i] = true;
                 } else if (values[i] != null) {
                     other[i] = true;
+                }
+                if (column.total()) {
+                    sums[i] = Totals.add(sums[i], values[i], column, rows.size());
                 }
             }
             rows.add(values);
@@ -79,8 +93,9 @@ public final class PdfReportProvider implements ReportProvider {
         PdfTable table = PdfTable.create();
         for (int i = 0; i < count; i++) {
             ColumnDefinition column = columns.get(i);
+            // العمود المتجمّع أرقام بس (غير كده بيرمي فوق)، فمجموعه تحت أرقامه حتى من غير بيانات.
             Align align = column.align() != null ? align(column.align())
-                    : numeric[i] && !other[i] ? Align.END : Align.START;
+                    : column.total() || numeric[i] && !other[i] ? Align.END : Align.START;
             table.column(singleLine(column.header()), column.weight(), align);
         }
         CellText text = new CellText(rightToLeft ? Locale.forLanguageTag("ar") : Locale.ENGLISH);
@@ -96,7 +111,32 @@ public final class PdfReportProvider implements ReportProvider {
             }
             table.row(cells);
         }
+        if (Totals.any(request)) {
+            table.totals(totals(request, sums, text, rightToLeft));
+        }
         return document.table(table).toBytes();
+    }
+
+    /** خلايا صف الإجمالي: كل مجموع بنمط عموده، والكلمة تحت أول عمود مش متجمّع. */
+    private static String[] totals(ReportRequest<?> request, BigDecimal[] sums, CellText text, boolean rightToLeft)
+            throws ReportException {
+        List<ColumnDefinition> columns = request.columns();
+        String[] cells = new String[columns.size()];
+        for (int i = 0; i < cells.length; i++) {
+            ColumnDefinition column = columns.get(i);
+            if (column.total()) {
+                try {
+                    cells[i] = singleLine(text.of(sums[i], column.format()));
+                } catch (IllegalArgumentException e) {
+                    throw new ReportException("Column '" + column.fieldName() + "': " + e.getMessage(), e);
+                }
+            }
+        }
+        int labelAt = Totals.labelColumn(request);
+        if (labelAt >= 0) {
+            cells[labelAt] = singleLine(Totals.label(request, rightToLeft));
+        }
+        return cells;
     }
 
     private static Align align(Alignment alignment) {

@@ -394,6 +394,7 @@ A column can carry its own options for the PDF report — a format pattern, an a
 - `withAlign`: `START`, `CENTER` or `END`, relative to the report's direction. Without it, a column of numbers goes
   to the end of the line and anything else to the start.
 - `withWeight`: the column's share of the table width (2 = twice a normal column).
+- `withTotal`: adds the column up in a totals row under the table, in both reports (see [Totals](#totals)).
 
 The Excel report applies the format (turned into an Excel format, so a number stays a number and a date a date)
 and the alignment. It ignores the weight: its columns are sized to their content. A date pattern letter Excel has no
@@ -410,7 +411,8 @@ runs right to left). The PDF report is on portrait A4. To change that:
 ```
 
 In the PDF, numbers get thousands separators (`1,234,567.5`, `1,200.50`), dates are written `2026-11-26` and
-`2026-11-26 10:30:00`, and a column holding only numbers is aligned to the end of the line so the numbers line up.
+`2026-11-26 10:30:00`, and a column holding only numbers (or totalled) is aligned to the end of the line so the
+numbers line up.
 
 In Excel, numbers, booleans and dates are written with their own types, not as text. The header row stays in view
 as you scroll and has filter buttons, so the sheet can be sorted and filtered straight away. Each column is as wide as
@@ -420,6 +422,33 @@ holds all of it). Numbers and dates fit in every row, so none shows as `####`.
 
 If you ask for a type whose module is not on the classpath, a `ReportException` tells you which dependency
 to add.
+
+### Totals
+
+Mark the columns to add up with `withTotal()`, and the report gets a totals row under the table:
+
+```java
+ReportRequest<Expense> request = ReportRequest.<Expense>builder()
+        .title("المصروفات")
+        .data(expenses)
+        .addColumn("item", "البيان")
+        .addColumn(ColumnDefinition.of("amount", "المبلغ").withFormat("#,##0.00").withTotal())
+        .addColumn(ColumnDefinition.of("vat", "الضريبة").withFormat("#,##0.00").withTotal())
+        .totalsLabel("إجمالي المصروفات")   // optional: "الإجمالى" by default, "Total" in a left-to-right report
+        .build();
+```
+
+Each total sits under its own column, in that column's format. The label goes under the first column that is not
+totalled (with every column totalled, the row has no label). The sum is exact: the values are added as `BigDecimal`,
+a `double` or `float` by the decimal it shows (`0.1 + 0.2` totals `0.3`), and an empty value (`null`) adds nothing.
+A value that is not a number in a totalled column (text, a date, `NaN`) fails with a `ReportException` naming the
+column and the row: a total that skipped it would be wrong without anyone noticing. With no data the total is 0.
+
+In the PDF the totals row looks like `PdfTable.totals`: bold, on a shaded background. In Excel it is a bold row with
+a line above and a double line below, after one empty row. Each total there is a real `=SUM(...)` formula over the
+data rows, so it follows any change made to the sheet, and the file carries its computed value too, so the right
+number shows before anything is recalculated. The filter covers the header and the data only, and the empty row keeps
+Excel from taking the totals row into a sort. The two extra rows count towards the sheet's limit of 1,048,576 rows.
 
 ## JasperReports (a visually designed template)
 

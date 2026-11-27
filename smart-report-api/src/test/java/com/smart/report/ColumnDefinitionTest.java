@@ -5,8 +5,12 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ColumnDefinitionTest {
 
@@ -31,6 +35,41 @@ class ColumnDefinitionTest {
         assertNull(column.withFormat(" ").format(), "النمط الفاضي = الافتراضي");
         assertNull(column.withAlign(null).align());
         assertEquals("#,##0.00", column.withWeight(1).format());
+    }
+
+    /** الإجمالي خيار زي الباقي: باقي الخيارات بتحافظ عليه، والـ constructor القديم من غيره. */
+    @Test
+    void totalIsKeptByTheOtherOptions() {
+        ColumnDefinition column = ColumnDefinition.of("amount", "Amount").withTotal()
+                .withFormat("#,##0.00").withAlign(Alignment.END).withWeight(2);
+
+        assertTrue(column.total());
+        assertEquals(new ColumnDefinition("amount", "Amount", "#,##0.00", Alignment.END, 2f, true), column);
+        assertFalse(ColumnDefinition.of("amount", "Amount").total());
+        assertFalse(new ColumnDefinition("amount", "Amount", "#,##0.00", Alignment.END, 2f).total(),
+                "الـ constructor اللي بخمس قيم بيعمل عمود من غير إجمالي");
+        assertNotEquals(column, new ColumnDefinition("amount", "Amount", "#,##0.00", Alignment.END, 2f));
+    }
+
+    /**
+     * البرامج المترجمة قبل الإجمالي بتنادي الـ constructor اللي بخمس قيم: لازم يفضل عام بنفس التوقيع، وكل
+     * الـ accessors القديمة موجودة.
+     */
+    @Test
+    void theFiveValueConstructorAndTheOldAccessorsStayPublic() throws Exception {
+        java.lang.reflect.Constructor<ColumnDefinition> old = ColumnDefinition.class.getConstructor(
+                String.class, String.class, String.class, Alignment.class, float.class);
+        assertTrue(java.lang.reflect.Modifier.isPublic(old.getModifiers()));
+        for (String accessor : new String[]{"fieldName", "header", "format", "align", "weight"}) {
+            assertNotNull(ColumnDefinition.class.getMethod(accessor), accessor);
+        }
+    }
+
+    @Test
+    void totalsLabelIsNullUntilTheProgramSetsIt() {
+        assertNull(ReportRequest.builder().build().totalsLabel());
+        assertEquals("المجموع", ReportRequest.builder().totalsLabel("المجموع").build().totalsLabel());
+        assertNull(ReportRequest.builder().totalsLabel("x").totalsLabel(null).build().totalsLabel());
     }
 
     @Test

@@ -15,8 +15,13 @@ import java.util.List;
  */
 final class Glyphs {
 
-    /** حرف مرسوم: صفحته (من 1)، ومكانه بالنقطة من أعلى يسار الصفحة. */
-    record Glyph(String text, int page, float x, float y) {
+    /** حرف مرسوم: صفحته (من 1)، ومكانه بالنقطة من أعلى يسار الصفحة، وعرضه. */
+    record Glyph(String text, int page, float x, float y, float width) {
+
+        /** الحافة اليمين للحرف. */
+        float right() {
+            return x + width;
+        }
     }
 
     private final List<Glyph> glyphs = new ArrayList<>();
@@ -28,7 +33,7 @@ final class Glyphs {
                 @Override
                 protected void processTextPosition(TextPosition text) {
                     found.glyphs.add(new Glyph(text.getUnicode(), getCurrentPageNo(),
-                            text.getXDirAdj(), text.getYDirAdj()));
+                            text.getXDirAdj(), text.getYDirAdj(), text.getWidthDirAdj()));
                     super.processTextPosition(text);
                 }
             };
@@ -51,6 +56,28 @@ final class Glyphs {
             Glyph found = find(token, page);
             if (found != null) {
                 return found;
+            }
+        }
+        throw new AssertionError("\"" + token + "\" is not drawn anywhere");
+    }
+
+    /**
+     * آخر حرف في أول ظهور للكلمة في أي صفحة: حافته اليمين نهاية الكلمة على الورقة، فرقمين متحاذيين
+     * لليمين حافتهم اليمين واحدة حتى لو واحد فيهم بخط عريض.
+     */
+    Glyph last(String token) {
+        for (int page = 1; page <= pages(); page++) {
+            int start = start(token, page);
+            if (start >= 0) {
+                int length = 0;
+                int k = start;
+                while (true) {
+                    length += glyphs.get(k).text().length();
+                    if (length >= token.length()) {
+                        return glyphs.get(k);
+                    }
+                    k++;
+                }
             }
         }
         throw new AssertionError("\"" + token + "\" is not drawn anywhere");
@@ -81,6 +108,12 @@ final class Glyphs {
     }
 
     private Glyph find(String token, int page) {
+        int start = start(token, page);
+        return start < 0 ? null : glyphs.get(start);
+    }
+
+    /** مكان أول حرف في أول ظهور للكلمة في الصفحة، أو {@code -1}. */
+    private int start(String token, int page) {
         for (int i = 0; i < glyphs.size(); i++) {
             if (glyphs.get(i).page() != page) {
                 continue;
@@ -94,9 +127,9 @@ final class Glyphs {
                 run.append(glyph.text());
             }
             if (run.toString().equals(token)) {
-                return glyphs.get(i);
+                return i;
             }
         }
-        return null;
+        return -1;
     }
 }

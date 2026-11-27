@@ -7,6 +7,8 @@ import com.smart.report.ReportRequest;
 import com.smart.report.ReportType;
 import com.smart.report.util.BeanPropertyReader;
 import com.smart.report.util.TextDirection;
+import com.smart.report.util.Totals;
+import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -19,12 +21,14 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.ss.util.SheetUtil;
 import org.apache.poi.xssf.streaming.SXSSFSheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -33,6 +37,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
@@ -53,6 +58,13 @@ import java.util.Set;
  *
  * <p><b>الاتجاه:</b> الورقة من اليمين لليسار (أول عمود على اليمين) لو العنوان أو أي رأس عمود فيه
  * عربي — نفس قاعدة تقرير الـ PDF العام — إلا لو {@link #RIGHT_TO_LEFT} اتحدد في {@code parameters}.</p>
+ *
+ * <p><b>الإجمالي:</b> لو في عمود متجمّع ({@link ColumnDefinition#withTotal()})، صف إجمالي بخط عريض بعد
+ * البيانات بسطر فاضي: تحت كل عمود متجمّع معادلة {@code SUM} حقيقية على صفوف البيانات (فالإجمالي بيتغير لو
+ * المستخدم عدّل رقم) بنمط العمود، ومعاها قيمتها محسوبة ({@link Totals})، فالرقم بيظهر صح حتى في برنامج
+ * ما بيحسبش المعادلات وهو بيفتح الملف. الكلمة ({@link Totals#label}) تحت أول عمود مش متجمّع. السطر الفاضي
+ * بيفصل الإجمالي عن البيانات: Excel بيمد الفلتر والترتيب على الصفوف اللازقة في الجدول، فصف الإجمالي اللازق
+ * كان ممكن يتفرز وسط البيانات. من غير بيانات، الإجمالي صفر (من غير معادلة: مفيش صفوف تتجمع).</p>
  */
 public final class ExcelReportProvider implements ReportProvider {
 
@@ -98,7 +110,9 @@ public final class ExcelReportProvider implements ReportProvider {
         }
 
         int headerRows = request.title() != null && !request.title().isBlank() ? 3 : 1;
-        long totalRows = (long) request.data().size() + headerRows;
+        boolean totals = Totals.any(request);
+        // صف الإجمالي وسطر فاضي قبله
+        long totalRows = (long) request.data().size() + headerRows + (totals ? 2 : 0);
         if (totalRows > MAX_ROWS) {
             throw new ReportException("An .xlsx sheet holds at most " + MAX_ROWS + " rows, but this report needs "
                     + totalRows + ". Split the data across several reports.");
@@ -115,7 +129,7 @@ public final class ExcelReportProvider implements ReportProvider {
             Styles styles = createStyles(workbook);
             ColumnStyles[] columnStyles = new ColumnStyles[columns.size()];
             for (int i = 0; i < columns.size(); i++) {
-                columnStyles[i] = new ColumnStyles(workbook, columns.get(i), rightToLeft);
+                columnStyles[i] = new ColumnStyles(workbook, columns.get(i), rightToLeft, styles.bold());
             }
 
             ColumnWidths widths = new ColumnWidths(workbook, columns.size());
@@ -140,26 +154,41 @@ public final class ExcelReportProvider implements ReportProvider {
                 widths.header(cell, i);
             }
 
+            BigDecimal[] sums = new BigDecimal[columns.size()];
+            Arrays.fill(sums, BigDecimal.ZERO);
             int dataRow = 0;
             for (Object item : request.data()) {
                 Row row = sheet.createRow(rowIndex++);
-                boolean sampled = dataRow++ < WIDTH_SAMPLE_ROWS;
+                boolean sampled = dataRow < WIDTH_SAMPLE_ROWS;
                 for (int i = 0; i < columns.size(); i++) {
-                    Object value = BeanPropertyReader.read(item, columns.get(i).fieldName());
+                    ColumnDefinition column = columns.get(i);
+                    Object value = BeanPropertyReader.read(item, column.fieldName());
+                    if (column.total()) {
+                        sums[i] = Totals.add(sums[i], value, column, dataRow);
+                    }
                     Cell cell = row.createCell(i);
                     try {
                         writeCell(cell, value, columnStyles[i]);
                     } catch (IllegalArgumentException e) {
-                        throw new ReportException("Column '" + columns.get(i).fieldName() + "': " + e.getMessage(), e);
+                        throw new ReportException("Column '" + column.fieldName() + "': " + e.getMessage(), e);
                     }
                     widths.cell(cell, i, sampled);
                 }
+                dataRow++;
+            }
+            int lastDataRowIndex = rowIndex - 1;
+
+            if (totals) {
+                rowIndex++; // سطر فاضي: الفلتر والترتيب ما يوصلوش للإجمالي
+                writeTotals(sheet.createRow(rowIndex++), request, sums, headerRowIndex + 1, lastDataRowIndex,
+                        columnStyles, widths, rightToLeft);
             }
 
             widths.apply(sheet);
-            // رأس الأعمدة بيفضل ظاهر والورقة بتتنزل، وعليه أزرار الفلتر: الورقة تتفرز وتتفلتر على طول
+            // رأس الأعمدة بيفضل ظاهر والورقة بتتنزل، وعليه أزرار الفلتر: الورقة تتفرز وتتفلتر على طول.
+            // الفلتر على الرأس والبيانات بس، من غير صف الإجمالي.
             sheet.createFreezePane(0, headerRowIndex + 1);
-            sheet.setAutoFilter(new CellRangeAddress(headerRowIndex, rowIndex - 1, 0, columns.size() - 1));
+            sheet.setAutoFilter(new CellRangeAddress(headerRowIndex, lastDataRowIndex, 0, columns.size() - 1));
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             workbook.write(out);
@@ -168,6 +197,40 @@ public final class ExcelReportProvider implements ReportProvider {
             throw new ReportException("Failed to generate Excel report.", e);
         } finally {
             workbook.dispose(); // بيمسح الملفات المؤقتة اللي SXSSF عملها
+        }
+    }
+
+    /**
+     * صف الإجمالي: معادلة {@code SUM} تحت كل عمود متجمّع على صفوف بياناته، ومعاها قيمتها المحسوبة — Excel
+     * بيعرض القيمة المحفوظة لحد ما يحسب المعادلة، والملف من غير قيمة محفوظة كان هيعرض صفر في أي برنامج ما
+     * بيحسبش وهو بيفتح. الكلمة تحت أول عمود مش متجمّع، والخلايا الفاضية بنفس الشكل فخطوط الإجمالي بعرض
+     * الجدول كله.
+     *
+     * @param firstDataRow أول صف بيانات (من صفر)
+     * @param lastDataRow  آخر صف بيانات؛ أقل من {@code firstDataRow} لو مفيش بيانات
+     */
+    private static void writeTotals(Row row, ReportRequest<?> request, BigDecimal[] sums, int firstDataRow,
+                                    int lastDataRow, ColumnStyles[] columnStyles, ColumnWidths widths,
+                                    boolean rightToLeft) {
+        List<ColumnDefinition> columns = request.columns();
+        int labelAt = Totals.labelColumn(request);
+        for (int i = 0; i < columns.size(); i++) {
+            Cell cell = row.createCell(i);
+            if (columns.get(i).total()) {
+                if (lastDataRow >= firstDataRow) {
+                    String column = CellReference.convertNumToColString(i);
+                    cell.setCellFormula("SUM(" + column + (firstDataRow + 1) + ":" + column + (lastDataRow + 1) + ")");
+                }
+                // على خلية فيها معادلة دي القيمة المحسوبة المحفوظة معاها؛ من غير معادلة، صفر عادي.
+                cell.setCellValue(sums[i].doubleValue());
+                cell.setCellStyle(columnStyles[i].total(true));
+            } else {
+                if (i == labelAt) {
+                    cell.setCellValue(Totals.label(request, rightToLeft));
+                }
+                cell.setCellStyle(columnStyles[i].total(false));
+            }
+            widths.totals(cell, i);
         }
     }
 
@@ -255,11 +318,14 @@ public final class ExcelReportProvider implements ReportProvider {
         private final Workbook workbook;
         private final String format;
         private final HorizontalAlignment alignment;
+        private final Font bold;
         private final Map<String, CellStyle> made = new HashMap<>();
 
-        ColumnStyles(Workbook workbook, ColumnDefinition column, boolean rightToLeft) {
+        /** @param bold خط صف الإجمالي، واحد للملف كله */
+        ColumnStyles(Workbook workbook, ColumnDefinition column, boolean rightToLeft, Font bold) {
             this.workbook = workbook;
             this.format = column.format();
+            this.bold = bold;
             // Excel بيحاذي يمين وشمال على الورقة نفسها حتى في الورقة العربية، فالبداية بتتحسب من اتجاهها.
             this.alignment = column.align() == null ? null : switch (column.align()) {
                 case START -> rightToLeft ? HorizontalAlignment.RIGHT : HorizontalAlignment.LEFT;
@@ -281,6 +347,24 @@ public final class ExcelReportProvider implements ReportProvider {
         CellStyle date(String defaultFormat) {
             String excel = format == null ? defaultFormat : ExcelFormats.date(format);
             return style("date|" + excel, excel);
+        }
+
+        /**
+         * خلية في صف الإجمالي: خط عريض، وخط رفيع فوقها وخطين تحتها زي إجمالي الدفاتر، والمجموع بنمط العمود.
+         *
+         * @param number المجموع نفسه، مش الكلمة أو خلية فاضية
+         */
+        CellStyle total(boolean number) {
+            String key = number ? "total|number" : "total|text";
+            CellStyle known = made.get(key);
+            if (known != null) {
+                return known;
+            }
+            CellStyle created = style(key, number && format != null ? ExcelFormats.number(format) : null);
+            created.setFont(bold);
+            created.setBorderTop(BorderStyle.THIN);
+            created.setBorderBottom(BorderStyle.DOUBLE);
+            return created;
         }
 
         private CellStyle style(String key, String dataFormat) {
@@ -314,7 +398,7 @@ public final class ExcelReportProvider implements ReportProvider {
      *     <li><b>التواريخ</b> مرة لكل نمط في العمود، بأعرض تاريخ ممكن ({@link #WIDEST_DATE}).</li>
      * </ul>
      *
-     * <p>العنوان مش منهم، والعرض ما بيعدّيش أقصى عرض في Excel (255 حرف).</p>
+     * <p>صف الإجمالي بيتقاس كله. العنوان مش منهم، والعرض ما بيعدّيش أقصى عرض في Excel (255 حرف).</p>
      */
     private static final class ColumnWidths {
 
@@ -340,6 +424,11 @@ public final class ExcelReportProvider implements ReportProvider {
 
         void header(Cell cell, int column) {
             measure(cell, column, FILTER_BUTTON_WIDTH);
+        }
+
+        /** خلية في صف الإجمالي بتتقاس دايمًا، بخطها العريض: المجموع عادةً أعرض رقم في عموده. */
+        void totals(Cell cell, int column) {
+            measure(cell, column, 0);
         }
 
         void cell(Cell cell, int column, boolean sampled) {
@@ -425,7 +514,8 @@ public final class ExcelReportProvider implements ReportProvider {
         CellStyle title = workbook.createCellStyle();
         title.setFont(titleFont);
 
-        return new Styles(title, header);
+        // رأس الأعمدة والإجمالي بنفس الخط العريض
+        return new Styles(title, header, headerFont);
     }
 
     private String sheetName(String title) {
@@ -435,5 +525,5 @@ public final class ExcelReportProvider implements ReportProvider {
         return sanitized.length() > 31 ? sanitized.substring(0, 31) : sanitized;
     }
 
-    private record Styles(CellStyle title, CellStyle header) {}
+    private record Styles(CellStyle title, CellStyle header, Font bold) {}
 }
