@@ -45,6 +45,13 @@ final class PageWriter {
     private static final float LOGO_HEIGHT = 44f;
     /** المكان الفاضي للتوقيع بين عنوان الخانة وخطها. */
     private static final float SIGNATURE_SPACE = 34f;
+    private static final float POINTS_PER_MM = 72f / 25.4f;
+    /** أضيق خط في الباركود: 0.33 مم، حوالي 3 نقط على الطابعة الحرارية (203 نقطة في البوصة). */
+    static final float BAR_MODULE = 0.33f * POINTS_PER_MM;
+    /** أضيق خط يتقري: 0.25 مم، نقطتين على الطابعة الحرارية. أضيق من كده الباركود بيفشل بدل ما يطلع بايظ. */
+    static final float MIN_BAR_MODULE = 0.25f * POINTS_PER_MM;
+    /** المسافة بين الخطوط والنص المكتوب تحتها. */
+    private static final float BARCODE_CAPTION_GAP = 2f;
 
     private enum Side { LEFT, CENTER, RIGHT }
 
@@ -170,6 +177,7 @@ final class PageWriter {
             case PdfDocument.SummaryBlock summary -> summary(summary.lines());
             case PdfDocument.SignaturesBlock signatures -> signatures(signatures.labels());
             case PdfDocument.QrBlock qr -> qrCode(qr);
+            case PdfDocument.BarcodeBlock barcode -> barcode(barcode);
         }
     }
 
@@ -582,6 +590,59 @@ final class PageWriter {
         }
         stream.fill();
         y -= side;
+    }
+
+    /**
+     * باركود Code 128 بمنطقته الفاضية من الجنبين، وتحته النص مكتوب؛ الاتنين في صفحة واحدة. الخطوط
+     * المتجاورة بتترسم مستطيلًا واحدًا، والكل مسار واحد بيتملى مرة واحدة زي رمز QR.
+     *
+     * <p>النص بيترسم من الشمال لليمين زي ما هو، من غير ترتيب الاتجاه العربي: الكود حروف وأرقام بترتيبها،
+     * و«2026-0042-SHP» في سطر عربي كانت هتتقلب أجزاؤها.</p>
+     */
+    private void barcode(PdfDocument.BarcodeBlock barcode) throws IOException, ReportException {
+        BarcodeSymbol symbol = barcode.symbol();
+        int span = symbol.modules() + 2 * BarcodeSymbol.QUIET_ZONE;
+        float module = Math.min(BAR_MODULE, width / span);
+        if (module < MIN_BAR_MODULE * 0.999f) {
+            throw new ReportException(String.format(java.util.Locale.ROOT,
+                    "The barcode \"%s\" needs %.1f mm at its narrowest readable bars, but the line is %.1f mm wide."
+                            + " Use a shorter code or wider paper.",
+                    symbol.text(), span * MIN_BAR_MODULE / POINTS_PER_MM, width / POINTS_PER_MM));
+        }
+        float size = style.bodySize();
+        List<FontSet.Run> runs = fonts.runs(symbol.text(), false);
+        Line caption = new Line(runs, FontSet.width(runs, size));
+        float captionHeight = BARCODE_CAPTION_GAP + size * LEADING;
+        float bars = Math.max(1f, Math.min(barcode.height(), freshRoom() - captionHeight));
+        gap(BLOCK_GAP);
+        need(bars + captionHeight);
+
+        float barsWidth = symbol.modules() * module;
+        float boxWidth = span * module;
+        float boxLeft = switch (side(barcode.align())) {
+            case LEFT -> left;
+            case CENTER -> left + (width - boxWidth) / 2;
+            case RIGHT -> right - boxWidth;
+        };
+        float originX = boxLeft + BarcodeSymbol.QUIET_ZONE * module;
+        // أسود مهما كان لون النص: القارئ محتاج أعلى تباين.
+        setFill(0x000000);
+        int column = 0;
+        while (column < symbol.modules()) {
+            if (!symbol.dark(column)) {
+                column++;
+                continue;
+            }
+            int start = column;
+            while (column < symbol.modules() && symbol.dark(column)) {
+                column++;
+            }
+            stream.addRect(originX + start * module, y - bars, (column - start) * module, bars);
+        }
+        stream.fill();
+        y -= bars + BARCODE_CAPTION_GAP;
+        drawLine(caption, size, style.textColor(), originX, barsWidth, Side.CENTER, y - size * BASELINE);
+        y -= size * LEADING;
     }
 
     /** الملخص: جدول بلا رأس من عمودين، وسطر الإجمالي فيه بخط أكبر. */

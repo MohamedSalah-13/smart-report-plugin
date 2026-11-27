@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `PdfDocument.barcode(text)` (and `barcode(text, align)`, `barcode(text, heightMm, align)`): a Code 128 barcode
+  drawn as vector bars with the code written under it, at the start, centre or end of the line in the document's
+  direction, kept on one page. Its narrowest bar is 0.33 mm and narrows to fit a thin roll down to 0.25 mm; a code
+  too long for that fails with a `ReportException` naming it rather than printing unreadable bars. Encoded by the
+  ZXing core that `smart-report-pdf` already brings.
+
 ## [2.5.0] - 2026-11-27
 
 ### Upgrade notes

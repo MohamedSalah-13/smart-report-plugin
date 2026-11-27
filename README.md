@@ -6,7 +6,7 @@
 
 A Java library for reports and printing, added to any project as a dependency:
 
-- **Print-ready Arabic PDF documents** on A4 and A5 (portrait and landscape): letterhead, title, fields, several tables with a totals row, a summary, page numbers, a QR code — and direct output to a printer. Apache PDFBox (and ZXing core to encode the QR code).
+- **Print-ready Arabic PDF documents** on A4 and A5 (portrait and landscape): letterhead, title, fields, several tables with a totals row, a summary, page numbers, a QR code, a barcode — and direct output to a printer. Apache PDFBox (and ZXing core to encode the QR code and the barcode).
 - **A ready JavaFX preview window**: the pages as they will print, a choice of printer, paper and copies, print and save as PDF.
 - **A generic PDF or Excel report from a `List<POJO>`**, with no template.
 - **JasperReports** (visually designed `.jrxml`/`.jasper` templates): export to PDF, XLSX, HTML or CSV.
@@ -36,7 +36,7 @@ Each kind of report is its own Maven module, so a program that only prints PDFs 
 
 | Module | What is in it | What it brings |
 |---|---|---|
-| `smart-report-pdf` | `PdfDocument`, `PdfPrinter`, `PdfPages`, and the generic PDF report | PDFBox, ZXing core (QR code) |
+| `smart-report-pdf` | `PdfDocument`, `PdfPrinter`, `PdfPages`, and the generic PDF report | PDFBox, ZXing core (QR code, barcode) |
 | `smart-report-fx` | `PdfPreview`: the preview window | `smart-report-pdf`; and your program's own JavaFX (`provided`) |
 | `smart-report-excel` | The generic Excel report | Apache POI |
 | `smart-report-jasper` | Jasper template reports | JasperReports |
@@ -192,6 +192,24 @@ PdfDocument receipt = PdfDocument.rtl(Paper.ROLL_80)
   the invoice; `ZatcaQr` covers phase 1.
 - The code is encoded by [ZXing](https://github.com/zxing/zxing) core (Apache License 2.0, no dependencies of its
   own), which `smart-report-pdf` brings.
+
+### Barcode (Code 128)
+
+For a shipment, waybill, invoice or item number, read by a hand scanner:
+
+```java
+document.barcode("SHP-2026-0042");                    // bars 12 mm tall, centred, the code written under them
+document.barcode(waybillNumber, 15, Align.START);     // 15 mm, at the start of the line (right in Arabic)
+```
+
+- Drawn as vector bars, not an image, with the code written under them left to right as it is, even on an Arabic
+  page. A quiet zone of 10 bars is left on each side, and the bars and the code are never split across two pages.
+- The narrowest bar is 0.33 mm (about 3 dots on a 203 dpi thermal printer). A code too wide for the line gets
+  narrower bars, down to 0.25 mm; a code that would need thinner bars than that fails with a `ReportException`
+  that names it, instead of printing bars no scanner reads. On a 58 mm roll that is about 15 characters; runs of
+  digits are packed two to a bar pattern, so mostly-numeric codes are shorter.
+- Code 128 holds English letters, digits and signs only: Arabic text, accented letters or tabs are rejected with an
+  `IllegalArgumentException` when the barcode is added.
 
 ### Style (`PdfStyle`)
 
