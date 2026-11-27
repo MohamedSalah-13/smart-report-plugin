@@ -14,7 +14,8 @@
 
     <title>
         <band height="40">
-            <!-- 36 high: a line of 18 pt Arabic in Noto Naskh is 31 pt, and a text whose line does not fit is not printed. -->
+            <!-- 36 high: a line of 18 pt Arabic in Noto Naskh is 31 pt. In a shorter box, such as the 30 of v2.6.0,
+                 the line is drawn past the box and a warning is logged (ArabicPdfTest). -->
             <textField>
                 <reportElement x="0" y="0" width="535" height="36"/>
                 <textElement textAlignment="Center">

@@ -5,17 +5,23 @@ import com.smart.report.ReportException;
 import com.smart.report.ReportProvider;
 import com.smart.report.ReportRequest;
 import com.smart.report.ReportType;
+import net.sf.jasperreports.engine.DefaultJasperReportsContext;
 import net.sf.jasperreports.engine.JRException;
 import net.sf.jasperreports.engine.JasperCompileManager;
 import net.sf.jasperreports.engine.JasperExportManager;
 import net.sf.jasperreports.engine.JasperFillManager;
 import net.sf.jasperreports.engine.JasperPrint;
 import net.sf.jasperreports.engine.JasperReport;
+import net.sf.jasperreports.engine.JasperReportsContext;
+import net.sf.jasperreports.engine.SimpleJasperReportsContext;
 import net.sf.jasperreports.engine.data.JRBeanCollectionDataSource;
 import net.sf.jasperreports.engine.export.HtmlExporter;
 import net.sf.jasperreports.engine.export.JRCsvExporter;
 import net.sf.jasperreports.engine.export.ooxml.JRXlsxExporter;
+import net.sf.jasperreports.engine.fill.TextMeasurerFactory;
 import net.sf.jasperreports.engine.util.JRLoader;
+import net.sf.jasperreports.engine.util.JRTextMeasurerFactory;
+import net.sf.jasperreports.engine.util.JRTextMeasurerUtil;
 import net.sf.jasperreports.export.SimpleExporterInput;
 import net.sf.jasperreports.export.SimpleHtmlExporterOutput;
 import net.sf.jasperreports.export.SimpleOutputStreamExporterOutput;
@@ -50,7 +56,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p><b>العربي في PDF:</b> الوحدة بتسجّل Noto Naskh Arabic كـ font extension لـ JasperReports نفسه، مش هنا:
  * الحروف العربية في قالب ما بيسمّيش خطًا بتترسم بيه ({@link ArabicFonts})، والقالب يقدر يسمّي
- * "Noto Naskh Arabic" بنفسه.</p>
+ * "Noto Naskh Arabic" بنفسه. والتعبئة بتقيس النص بـ {@link ArabicTextMeasurerFactory}: السطر العربي اللي خانته
+ * أقصر منه شوية بيترسم بدل ما يختفي، والنص اللي مش هيطلع منه حاجة بيتسجّل تحذير باسمه.</p>
  */
 public final class JasperReportProvider implements ReportProvider {
 
@@ -60,6 +67,14 @@ public final class JasperReportProvider implements ReportProvider {
     private static final long CLASSPATH_STAMP = -1L;
 
     private static final Map<String, CachedTemplate> CACHE = new ConcurrentHashMap<>();
+
+    private static final JasperReportsContext ARABIC_FIT = arabicFitContext();
+
+    private static JasperReportsContext arabicFitContext() {
+        SimpleJasperReportsContext context = new SimpleJasperReportsContext(DefaultJasperReportsContext.getInstance());
+        context.setProperty(JRTextMeasurerUtil.PROPERTY_TEXT_MEASURER_FACTORY, ArabicTextMeasurerFactory.class.getName());
+        return context;
+    }
 
     private record CachedTemplate(JasperReport report, long stamp) {}
 
@@ -78,11 +93,22 @@ public final class JasperReportProvider implements ReportProvider {
             JasperReport jasperReport = compile(request.template());
             JRBeanCollectionDataSource dataSource = new JRBeanCollectionDataSource(request.data());
             Map<String, Object> parameters = new HashMap<>(request.parameters());
-            JasperPrint print = JasperFillManager.fillReport(jasperReport, parameters, dataSource);
+            JasperPrint print = JasperFillManager.getInstance(fillContext()).fill(jasperReport, parameters, dataSource);
             return export(print, request.exportFormat());
         } catch (JRException | IOException e) {
             throw new ReportException("Failed to generate Jasper report from template: " + request.template(), e);
         }
+    }
+
+    /**
+     * سياق التعبئة: سياق JasperReports العام، ومقياس النص فيه {@link ArabicTextMeasurerFactory} لو البرنامج والقالب
+     * ما اختاروش مقياسًا بنفسهم (خاصية القالب أو العنصر بتغلب السياق). سياق واحد لكل التعبئات، عشان الكاش اللي
+     * JasperReports بيحطه في السياق يفضل؛ الخصائص التانية كلها بتتقري من السياق العام وقت التعبئة.
+     */
+    static JasperReportsContext fillContext() {
+        JasperReportsContext global = DefaultJasperReportsContext.getInstance();
+        JRTextMeasurerFactory chosen = JRTextMeasurerUtil.getInstance(global).getFactory(null);
+        return chosen.getClass() == TextMeasurerFactory.class ? ARABIC_FIT : global;
     }
 
     /** يفضّي الكاش؛ مفيد في الاختبارات ولو القوالب بتتبدّل وقت التشغيل. */

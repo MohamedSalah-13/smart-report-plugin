@@ -362,8 +362,11 @@ has not been on a real printer yet; the old one usually had.
 - **A page designed in Jaspersoft Studio** - add `smart-report-jasper` and ask for `ReportType.JASPER` with
   the template's path. Only for a program that already has templates; a new page is quicker as a
   `PdfDocument`. From `v2.7.1` Arabic in a template that names no font is drawn with Noto Naskh Arabic; give
-  each Arabic text box about 1.7 times its font size in height, or JasperReports prints nothing of it, and
-  merge `jasperreports_extension.properties` in a fat jar (see the README).
+  each Arabic text box about 1.7 times its font size in height so the line sits inside it, and merge
+  `jasperreports_extension.properties` in a fat jar (see the README). A shorter Arabic box, down to about 1.15
+  times the font size, still shows its first line, running past the box, and a text that prints nothing is
+  logged as a warning naming the report and the field: when the program's log has these warnings, make the
+  boxes they name taller.
 - **A program with `module-info.java`** - the jars have no module descriptor, only stable automatic names:
   `requires com.smart.report.pdf;`, `requires com.smart.report.fx;` and `requires com.smart.report.api;`
   (for `ReportException`). This has not been tried in a modular program; if the build or the launch

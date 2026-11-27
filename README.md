@@ -452,9 +452,16 @@ JasperReports font extension, and a template chooses its font like this:
 - **A template that names a font** keeps it, and so does a program that changed JasperReports' default font
   (`net.sf.jasperreports.default.font.name`). If that font has no Arabic, set `fontName="Noto Naskh Arabic"` on the
   fields that show Arabic: all of their text is then drawn with it, Latin included, and bold is drawn thickened.
-- **Give Arabic room.** A line of Noto Naskh is about 1.7 times the font size high (room for the vowel marks), and
-  JasperReports does not print a text whose first line does not fit its box: a 10 pt field needs 18 pt, an 18 pt
-  title 31 pt.
+- **Give Arabic room.** A line of Noto Naskh is about 1.7 times the font size high (room for the vowel marks): a
+  10 pt field needs 18 pt, an 18 pt title 31 pt. JasperReports prints nothing of a text whose first line does not
+  fit its box, so `ReportService` fills with `ArabicTextMeasurerFactory`, which changes only that case. In a box
+  that does not grow (`textAdjust` `CutText`, the default), Arabic text with no line that fits gets its first line
+  drawn anyway when the box is at least about 1.15 times the font size (a box that holds the same line in Latin):
+  the box keeps its size, and in a box shorter than about 1.5 times the font size the tails of letters such as
+  ي and ج can reach past its bottom edge. A text that still prints nothing, in any language, is logged as a
+  warning naming the report and the field; so is a line drawn past its box. Text that fits, text without Arabic,
+  `StretchHeight` and `ScaleFont` fields come out exactly as before. A program that fills with `JasperFillManager`
+  itself can set `net.sf.jasperreports.text.measurer.factory=com.smart.report.jasper.ArabicTextMeasurerFactory`.
 
 The extension is registered by `jasperreports_extension.properties` at the root of the jar. A fat jar has to merge
 that file from all jars rather than keep one (maven-shade-plugin: `AppendingTransformer`). With
