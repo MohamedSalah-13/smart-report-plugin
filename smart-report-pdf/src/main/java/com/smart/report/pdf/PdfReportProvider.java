@@ -37,6 +37,10 @@ import java.util.Locale;
  * <p><b>الورق:</b> A4 طولي، إلا لو {@link #PAPER} اتحدد في {@code parameters} بكائن {@link Paper}
  * أو باسمه ({@code "A5"}، {@code "A4-landscape"}).</p>
  *
+ * <p><b>الخط:</b> الخط العام ({@link PdfFontResolver})، إلا لو {@link #FONT} اتحدد بكائن {@link PdfFont}؛
+ * و {@link #FAIL_ON_MISSING_GLYPHS} بيخلّي الحرف اللي مش في أي خط يرمي {@link ReportException} بدل
+ * {@code ?}.</p>
+ *
  * <p>لمستند فيه أكتر من جدول أو ترويسة أو ملخص استخدم {@link PdfDocument} مباشرة؛ وللتقارير ذات
  * التصميم المخصّص بصريًا استخدم وحدة smart-report-jasper.</p>
  */
@@ -46,6 +50,16 @@ public final class PdfReportProvider implements ReportProvider {
     public static final String PAPER = "smart.report.pdf.paper";
     /** مفتاح في {@code ReportRequest.parameters()}: {@code Boolean} يحسم اتجاه التقرير. */
     public static final String RIGHT_TO_LEFT = "smart.report.pdf.rightToLeft";
+    /**
+     * مفتاح في {@code ReportRequest.parameters()}: {@link PdfFont} للتقرير ده بدل الخط العام
+     * ({@link PdfDocument#font(PdfFont)}).
+     */
+    public static final String FONT = "smart.report.pdf.documentFont";
+    /**
+     * مفتاح في {@code ReportRequest.parameters()}: {@code Boolean.TRUE} = حرف مش في أي خط بيرمي
+     * {@link ReportException} بدل ما يتطبع {@code ?} ({@link PdfDocument#failOnMissingGlyphs(boolean)}).
+     */
+    public static final String FAIL_ON_MISSING_GLYPHS = "smart.report.pdf.failOnMissingGlyphs";
 
     @Override
     public ReportType type() {
@@ -62,6 +76,8 @@ public final class PdfReportProvider implements ReportProvider {
         Paper paper = paper(request.parameters().get(PAPER));
         boolean rightToLeft = TextDirection.rightToLeft(request, RIGHT_TO_LEFT);
         PdfDocument document = rightToLeft ? PdfDocument.rtl(paper) : PdfDocument.ltr(paper);
+        document.font(font(request.parameters().get(FONT)))
+                .failOnMissingGlyphs(isTrue(request.parameters().get(FAIL_ON_MISSING_GLYPHS)));
         if (request.title() != null && !request.title().isBlank()) {
             document.title(singleLine(request.title()));
         }
@@ -145,6 +161,19 @@ public final class PdfReportProvider implements ReportProvider {
             case CENTER -> Align.CENTER;
             case END -> Align.END;
         };
+    }
+
+    /** {@code Boolean.TRUE} أو النص {@code "true"} — قيمة جاية من ملف إعدادات مثلًا. */
+    private static boolean isTrue(Object value) {
+        return Boolean.TRUE.equals(value) || value instanceof String text && Boolean.parseBoolean(text.trim());
+    }
+
+    private static PdfFont font(Object value) throws ReportException {
+        if (value == null || value instanceof PdfFont) {
+            return (PdfFont) value;
+        }
+        throw new ReportException("Invalid " + FONT + " parameter: expected a PdfFont, for example"
+                + " PdfFont.of(Path.of(\"fonts/Amiri-Regular.ttf\")), but got " + value.getClass().getName() + ".");
     }
 
     private static Paper paper(Object value) throws ReportException {

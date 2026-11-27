@@ -345,13 +345,51 @@ PdfPreview.of(paper -> ReceiptPdf.document(sale, shop, paper))
 ### Font
 
 The library bundles the **Noto Naskh Arabic** font (regular and bold), so the output is the same on every
-computer with no setup. To change it, in this order:
+computer with no setup. To change it for the whole program, in this order:
 
 1. The `smart.report.pdf.font` property (and optionally `smart.report.pdf.font.bold`) — the path of a `.ttf` file.
 2. A classpath resource named `fonts/report-font.ttf` (and `fonts/report-font-bold.ttf`).
 
-A character the chosen font lacks is tried in a system font (Arial and others), and as a last resort is
-printed as `?` with a warning in the log.
+**A font for one document.** `font(PdfFont)` gives one document its own font; every other document keeps the
+program's font:
+
+```java
+// Make it once and reuse it: the files are read and checked here.
+PdfFont amiri = PdfFont.of(Path.of("fonts/Amiri-Regular.ttf"), Path.of("fonts/Amiri-Bold.ttf"));
+
+PdfDocument.rtl(Paper.A4)
+        .font(amiri)
+        .title("فاتورة ضريبية")
+        // ...
+        .save(Path.of("invoice.pdf"));
+```
+
+- With one file, `PdfFont.of(regular)`, bold text is drawn from it, thickened. `PdfFont.of(byte[])` and
+  `PdfFont.of(byte[], byte[])` take the bytes instead, for a font inside the program's jar.
+- The file must be a TrueType font (`.ttf`) that allows embedding. A font collection (`.ttc`) or an OpenType font
+  with CFF outlines (most `.otf` files) fails with a `ReportException` when the `PdfFont` is made, not when printing.
+- Arabic is drawn with the Arabic presentation forms (U+FB50–U+FDFF and U+FE70–U+FEFF), so an Arabic document
+  needs a font that has them, as Noto Naskh Arabic, Amiri, Arial and Tahoma do.
+- The generic report takes it as a parameter: `.parameter(PdfReportProvider.FONT, amiri)`.
+
+**A character the font lacks** is drawn from **Liberation Sans**, which ships inside PDFBox (SIL Open Font
+License), so it is the same on every computer: `²`, `³`, `½`, `±`, `µ`, `‰`, `≤`, `≥` and other symbols that Noto
+Naskh lacks, so "م³" prints right. A character Liberation Sans lacks too is tried in a system font (Arial and
+others), and as a last resort is printed as `?` with a warning in the log.
+
+**Fail instead of printing `?`.** On an invoice or a statement, a `?` in place of a character is a wrong
+document. `failOnMissingGlyphs(true)` stops writing it with a `ReportException` that names the character, its
+code point and the text it is in:
+
+```java
+PdfDocument.rtl(Paper.A4).failOnMissingGlyphs(true).text("رقم الصنف 中 12").toBytes();
+// ReportException: No PDF font has a glyph for '中' (U+4E2D) in "رقم الصنف 中 12": neither the font
+// NotoNaskhArabic-Regular nor the fallback fonts (Liberation Sans, the system font) draw it. ...
+```
+
+It is off unless set, so a document that does not ask for it prints `?` as before. In the generic report:
+`.parameter(PdfReportProvider.FAIL_ON_MISSING_GLYPHS, true)`. Only a character that neither the document's font
+nor Liberation Sans has depends on the computer: it passes where a system font has it.
 
 > Arabic is prepared automatically before drawing: letters are joined and ordered right to left, with the
 > lam-alef ligature, and letters such as ڤ, چ, گ, پ, ک and ی join as well. This is the work of `ArabicTextShaper`, and it needs no extra dependency (no ICU4J or

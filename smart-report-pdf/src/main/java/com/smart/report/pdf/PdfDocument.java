@@ -92,6 +92,8 @@ public final class PdfDocument {
     private final boolean rightToLeft;
     private final List<Block> blocks = new ArrayList<>();
     private PdfStyle style;
+    private PdfFont font;
+    private boolean failOnMissingGlyphs;
     private String letterheadName = "";
     private List<String> letterheadLines = List.of();
     private byte[] logo;
@@ -118,6 +120,25 @@ public final class PdfDocument {
     /** شكل الصفحة؛ من غيره بيتاخد {@link PdfStyle#forPaper(Paper)}. */
     public PdfDocument style(PdfStyle style) {
         this.style = Objects.requireNonNull(style, "style");
+        return this;
+    }
+
+    /**
+     * خط المستند ده بدل الخط العام ({@code -Dsmart.report.pdf.font} أو Noto Naskh Arabic المضمَّن)، من غير
+     * ما يأثر على أي مستند تاني؛ {@code null} يرجّعه للخط العام.
+     */
+    public PdfDocument font(PdfFont font) {
+        this.font = font;
+        return this;
+    }
+
+    /**
+     * حرف مش في أي خط (لا خط المستند ولا الخطوط الاحتياطية) يوقّف كتابة المستند بـ
+     * {@link ReportException} فيها الحرف وكوده والنص اللي هو فيه، بدل ما يتطبع {@code ?} — للفواتير
+     * والمستندات المالية اللي علامة استفهام مكان حرف فيها غلط. مقفول من غير ما يتحدد.
+     */
+    public PdfDocument failOnMissingGlyphs(boolean value) {
+        this.failOnMissingGlyphs = value;
         return this;
     }
 
@@ -429,7 +450,7 @@ public final class PdfDocument {
 
     /** يرسم المستند على {@code page} ويكتبه في {@code out} لو مش {@code null}؛ بيرجّع الطول المستخدم. */
     private float layOut(Paper page, OutputStream out) throws ReportException {
-        try (PDDocument pdf = new PDDocument(); FontSet fonts = FontSet.load(pdf)) {
+        try (PDDocument pdf = new PDDocument(); FontSet fonts = FontSet.load(pdf, font, failOnMissingGlyphs)) {
             PageWriter writer = new PageWriter(pdf, this, fonts, page);
             writer.write();
             if (out != null) {

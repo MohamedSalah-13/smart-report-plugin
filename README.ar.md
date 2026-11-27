@@ -395,12 +395,48 @@ PdfPreview.of(paper -> ReceiptPdf.document(sale, shop, paper))
 ### الخط
 
 المكتبة فيها خط **Noto Naskh Arabic** مضمَّن (عادي وعريض)، فالناتج واحد على كل جهاز من غير أي إعداد.
-لتغييره، بالترتيب ده:
+لتغييره للبرنامج كله، بالترتيب ده:
 
 1. الخاصية `smart.report.pdf.font` (واختياريًا `smart.report.pdf.font.bold`) — مسار ملف `.ttf`.
 2. مورد على الـ classpath اسمه `fonts/report-font.ttf` (و`fonts/report-font-bold.ttf`).
 
-الحرف اللي مش في الخط المختار بيتجرّب في خط النظام (Arial وغيره)، وآخر حل بيتطبع `?` مع تحذير في الـ log.
+**خط لمستند واحد.** `font(PdfFont)` بيدي مستندًا واحدًا خطه الخاص، وكل مستند تاني بيفضل على خط البرنامج:
+
+```java
+// اعمله مرة واستخدمه على طول: الملفات بتتقرا وتتفحص هنا.
+PdfFont amiri = PdfFont.of(Path.of("fonts/Amiri-Regular.ttf"), Path.of("fonts/Amiri-Bold.ttf"));
+
+PdfDocument.rtl(Paper.A4)
+        .font(amiri)
+        .title("فاتورة ضريبية")
+        // ...
+        .save(Path.of("invoice.pdf"));
+```
+
+- بملف واحد، `PdfFont.of(regular)`، النص العريض بيترسم منه بتسميك. `PdfFont.of(byte[])` و
+  `PdfFont.of(byte[], byte[])` بياخدوا البايتات بدل المسار، لخط جوّه الـ jar بتاع البرنامج.
+- الملف لازم يكون خط TrueType (`.ttf`) مسموح بتضمينه. مجموعة خطوط (`.ttc`) أو OpenType بحدود CFF (أغلب ملفات
+  `.otf`) بترمي `ReportException` وقت عمل الـ `PdfFont`، مش وقت الطباعة.
+- العربي بيترسم بصور الحروف الجاهزة (U+FB50–U+FDFF و U+FE70–U+FEFF)، فالمستند العربي محتاج خطًا فيه الصور دي،
+  زي Noto Naskh Arabic و Amiri و Arial و Tahoma.
+- التقرير العام بياخده في الـ parameters: `.parameter(PdfReportProvider.FONT, amiri)`.
+
+**الحرف اللي مش في الخط** بيترسم من **Liberation Sans** اللي جاي جوّه PDFBox (رخصة SIL Open Font License)،
+فهو واحد على كل جهاز: `²` و `³` و `½` و `±` و `µ` و `‰` و `≤` و `≥` ورموز تانية مش في Noto Naskh، فـ"م³" بتتطبع صح.
+الحرف اللي مش في Liberation Sans كمان بيتجرّب في خط النظام (Arial وغيره)، وآخر حل بيتطبع `?` مع تحذير في الـ log.
+
+**وقّف بدل ما تطبع `?`.** في فاتورة أو كشف حساب، `?` مكان حرف معناها مستند غلط. `failOnMissingGlyphs(true)`
+بيوقّف كتابته بـ `ReportException` فيها الحرف وكوده والنص اللي هو فيه:
+
+```java
+PdfDocument.rtl(Paper.A4).failOnMissingGlyphs(true).text("رقم الصنف 中 12").toBytes();
+// ReportException: No PDF font has a glyph for '中' (U+4E2D) in "رقم الصنف 中 12": neither the font
+// NotoNaskhArabic-Regular nor the fallback fonts (Liberation Sans, the system font) draw it. ...
+```
+
+مقفول لو ما اتحددش، فالمستند اللي ما طلبهوش بيطبع `?` زي الأول. في التقرير العام:
+`.parameter(PdfReportProvider.FAIL_ON_MISSING_GLYPHS, true)`. الحرف الوحيد اللي نتيجته بتفرق من جهاز لجهاز هو
+اللي مش في خط المستند ولا في Liberation Sans: بيعدّي على الجهاز اللي فيه خط نظام بيرسمه.
 
 > العربي بيتظبط تلقائيًا قبل الرسم: الحروف بتتوصّل ببعضها وبتترتب من اليمين لليسار، مع دمج لام-ألف،
 > ومعاها حروف زي ڤ و چ و گ و پ و ک و ی.

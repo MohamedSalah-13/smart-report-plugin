@@ -365,7 +365,7 @@ final class PageWriter {
      */
     private Line line(String logical, String paragraph, boolean bold, float size) throws IOException, ReportException {
         String visual = fonts.unicode() ? ArabicTextShaper.forDisplay(logical, paragraph, rtl) : logical;
-        List<FontSet.Run> runs = fonts.runs(visual, bold);
+        List<FontSet.Run> runs = fonts.runs(visual, bold, paragraph == null ? logical : paragraph);
         return new Line(runs, FontSet.width(runs, size));
     }
 

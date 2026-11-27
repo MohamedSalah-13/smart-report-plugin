@@ -381,8 +381,19 @@ has not been on a real printer yet; the old one usually had.
   `requires com.smart.report.pdf;`, `requires com.smart.report.fx;` and `requires com.smart.report.api;`
   (for `ReportException`). This has not been tried in a modular program; if the build or the launch
   complains, say so to the user rather than working round it silently.
-- **Another font** - the program's own TTF as the classpath resource `fonts/report-font.ttf` (and
-  `fonts/report-font-bold.ttf`), or `-Dsmart.report.pdf.font=/path/to/font.ttf`.
+- **Another font** - for the whole program, the program's own TTF as the classpath resource
+  `fonts/report-font.ttf` (and `fonts/report-font-bold.ttf`), or `-Dsmart.report.pdf.font=/path/to/font.ttf`.
+  For one document (from the release after `v2.8.0`), `document.font(PdfFont.of(regularPath, boldPath))`, or
+  `PdfFont.of(bytes)` for a font inside the jar; other documents keep the program's font. Make the `PdfFont`
+  once and reuse it: it reads and checks the files, and throws `ReportException` for a `.ttc`, a CFF `.otf` or
+  a font that forbids embedding. An Arabic document needs a font with the Arabic presentation forms (Noto Naskh
+  Arabic, Amiri, Arial and Tahoma have them). The generic report takes it as
+  `.parameter(PdfReportProvider.FONT, font)`.
+- **Invoices, statements and other money documents** - add `.failOnMissingGlyphs(true)` (from the release
+  after `v2.8.0`): a character no font has then stops the document with a `ReportException` naming the
+  character, its code point and the text it is in, instead of printing `?`. Show that message where the
+  program shows its errors. It is off unless set; the generic report takes
+  `.parameter(PdfReportProvider.FAIL_ON_MISSING_GLYPHS, true)`.
 - **Receipts on a thermal printer** - the same `PdfDocument` on a roll (from `v2.4.0`):
 
   ```java
@@ -422,8 +433,10 @@ has not been on a real printer yet; the old one usually had.
   or two: open `https://jitpack.io/com/github/MohamedSalah-13/smart-report-plugin/<tag>/build.log`. Check
   that the group id carries the repository name (`...MohamedSalah-13.smart-report-plugin`) and that the
   version has its `v`.
-- **A `?` on the page.** A character no font has. The log names it (`No PDF font has a glyph for U+....`).
-  Use a font that covers it, as under "Variants".
+- **A `?` on the page.** A character no font has. The log names it (`No PDF font has a glyph for ...`).
+  Use a font that covers it, as under "Variants", and `failOnMissingGlyphs(true)` where a `?` must never be
+  printed. Up to `v2.8.0`, `²`, `³`, `½` and `±` (as in "م³") come out as `?` on a computer without Arial or
+  DejaVu; from the release after `v2.8.0` they are drawn from Liberation Sans, which ships inside PDFBox.
 - **Text in the wrong order.** Almost always text that was shaped or reversed before it reached the library,
   or cells written in visual order. Give it logical text and logical columns.
 - **A table too wide.** Too many columns for an upright page: use `paper.landscape()`, or fewer columns.
