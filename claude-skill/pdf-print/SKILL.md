@@ -52,7 +52,9 @@ Use the newest tag of the library:
 preview window (`smart-report-fx`) `v2.1.0`; column formats in the generic report `v2.2.0`; `AmountInWords`
 `v2.3.0`; thermal rolls, the letterhead on every page, `pageFooter` and `signatures` `v2.4.0`; `qrCode`,
 `ZatcaQr` and the readable receipt preview `v2.5.0`; `barcode`, and signature boxes that stay with the summary
-above them, `v2.6.0`. A program on an older tag that needs one of these moves to the newest tag.
+above them, `v2.6.0`; `printOrShow` and the preview's Ctrl+P / Ctrl+S, `ZatcaQr.phase2`, the Gulf currencies and
+amounts in English words, and Arabic in Jasper PDFs `v2.7.0`. A program on an older tag that needs one of these
+moves to the newest tag.
 
 ```xml
 <repositories>
@@ -75,13 +77,13 @@ above them, `v2.6.0`. A program on an older tag that needs one of these moves to
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.6.0</version>
+    <version>v2.7.0</version>
 </dependency>
 <!-- Only for a JavaFX program that wants the preview window. JavaFX itself is the program's own. -->
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-fx</artifactId>
-    <version>v2.6.0</version>
+    <version>v2.7.0</version>
 </dependency>
 ```
 
@@ -149,8 +151,10 @@ What each part is:
 - The amount in words, when the old paper had it ("فقط ... لا غير"):
   `document.text(AmountInWords.arabic(invoice.net(), AmountInWords.Currency.EGP))` (from
   `com.smart.report.util`, in `smart-report-api`, which `smart-report-pdf` brings). Ready currencies: `EGP`,
-  `SAR`, `AED`, `KWD`, `USD`; another is a `new AmountInWords.Currency(...)` with its noun forms (see the
-  README). `arabicWords` gives the words without "فقط ... لا غير". Pass the `BigDecimal` itself, not a
+  `SAR`, `AED`, `KWD`, `USD`, and from `v2.7.0` `QAR`, `BHD`, `OMR`, `JOD`; another is a
+  `new AmountInWords.Currency(...)` with its noun forms (see the README). `arabicWords` gives the words without
+  "فقط ... لا غير". For a bilingual invoice, `AmountInWords.english(amount, AmountInWords.EnglishCurrency.EGP)`
+  gives "Seven thousand two hundred Egyptian pounds only" (from `v2.7.0`). Pass the `BigDecimal` itself, not a
   formatted string; a negative amount is rejected, so write a refund's words from its absolute value.
 - `qrCode(text)` - a QR code, 30 mm and centred; `qrCode(text, Align.START)` puts it at the start of the line
   (right on an Arabic page), and `qrCode(text, sizeMm, align)` sets its side in millimetres. It is drawn as
@@ -176,10 +180,24 @@ What each part is:
   length in UTF-8 bytes, so an Arabic seller name is right. The VAT number must be 15 digits beginning and
   ending with 3, and the amounts must not be negative; otherwise it throws `IllegalArgumentException` -
   validate where the company's settings are saved, not at the till. Use the seller name exactly as registered,
-  and the same totals the page prints. **Phase 2 (integration)** invoices carry more fields in the QR (the
-  hash of the signed XML invoice and its signature) that only come from signing the invoice with the
-  program's ZATCA certificate; `ZatcaQr` does not do that. If the business is already in phase 2, tell the
-  user rather than printing a phase 1 code.
+  and the same totals the page prints. **Phase 2 (integration)** invoices carry four more fields (from
+  `v2.7.0`): the invoice hash, its signature, and the public key and ZATCA's signature from the device's
+  certificate (CSID). They come from signing the invoice's XML with the program's ZATCA certificate, which
+  `ZatcaQr` does not do; the program passes them in:
+
+  ```java
+  String qr = ZatcaQr.phase2(company.legalName(), company.vatNumber(), issuedAt,
+                  invoice.totalWithVat(), invoice.vatTotal())
+          .invoiceHash(signed.digestValue())        // ds:DigestValue, Base64 text
+          .signature(signed.signatureValue())       // ds:SignatureValue, Base64 text
+          .certificate(signed.certificate())        // the X509Certificate the invoice was signed with
+          .payload();
+  document.qrCode(qr, 45, Align.CENTER);            // dense: 45 mm, which still fits a 58 mm roll
+  ```
+
+  The values must match the signed XML (the same name, VAT number, totals and issue time). If the program has
+  no signing step yet, tell the user that phase 2 needs it rather than printing a phase 1 code for a phase 2
+  business. A standard (B2B) invoice gets its QR from ZATCA at clearance: print that one as it is.
 
 Things that matter and are easy to get wrong:
 
@@ -231,7 +249,7 @@ otherwise the preview fails only sometimes, which is the worst way to fail.
 In the window Ctrl+P prints and Ctrl+S saves (⌘ on a Mac); PageUp/PageDown turn the pages and Esc closes it.
 
 For a document printed many times a day (a cashier's receipt), print straight to the remembered printer
-instead of opening the window each time. This needs a tag newer than `v2.6.0`:
+instead of opening the window each time. This needs `v2.7.0` or newer:
 
 ```java
 PdfPreview.of(paper -> ReceiptPdf.document(sale, shop, paper))
@@ -343,7 +361,9 @@ has not been on a real printer yet; the old one usually had.
   6 from `v2.5.0`; a program that uses POI itself should know that.
 - **A page designed in Jaspersoft Studio** - add `smart-report-jasper` and ask for `ReportType.JASPER` with
   the template's path. Only for a program that already has templates; a new page is quicker as a
-  `PdfDocument`.
+  `PdfDocument`. From `v2.7.0` Arabic in a template that names no font is drawn with Noto Naskh Arabic; give
+  each Arabic text box about 1.7 times its font size in height, or JasperReports prints nothing of it, and
+  merge `jasperreports_extension.properties` in a fat jar (see the README).
 - **A program with `module-info.java`** - the jars have no module descriptor, only stable automatic names:
   `requires com.smart.report.pdf;`, `requires com.smart.report.fx;` and `requires com.smart.report.api;`
   (for `ReportException`). This has not been tried in a modular program; if the build or the launch

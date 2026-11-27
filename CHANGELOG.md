@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.7.0] - 2026-11-27
+
+### Added
+- `PdfPreview.printOrShow(owner)`: prints straight on the remembered printer without opening the preview, and opens
+  the preview when there is none. (#16)
+- Ctrl+P prints and Ctrl+S saves in the preview window. (#16)
+- `ZatcaQr.phase2(...)`: the QR code of a ZATCA phase 2 simplified tax invoice. (#19)
+- Amount in words for QAR, BHD, OMR and JOD, and in English (`AmountInWords.english`). (#19)
+
+### Changed
+- The generic Excel report freezes its header row with filter buttons, and is much faster on large reports. (#18)
+
+### Fixed
+- Arabic text disappeared from PDFs exported from Jasper templates. It is now drawn with the bundled Noto Naskh
+  Arabic; Arabic text boxes need about 1.7 times the font size in height (see the README). (#20)
+- A title on the generic Excel report no longer stretches the first column. (#18)
+
 ## [2.6.0] - 2026-11-27
 
 ### Added

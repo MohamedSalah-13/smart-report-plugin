@@ -15,16 +15,18 @@ A Java library for reports and printing, added to any project as a dependency:
 
 ## What's New
 
+### 2.7.0
+
+- **New:** print a receipt straight on the printer the user last chose, without opening the preview each time (`printOrShow`), and Ctrl+P / Ctrl+S in the preview window. See [Preview](#preview-pdfpreview).
+- **New:** the QR code of a ZATCA phase 2 simplified tax invoice (`ZatcaQr.phase2`). See [QR code](#qr-code-and-the-saudi-tax-invoice-qr).
+- **New:** the amount in words for QAR, BHD, OMR and JOD, and in English. See [Amount in words](#amount-in-words-amountinwords).
+- **Fixed:** Arabic no longer disappears from PDFs exported from Jasper templates; give Arabic text boxes about 1.7 times the font size in height. See [Arabic in the PDF](#arabic-in-the-pdf).
+- **Changed:** the generic Excel report freezes a filtered header, keeps its title out of the column widths, and is much faster on large reports.
+
 ### 2.6.0
 
 - **New:** a Code 128 barcode for a shipment, waybill, invoice or item number that a hand scanner reads. Vector bars with the code written under it, and it fits the 58 mm roll. See [Barcode](#barcode-code-128).
 - **Fixed:** signature boxes no longer land alone on a new page: when they do not fit under the summary, the summary (and the amount in words under it) moves with them.
-
-### 2.5.0
-
-- **New:** a QR code on the page - a link, an invoice number, or the QR code of a Saudi simplified tax invoice (`ZatcaQr`, ZATCA phase 1). Sharp vector squares, and it fits the 58 mm roll. See [QR code](#qr-code-and-the-saudi-tax-invoice-qr).
-- **Fixed:** the preview opens a long receipt wide enough to read, and no longer needs a huge image for it.
-- **Upgrade note:** the Excel module now brings Apache POI 6.0.0 (from 5.3.0).
 
 Details of each release are in [CHANGELOG.md](CHANGELOG.md).
 
@@ -55,7 +57,7 @@ The library is served by [JitPack](https://jitpack.io) straight from the reposit
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.6.0</version>
+    <version>v2.7.0</version>
 </dependency>
 ```
 
@@ -216,7 +218,7 @@ String qr = ZatcaQr.phase2("مؤسسة الهدى للتجارة", "310122393500
         .certificate(certificate)        // the device's stamp certificate (CSID) as an X509Certificate
         .payload();
 
-receipt.qrCode(qr, 45);                  // a phase 2 code is denser: give it 45 mm (see below)
+receipt.qrCode(qr, 45, Align.CENTER);    // a phase 2 code is denser: give it 45 mm (see below)
 ```
 
 - Tags 6 to 9 are written as in the worked example of ZATCA's
