@@ -57,6 +57,11 @@ final class PdfText {
         return text;
     }
 
+    /** كل حرف مرسوم بترتيب الرسم. */
+    List<Glyph> glyphs() {
+        return glyphs;
+    }
+
     /** الخطوط اللي رسمت حروفًا، من غير بادئة الـ subset ({@code ABCDEF+}). */
     Set<String> fonts() {
         return fontsOf(codePoint -> true);

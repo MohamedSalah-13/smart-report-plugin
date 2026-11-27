@@ -7,6 +7,8 @@ import com.smart.report.ReportService;
 import com.smart.report.ReportType;
 import net.sf.jasperreports.engine.DefaultJasperReportsContext;
 import net.sf.jasperreports.engine.JRFont;
+import net.sf.jasperreports.engine.fill.NaiveTextMeasurerFactory;
+import net.sf.jasperreports.engine.util.JRTextMeasurerUtil;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,7 +17,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,6 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** العربي في PDF طالع من قالب Jasper، وإزاي القالب بيختار خطه. */
@@ -79,17 +85,145 @@ class ArabicPdfTest {
         return template.toString();
     }
 
+    /** قالب الاختبار وخانة العنوان (18 نقطة عريض) بالارتفاع ده. */
+    private static String titleBox(Path dir, int height) throws Exception {
+        return templateWith(dir, "height=\"36\"", "height=\"" + height + "\"");
+    }
+
+    /** اللي اتكتب على System.err (slf4j-simple في الاختبارات) وقت التقرير. */
+    private static String warningsOf(ReportCall call) throws Exception {
+        PrintStream before = System.err;
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        System.setErr(new PrintStream(err, true, StandardCharsets.UTF_8));
+        try {
+            call.run();
+        } finally {
+            System.setErr(before);
+        }
+        return err.toString(StandardCharsets.UTF_8);
+    }
+
+    @FunctionalInterface
+    private interface ReportCall {
+        void run() throws Exception;
+    }
+
+    /** ارتفاع كلمة لاتينية في الصفحة: الـ y بيقول الـ band اللي تحت العنوان كبر ولا لأ. */
+    private static float yOf(PdfText pdf, String word) {
+        List<PdfText.Glyph> glyphs = pdf.glyphs();
+        for (int start = 0; start + word.length() <= glyphs.size(); start++) {
+            StringBuilder drawn = new StringBuilder();
+            for (int i = start; i < start + word.length(); i++) {
+                drawn.append(glyphs.get(i).text());
+            }
+            if (drawn.toString().equals(word)) {
+                return glyphs.get(start).y();
+            }
+        }
+        throw new AssertionError(word + " مش مرسوم");
+    }
+
     /**
-     * سطر Noto Naskh طوله حوالي 1.7 من حجم الخط (مكان للتشكيل)، و JasperReports ما بيطبعش نصًا أول سطر فيه
-     * أطول من خانته: عنوان 18 نقطة محتاج 31 نقطة، زي ما README بيقول. العنوان الإنجليزي في نفس الخانة بيفضل.
+     * قالب v2.6.0 بالظبط: عنوان 18 نقطة في خانة 30. سطر Noto Naskh حوالي 1.7 من حجم الخط (31 نقطة)، و
+     * JasperReports ما بيطبعش نصًا أول سطر فيه أطول من خانته، فالعنوان كان بيختفي من غير خطأ والصفوف سليمة.
+     * دلوقتي بيترسم، والخانة بمقاسها: عناوين الأعمدة في نفس مكانها مع العنوان الإنجليزي.
      */
     @Test
-    void arabicNeedsABoxTallEnoughForItsLine(@TempDir Path dir) throws Exception {
-        String template = templateWith(dir, "height=\"36\"", "height=\"30\"");
+    void arabicTitleInTheOriginalThirtyPointBoxIsDrawn(@TempDir Path dir) throws Exception {
+        String template = titleBox(dir, 30);
+        PdfText[] arabic = new PdfText[1];
+        String warnings = warningsOf(() -> arabic[0] = pdf(template, "تقرير الموظفين"));
+        PdfText pdf = arabic[0];
 
-        assertFalse(pdf(template, "تقرير الموظفين").text().contains(canonical("تقرير")),
-                "لو العربي بقى يتطبع في خانة أقصر من سطره، صحّح فقرة المساحة في README");
-        assertTrue(pdf(template, "Employee Report").text().contains("Employee Report"));
+        assertTrue(pdf.text().contains(canonical("تقرير الموظفين")), "العنوان مش مرسوم: " + pdf.text());
+        assertTrue(pdf.drawnRightToLeft("تقرير الموظفين"), "العنوان مش مرسوم من اليمين: " + pdf.rightToLeftLines());
+        assertTrue(pdf.text().contains(canonical("أحمد علي")) && pdf.text().contains("Sara Youssef"), pdf.text());
+        assertEquals(NOTO, pdf.fontsOfArabic());
+
+        PdfText english = pdf(template, "Employee Report");
+        assertEquals(yOf(english, "Department"), yOf(pdf, "Department"), 0.01f, "الـ band كبر");
+
+        // مش صامت: التحذير بيسمّي التقرير والخانة، وبيقول المساحة اللي ناقصة
+        assertTrue(warnings.contains("\"employee\"") && warnings.contains("$P{ReportTitle}")
+                && warnings.contains("31 pt") && warnings.contains("30 pt"), warnings);
+        assertFalse(warnings.contains("prints nothing"), warnings);
+    }
+
+    /**
+     * عنوان أطول من سطر في نفس الخانة: أول سطر بس بيترسم (زي ما JasperReports بيقطع أي نص)، والخانة ما بتكبرش.
+     */
+    @Test
+    void onlyTheFirstLineOfALongArabicTitleIsDrawnInATightBox(@TempDir Path dir) throws Exception {
+        String template = titleBox(dir, 30);
+        String title = "تقرير الموظفين " + "قسم الهندسة والمالية والمبيعات ".repeat(4) + "ختام";
+
+        PdfText pdf = pdf(template, title);
+
+        assertTrue(pdf.drawnRightToLeft("تقرير الموظفين"), "أول السطر مش مرسوم: " + pdf.rightToLeftLines());
+        assertFalse(pdf.text().contains(canonical("ختام")), "سطر تاني اترسم بره الخانة: " + pdf.text());
+        assertEquals(yOf(pdf(template, "Employee Report"), "Department"), yOf(pdf, "Department"), 0.01f);
+    }
+
+    /** الـ HTML والـ XLSX بياخدوا نفس النص اللي اتعبّى، فالعنوان بيظهر فيهم كمان. */
+    @Test
+    void arabicTitleInATightBoxReachesHtmlAndXlsx(@TempDir Path dir) throws Exception {
+        String template = titleBox(dir, 30);
+
+        String html = new String(report(template, "تقرير الموظفين", JasperExportFormat.HTML), StandardCharsets.UTF_8);
+        assertTrue(html.contains(">تقرير<") && html.contains(">الموظفين<"), html);
+
+        byte[] xlsx = report(template, "تقرير الموظفين", JasperExportFormat.XLSX);
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(xlsx))) {
+            StringBuilder cells = new StringBuilder();
+            workbook.getSheetAt(0).forEach(row -> row.forEach(cell -> cells.append(cell).append(' ')));
+            assertTrue(cells.toString().contains("تقرير الموظفين"), cells.toString());
+        }
+    }
+
+    /**
+     * خانة أقصر من كده (عنوان 18 نقطة في خانة 18) ما ينفعش يترسم فيها سطر من غير ما يغطي اللي تحته: النص ما
+     * بيترسمش، زي العنوان الإنجليزي في نفس الخانة، بس بتحذير بيقول ليه وبيسمّي الخانة.
+     */
+    @Test
+    void textThatCannotBeDrawnIsReported(@TempDir Path dir) throws Exception {
+        String template = titleBox(dir, 18);
+        PdfText[] arabic = new PdfText[1];
+        String warnings = warningsOf(() -> arabic[0] = pdf(template, "تقرير الموظفين"));
+
+        assertFalse(arabic[0].text().contains(canonical("تقرير")), arabic[0].text());
+        assertTrue(arabic[0].text().contains(canonical("أحمد علي")), arabic[0].text());
+        assertTrue(warnings.contains("$P{ReportTitle}") && warnings.contains("prints nothing")
+                && warnings.contains("1.7 times the font size"), warnings);
+    }
+
+    /**
+     * النص اللي مفيهوش عربي بيتقاس زي الأول بالظبط: العنوان الإنجليزي في خانة أقصر من سطره بيضيع زي ما
+     * JasperReports بيعمل، بس مش في صمت.
+     */
+    @Test
+    void latinTextKeepsJasperReportsCutButIsReported(@TempDir Path dir) throws Exception {
+        String template = titleBox(dir, 18);
+        PdfText[] english = new PdfText[1];
+        String warnings = warningsOf(() -> english[0] = pdf(template, "Employee Report"));
+
+        assertFalse(english[0].text().contains("Employee"), english[0].text());
+        assertTrue(english[0].text().contains("Sara Youssef"), english[0].text());
+        assertTrue(warnings.contains("$P{ReportTitle}") && warnings.contains("prints nothing"), warnings);
+        assertFalse(warnings.contains("1.7 times"), warnings);
+    }
+
+    /** البرنامج اللي اختار مقياس نص لـ JasperReports بنفسه بيفضل باختياره. */
+    @Test
+    void programsOwnTextMeasurerIsKept() {
+        DefaultJasperReportsContext global = DefaultJasperReportsContext.getInstance();
+        String before = global.getProperty(JRTextMeasurerUtil.PROPERTY_TEXT_MEASURER_FACTORY);
+        assertNotSame(global, JasperReportProvider.fillContext());
+        global.setProperty(JRTextMeasurerUtil.PROPERTY_TEXT_MEASURER_FACTORY, NaiveTextMeasurerFactory.class.getName());
+        try {
+            assertSame(global, JasperReportProvider.fillContext());
+        } finally {
+            global.setProperty(JRTextMeasurerUtil.PROPERTY_TEXT_MEASURER_FACTORY, before);
+        }
     }
 
     /**
