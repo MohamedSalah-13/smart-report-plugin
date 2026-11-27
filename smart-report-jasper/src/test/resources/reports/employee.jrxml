@@ -14,8 +14,9 @@
 
     <title>
         <band height="40">
+            <!-- 36 high: a line of 18 pt Arabic in Noto Naskh is 31 pt, and a text whose line does not fit is not printed. -->
             <textField>
-                <reportElement x="0" y="0" width="535" height="30"/>
+                <reportElement x="0" y="0" width="535" height="36"/>
                 <textElement textAlignment="Center">
                     <font size="18" isBold="true"/>
                 </textElement>

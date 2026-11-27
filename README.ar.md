@@ -417,6 +417,27 @@ byte[] pdf = ReportService.generate(ReportType.JASPER, request);  // محتاج 
 `request.data()` بيتحوّل تلقائيًا لـ `JRBeanCollectionDataSource`، و`request.parameters()` بتتبعت كـ
 report parameters (`$P{...}`). القوالب المصرَّفة بتتخزّن ويُعاد استخدامها.
 
+### العربي في الـ PDF
+
+الـ PDF بيرسم كل حرف من خط مضمَّن في الملف. الخط اللي JasperReports بيستخدمه لما القالب ما يسمّيش خطًا
+(`SansSerif`، وبيترسم Helvetica) ما فيهوش عربي، فالنص العربي كان بيختفي من الـ PDF من غير أي خطأ.
+`smart-report-jasper` فيها **Noto Naskh Arabic** (عادي وعريض، نفس خط `smart-report-pdf`) كـ font extension
+لـ JasperReports، والقالب بيختار خطه كده:
+
+- **القالب اللي ما بيسمّيش خطًا** (أو بيسمّي `SansSerif`) مش محتاج حاجة. حروفه العربية وأرقامه الهندية وعلامات
+  الترقيم العربية (، ؛ ؟) بتترسم بـ Noto Naskh Arabic، والعريض منها بالملف العريض، من اليمين للشمال. أي حرف تاني
+  بيفضل بخط JasperReports الافتراضي، فالتقرير اللي مفيهوش عربي بيطلع زي ما كان بالظبط.
+- **القالب اللي بيسمّي خطًا** بيفضل بخطه، وكذلك البرنامج اللي غيّر خط JasperReports الافتراضي
+  (`net.sf.jasperreports.default.font.name`). لو الخط ده ما فيهوش عربي، حط `fontName="Noto Naskh Arabic"` على
+  الخانات اللي فيها عربي: نصها كله بيترسم بيه ساعتها، اللاتيني كمان، والعريض بيتسمّك.
+- **سيب مساحة للعربي.** سطر Noto Naskh طوله حوالي 1.7 من حجم الخط (مكان للتشكيل)، و JasperReports ما بيطبعش
+  نصًا أول سطر فيه أطول من خانته: خانة 10 نقطة محتاجة 18 نقطة، وعنوان 18 نقطة محتاج 31 نقطة.
+
+الـ extension متسجّل بـ `jasperreports_extension.properties` في جذر الـ jar. الـ fat jar لازم يدمج الملف ده من كل
+الـ jars بدل ما يسيب واحد بس (maven-shade-plugin: `AppendingTransformer`). ولو `jasperreports-fonts` (DejaVu) على
+الـ classpath، الـ `SansSerif` بتاعه بيغلب والخط الافتراضي بيرجع من غير عربي: سمّي `DejaVu Sans` أو
+`Noto Naskh Arabic` في القالب.
+
 ## مع Claude Code
 
 المجلد `claude-skill/pdf-print` فيه skill يربط المكتبة بأي مشروع حالي أو جديد: الاعتماد، بناء المستند من

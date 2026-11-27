@@ -47,6 +47,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p><b>الكاش:</b> تصريف الـ .jrxml عملية غالية (بتعدّي على مصرّف جافا)، فالقالب المصرَّف
  * بيتخزّن ويُعاد استخدامه. قوالب القرص بيتعاد تصريفها لوحدها لو الملف اتعدّل، وقوالب الـ classpath
  * بتتصرّف مرة واحدة لأنها ما بتتغيّرش وقت التشغيل.</p>
+ *
+ * <p><b>العربي في PDF:</b> الوحدة بتسجّل Noto Naskh Arabic كـ font extension لـ JasperReports نفسه، مش هنا:
+ * الحروف العربية في قالب ما بيسمّيش خطًا بتترسم بيه ({@link ArabicFonts})، والقالب يقدر يسمّي
+ * "Noto Naskh Arabic" بنفسه.</p>
  */
 public final class JasperReportProvider implements ReportProvider {
 
