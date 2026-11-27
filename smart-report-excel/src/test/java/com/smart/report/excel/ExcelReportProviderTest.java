@@ -9,17 +9,28 @@ import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.util.PaneInformation;
+import org.apache.poi.util.DefaultTempFileCreationStrategy;
+import org.apache.poi.util.TempFile;
+import org.apache.poi.util.TempFileCreationStrategy;
 import org.apache.poi.xssf.usermodel.XSSFName;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -262,6 +273,75 @@ class ExcelReportProviderTest {
         data.add(new Line(0, "صرف مكافأة نهاية الخدمة للموظف حسب قرار مجلس الإدارة"));
 
         assertEquals(sampled, columnWidths(lines(null, data))[1]);
+    }
+
+    static Stream<Arguments> titlesAndSheetNames() {
+        return Stream.of(
+                // كانوا بيرموا ReportException: «Sheet names must not begin or end with (')»
+                Arguments.of("'Q1' sales", "Q1' sales"),
+                Arguments.of("sales 'Q1'", "sales 'Q1"),
+                Arguments.of("' Q1 '", "Q1"),
+                Arguments.of("Ahmed's مصروفات", "Ahmed's مصروفات"),
+                Arguments.of("Sales/2026: Q1?", "Sales 2026  Q1"),
+                Arguments.of("Sales\nReport", "Sales Report"),
+                // 31 حرف بالكتير، والقص ما يسيبش فاصلة عليا في الآخر ولا يقسم إيموجي
+                Arguments.of("Monthly expenses report for all branches", "Monthly expenses report for all"),
+                Arguments.of("Monthly expenses report 'draft' v2", "Monthly expenses report 'draft"),
+                Arguments.of("a".repeat(30) + "😀", "a".repeat(30)),
+                // ما فضلش اسم، أو فضل الاسم اللي Excel حاجزه
+                Arguments.of("'''", "Report"),
+                Arguments.of("???", "Report"),
+                Arguments.of("History", "Report"),
+                Arguments.of("'history'", "Report"),
+                Arguments.of("History 2026", "History 2026"));
+    }
+
+    /** اسم الورقة بقواعد Excel، والعنوان نفسه في أول خلية زي ما هو. */
+    @ParameterizedTest
+    @MethodSource("titlesAndSheetNames")
+    void sheetNameFollowsExcelRulesAndTheTitleStaysAsIs(String title, String sheetName) throws Exception {
+        try (XSSFWorkbook workbook = open(lines(title, List.of(new Line(1, "إيجار"))))) {
+            assertEquals(sheetName, workbook.getSheetName(0));
+            assertEquals(title, workbook.getSheetAt(0).getRow(0).getCell(0).getStringCellValue());
+        }
+    }
+
+    /** SXSSF بيكتب الصفوف في ملفات مؤقتة، وclose() لازم يمسحها: كانت بتتمسح بـ dispose() اللي بقت deprecated. */
+    @Test
+    void temporaryFilesAreDeleted(@TempDir Path directory) {
+        List<File> created = new java.util.ArrayList<>();
+        DefaultTempFileCreationStrategy inDirectory = new DefaultTempFileCreationStrategy(directory.toFile());
+        TempFileCreationStrategy recording = new TempFileCreationStrategy() {
+            @Override
+            public File createTempFile(String prefix, String suffix) throws IOException {
+                File file = inDirectory.createTempFile(prefix, suffix);
+                created.add(file);
+                return file;
+            }
+
+            @Override
+            public File createTempDirectory(String prefix) throws IOException {
+                File file = inDirectory.createTempDirectory(prefix);
+                created.add(file);
+                return file;
+            }
+        };
+        List<Line> data = new java.util.ArrayList<>();
+        for (int i = 0; i < 1_000; i++) { // أكتر من الصفوف اللي بتفضل في الذاكرة، فالملف المؤقت بيتكتب فعلًا
+            data.add(new Line(i, "row-" + i));
+        }
+
+        byte[] xlsx = TempFile.withStrategy(recording, () -> {
+            try {
+                return ReportService.generate(ReportType.EXCEL, lines("Report", data));
+            } catch (com.smart.report.ReportException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+
+        assertTrue(xlsx.length > 0);
+        assertFalse(created.isEmpty(), "SXSSF ما عملش ملفات مؤقتة، فالاختبار ما بيفحصش حاجة");
+        assertEquals(List.of(), created.stream().filter(File::exists).toList());
     }
 
     /** أكتر من طاقة الورقة كان بيرمي IllegalArgumentException من جوّه POI. */

@@ -86,6 +86,12 @@ public final class ExcelReportProvider implements ReportProvider {
     /** عدد صفوف البيانات اللي النصوص فيها بتتقاس لعرض العمود (مع رأس الأعمدة). */
     static final int WIDTH_SAMPLE_ROWS = 500;
 
+    /** اسم الورقة لو مفيش عنوان، أو لو العنوان ما فضلش منه اسم ينفع (شوف {@link #sheetName}). */
+    private static final String DEFAULT_SHEET_NAME = "Report";
+
+    /** أقصى طول لاسم ورقة في Excel. */
+    private static final int MAX_SHEET_NAME = 31;
+
     /** أقصى عرض لعمود في Excel: 255 حرف، بوحدات 1/256 من عرض الحرف. */
     private static final int MAX_COLUMN_WIDTH = 255 * 256;
 
@@ -120,9 +126,9 @@ public final class ExcelReportProvider implements ReportProvider {
         }
 
         // SXSSF بيكتب الصفوف على القرص أول بأول، فتقرير فيه مئات الآلاف من الصفوف
-        // ما بيفضلش كله في الذاكرة زي XSSF
-        SXSSFWorkbook workbook = new SXSSFWorkbook(ROW_WINDOW);
-        try (workbook) {
+        // ما بيفضلش كله في الذاكرة زي XSSF. close() بيمسح الملفات المؤقتة دي (في POI 6 بينادي dispose()
+        // بنفسه، و dispose() بقت deprecated)، فالـ try بيمسحها حتى لو حصل خطأ.
+        try (SXSSFWorkbook workbook = new SXSSFWorkbook(ROW_WINDOW)) {
             workbook.setCompressTempFiles(true);
             SXSSFSheet sheet = workbook.createSheet(sheetName(request.title()));
             boolean rightToLeft = TextDirection.rightToLeft(request, RIGHT_TO_LEFT);
@@ -202,8 +208,6 @@ public final class ExcelReportProvider implements ReportProvider {
             return out.toByteArray();
         } catch (IOException e) {
             throw new ReportException("Failed to generate Excel report.", e);
-        } finally {
-            workbook.dispose(); // بيمسح الملفات المؤقتة اللي SXSSF عملها
         }
     }
 
@@ -526,11 +530,27 @@ public final class ExcelReportProvider implements ReportProvider {
         return new Styles(title, header, headerFont);
     }
 
-    private String sheetName(String title) {
-        if (title == null || title.isBlank()) return "Report";
-        String sanitized = title.replaceAll("[\\\\/*\\[\\]:?]", " ").trim();
-        if (sanitized.isEmpty()) return "Report";
-        return sanitized.length() > 31 ? sanitized.substring(0, 31) : sanitized;
+    /**
+     * اسم الورقة من العنوان، بقواعد Excel (اللي POI بيرمي {@code IllegalArgumentException} لو اتكسرت، فكان
+     * التقرير كله بيقع بسبب عنوان): الحروف {@code \ / * [ ] : ?} وحروف التحكم بتبقى مسافة، والفاصلة العليا
+     * والمسافات بتتشال من الطرفين ({@code 'Q1' sales} ← {@code Q1' sales})، والاسم 31 حرف بالكتير. ولو ما
+     * فضلش اسم، أو فضل {@code History} اللي Excel حاجزه لنفسه (POI ما بيمنعهوش، بس Excel ما بيقبلهوش اسم
+     * ورقة)، الاسم {@link #DEFAULT_SHEET_NAME}. العنوان في الخلية نفسها زي ما هو.
+     */
+    private static String sheetName(String title) {
+        if (title == null) return DEFAULT_SHEET_NAME;
+        String name = trimSheetName(title.replaceAll("[\\\\/*\\[\\]:?\\p{Cntrl}]", " "));
+        if (name.length() > MAX_SHEET_NAME) {
+            // من غير ما يتقسم حرف من حرفين UTF-16 (إيموجي مثلًا)
+            int end = Character.isHighSurrogate(name.charAt(MAX_SHEET_NAME - 1)) ? MAX_SHEET_NAME - 1 : MAX_SHEET_NAME;
+            // القص ممكن يسيب فاصلة عليا أو مسافة في الآخر
+            name = trimSheetName(name.substring(0, end));
+        }
+        return name.isEmpty() || name.equalsIgnoreCase("History") ? DEFAULT_SHEET_NAME : name;
+    }
+
+    private static String trimSheetName(String name) {
+        return name.replaceAll("^[\\s']+|[\\s']+$", "");
     }
 
     private record Styles(CellStyle title, CellStyle header, Font bold) {}
