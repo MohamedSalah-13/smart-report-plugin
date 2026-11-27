@@ -6,7 +6,7 @@
 
 A Java library for reports and printing, added to any project as a dependency:
 
-- **Print-ready Arabic PDF documents** on A4 and A5 (portrait and landscape): letterhead, title, fields, several tables with a totals row, a summary, page numbers — and direct output to a printer. Apache PDFBox only.
+- **Print-ready Arabic PDF documents** on A4 and A5 (portrait and landscape): letterhead, title, fields, several tables with a totals row, a summary, page numbers, a QR code — and direct output to a printer. Apache PDFBox (and ZXing core to encode the QR code).
 - **A ready JavaFX preview window**: the pages as they will print, a choice of printer, paper and copies, print and save as PDF.
 - **A generic PDF or Excel report from a `List<POJO>`**, with no template.
 - **JasperReports** (visually designed `.jrxml`/`.jasper` templates): export to PDF, XLSX, HTML or CSV.
@@ -34,11 +34,11 @@ Each kind of report is its own Maven module, so a program that only prints PDFs 
 
 | Module | What is in it | What it brings |
 |---|---|---|
-| `smart-report-pdf` | `PdfDocument`, `PdfPrinter`, `PdfPages`, and the generic PDF report | PDFBox |
+| `smart-report-pdf` | `PdfDocument`, `PdfPrinter`, `PdfPages`, and the generic PDF report | PDFBox, ZXing core (QR code) |
 | `smart-report-fx` | `PdfPreview`: the preview window | `smart-report-pdf`; and your program's own JavaFX (`provided`) |
 | `smart-report-excel` | The generic Excel report | Apache POI |
 | `smart-report-jasper` | Jasper template reports | JasperReports |
-| `smart-report-api` | `ReportService` and `ReportRequest` — comes along with any module above | slf4j-api only |
+| `smart-report-api` | `ReportService`, `ReportRequest`, `AmountInWords` and `ZatcaQr` — comes along with any module above | slf4j-api only |
 
 ## Installation
 
@@ -149,6 +149,47 @@ PdfDocument receipt = PdfDocument.rtl(Paper.ROLL_80)          // or Paper.ROLL_5
   uses its own roll.
 - `Paper.parse("80mm")` and the preview window know the rolls too. The preview opens a receipt at a readable size
   (as wide as the window allows, up to twice its size) instead of fitting the whole length into the window.
+
+### QR code (and the Saudi tax invoice QR)
+
+```java
+document.qrCode("https://example.com/invoices/2026-0042");   // 30 mm, centred
+document.qrCode(invoiceNumber, 25, Align.START);              // 25 mm, at the start of the line (right in Arabic)
+```
+
+The QR code a simplified tax invoice carries in Saudi Arabia (ZATCA e-invoicing, phase 1): the seller's name, VAT
+number, the time, the total with VAT and the VAT, encoded as ZATCA specifies:
+
+```java
+import com.smart.report.util.ZatcaQr;
+
+String qr = ZatcaQr.payload("مؤسسة الهدى للتجارة", "310122393500003",
+        LocalDateTime.now().atZone(ZoneId.of("Asia/Riyadh")).toInstant(),
+        new BigDecimal("1150.00"), new BigDecimal("150.00"));
+
+PdfDocument receipt = PdfDocument.rtl(Paper.ROLL_80)
+        .letterhead("مؤسسة الهدى للتجارة", "الرقم الضريبي 310122393500003")
+        .title("فاتورة ضريبية مبسطة")
+        .table(items)
+        .summary("ضريبة القيمة المضافة 15%", "150.00")
+        .summaryTotal("الإجمالى شامل الضريبة", "1,150.00")
+        .qrCode(qr);
+```
+
+- Drawn as vector squares, not an image, so it stays sharp on any printer. A quiet zone of 4 modules is left
+  around it, and it is never split across two pages.
+- The size is the side of the code in millimetres. On a narrow roll a code too wide for the line shrinks to fit,
+  and the receipt is still cut right under it.
+- `Align.START` puts it at the start of the line (right in an Arabic document), `Align.END` at the end, and
+  `Align.CENTER` (the default) in the middle. Arabic text is encoded as UTF-8.
+- `ZatcaQr.payload` returns the Base64 of the TLV fields (tags 1 to 5, each value's length in UTF-8 bytes, so an
+  Arabic name counts its bytes, not its letters). The time is written in UTC and the amounts with two decimals; a
+  VAT number that is not 15 digits beginning and ending with 3 is rejected. It lives in `smart-report-api` and
+  needs no library.
+- Phase 2 (integration) codes carry more fields (the invoice hash and its signature) that only come from signing
+  the invoice; `ZatcaQr` covers phase 1.
+- The code is encoded by [ZXing](https://github.com/zxing/zxing) core (Apache License 2.0, no dependencies of its
+  own), which `smart-report-pdf` brings.
 
 ### Style (`PdfStyle`)
 

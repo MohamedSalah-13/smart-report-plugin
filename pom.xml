@@ -36,6 +36,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <pdfbox.version>3.0.8</pdfbox.version>
+        <zxing.version>3.5.4</zxing.version>
         <poi.version>6.0.0</poi.version>
         <jasperreports.version>6.21.3</jasperreports.version>
         <slf4j.version>2.0.20</slf4j.version>
@@ -63,6 +64,11 @@
                 <groupId>org.apache.pdfbox</groupId>
                 <artifactId>pdfbox</artifactId>
                 <version>${pdfbox.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.zxing</groupId>
+                <artifactId>core</artifactId>
+                <version>${zxing.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.poi</groupId>

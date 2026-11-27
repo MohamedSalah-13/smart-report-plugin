@@ -169,6 +169,7 @@ final class PageWriter {
             }
             case PdfDocument.SummaryBlock summary -> summary(summary.lines());
             case PdfDocument.SignaturesBlock signatures -> signatures(signatures.labels());
+            case PdfDocument.QrBlock qr -> qrCode(qr);
         }
     }
 
@@ -538,6 +539,49 @@ final class PageWriter {
             rule(boxLeft + inset, boxLeft + cell - inset, y - height, style.textColor(), 0.6f);
         }
         y -= height + 2;
+    }
+
+    /**
+     * رمز QR بمنطقته الفاضية، كله في صفحة واحدة. المنطقة الفاضية جزء من مكانه، فمفيش حاجة قبله أو بعده
+     * بتلمسه. لو هو ومنطقته أعرض من السطر أو أطول من صفحة جديدة بيصغر لحد ما يكفي.
+     *
+     * <p>المربعات الغامقة المتجاورة في الصف بتترسم مستطيلًا واحدًا، والكل مسار واحد بيتملى مرة واحدة: مربعات
+     * منفصلة بتسيب خطوط رفيعة فاتحة بينها في بعض البرامج وعلى بعض الطابعات.</p>
+     */
+    private void qrCode(PdfDocument.QrBlock qr) throws IOException, ReportException {
+        QrSymbol symbol = qr.symbol();
+        int modules = symbol.size();
+        int span = modules + 2 * QrSymbol.QUIET_ZONE;
+        float module = Math.min(qr.size() / modules, Math.min(width, freshRoom()) / span);
+        float side = span * module;
+        gap(BLOCK_GAP);
+        need(side);
+        float boxLeft = switch (side(qr.align())) {
+            case LEFT -> left;
+            case CENTER -> left + (width - side) / 2;
+            case RIGHT -> right - side;
+        };
+        float originX = boxLeft + QrSymbol.QUIET_ZONE * module;
+        float originY = y - QrSymbol.QUIET_ZONE * module;
+        // أسود مهما كان لون النص: القارئ محتاج أعلى تباين.
+        setFill(0x000000);
+        for (int row = 0; row < modules; row++) {
+            int column = 0;
+            while (column < modules) {
+                if (!symbol.dark(row, column)) {
+                    column++;
+                    continue;
+                }
+                int start = column;
+                while (column < modules && symbol.dark(row, column)) {
+                    column++;
+                }
+                stream.addRect(originX + start * module, originY - (row + 1) * module, (column - start) * module,
+                        module);
+            }
+        }
+        stream.fill();
+        y -= side;
     }
 
     /** الملخص: جدول بلا رأس من عمودين، وسطر الإجمالي فيه بخط أكبر. */
