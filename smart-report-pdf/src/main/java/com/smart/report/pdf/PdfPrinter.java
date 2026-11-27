@@ -14,6 +14,7 @@ import javax.print.attribute.standard.Copies;
 import javax.print.attribute.standard.JobName;
 import javax.print.attribute.standard.MediaSize;
 import javax.print.attribute.standard.MediaSizeName;
+import javax.print.attribute.standard.SheetCollate;
 import java.awt.print.PrinterException;
 import java.awt.print.PrinterJob;
 import java.io.IOException;
@@ -59,6 +60,18 @@ public final class PdfPrinter {
         print(document.toBytes(), printerName, document.paper(), copies);
     }
 
+    /**
+     * يبني مستندات الدفعة ويبعتها للطابعة مهمة واحدة على ورقتها: النسخ بتطلع مجموعات كاملة (الدفعة كلها،
+     * وبعدها الدفعة كلها تاني)، مش كل صفحة مكررة ورا بعضها.
+     *
+     * @throws ReportException لو المستندات مش على نفس الورقة ({@link PdfBatch})، أو الطابعة مش موجودة أو
+     *                         رفضت المهمة
+     */
+    public static void print(PdfBatch batch, String printerName, int copies) throws ReportException {
+        Objects.requireNonNull(batch, "batch");
+        print(batch.toBytes(), printerName, batch.paper(), copies);
+    }
+
     /** يطبع ملف PDF موجودًا. */
     public static void print(Path file, String printerName, Paper paper, int copies) throws ReportException {
         Objects.requireNonNull(file, "file");
@@ -72,7 +85,8 @@ public final class PdfPrinter {
     /**
      * @param printerName اسم الطابعة كما في {@link #printerNames()}؛ {@code null} أو فاضي = الافتراضية
      * @param paper       الورقة المطلوبة من الطابعة؛ {@code null} = الطابعة تختار
-     * @param copies      عدد النسخ من المستند كله، بين 1 و{@link #MAX_COPIES}
+     * @param copies      عدد النسخ من المستند كله، بين 1 و{@link #MAX_COPIES}؛ المستند اللي أكتر من صفحة
+     *                    بيطلع نسخًا كاملة مرتبة (1، 2، 3، 1، 2، 3)
      * @throws ReportException لو الطابعة مش موجودة على الجهاز، أو رفضت المهمة، أو الملف مش PDF
      */
     public static void print(byte[] pdf, String printerName, Paper paper, int copies) throws ReportException {
@@ -91,7 +105,13 @@ public final class PdfPrinter {
             if (media != null) {
                 attributes.add(media);
             }
-            attributes.add(new Copies(Math.clamp(copies, 1, MAX_COPIES)));
+            int count = Math.clamp(copies, 1, MAX_COPIES);
+            attributes.add(new Copies(count));
+            if (count > 1 && document.getNumberOfPages() > 1) {
+                // نسخ كاملة مرتبة: من غير الطلب ده الطابعة ممكن تكرر كل صفحة ورا بعضها (1، 1، 2، 2)، والدفعة
+                // تطلع كشوفها متلخبطة. لو الدرايفر ما بيرتبش، Java بتبعت المستند كله كذا مرة في نفس المهمة.
+                attributes.add(SheetCollate.COLLATED);
+            }
             String title = document.getDocumentInformation().getTitle();
             attributes.add(new JobName(title == null || title.isBlank() ? "Report" : title, null));
             job.print(attributes);

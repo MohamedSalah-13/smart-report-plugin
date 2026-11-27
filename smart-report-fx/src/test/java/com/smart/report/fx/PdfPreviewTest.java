@@ -2,7 +2,9 @@ package com.smart.report.fx;
 
 import com.smart.report.ReportException;
 import com.smart.report.pdf.Paper;
+import com.smart.report.pdf.PdfBatch;
 import com.smart.report.pdf.PdfDocument;
+import com.smart.report.pdf.PdfPages;
 import com.smart.report.pdf.PdfTable;
 import javafx.application.Platform;
 import javafx.event.Event;
@@ -224,6 +226,56 @@ class PdfPreviewTest {
         assertTrue(onFx(() -> PdfPreviewTest.<Button>node(stage, "save").isDisabled()));
         assertTrue(onFx(() -> PdfPreviewTest.<Button>node(stage, "print").isDisabled()));
         assertNotNull(stage);
+    }
+
+    private static int pageCount(byte[] pdf) throws Exception {
+        try (PdfPages pages = PdfPages.open(pdf)) {
+            return pages.count();
+        }
+    }
+
+    /** الدفعة بتتعاين بصفحات كل مستنداتها ورا بعض، على ورقتها، وبتتطبع مهمة واحدة. */
+    @Test
+    void aBatchIsPreviewedWholeAndPrintedAsOneJob() throws Exception {
+        assumeTrue(toolkit, "no display");
+        FakeSystem system = new FakeSystem("Office");
+        PdfBatch batch = PdfBatch.of(report(Paper.A5), PdfDocument.ltr(Paper.A5).title("Second").text("one page"));
+        int pages = pageCount(batch.toBytes());
+        Stage stage = onFx(() -> faked(PdfPreview.of(batch), system).rightToLeft(false).show(null));
+
+        await("the whole batch", () -> pageCount(stage) == pages);
+        assertNull(onFx(() -> stage.getScene().lookup("#paper")), "ورقة الدفعة بس، من غير اختيار");
+        await("the print button", () -> !PdfPreviewTest.<Button>node(stage, "print").isDisabled());
+        onFx(() -> {
+            PdfPreviewTest.<Button>node(stage, "print").fire();
+            return null;
+        });
+        await("the print", () -> system.jobs.size() == 1);
+        assertEquals(Paper.A5, system.jobs.get(0).paper());
+        assertEquals(pages, pageCount(system.jobs.get(0).pdf()), "كل الصفحات في مهمة واحدة");
+    }
+
+    /** الدفعة اللي بتتبني لكل ورقة بتتبني من جديد لما الورقة تتغير؛ والدفعة اللي ورقها مختلط بتقول إنها فشلت. */
+    @Test
+    void aBatchBuiltPerPaperFollowsThePaperChoice() throws Exception {
+        assumeTrue(toolkit, "no display");
+        Stage stage = onFx(() -> PdfPreview.ofBatch(paper -> PdfBatch.of(report(paper), report(paper)))
+                .rightToLeft(false).paper(Paper.A4).show(null));
+        await("the A4 batch", () -> pageCount(stage) > 0);
+        int onA4 = onFx(() -> pageCount(stage));
+        assertEquals(pageCount(PdfBatch.of(report(Paper.A4), report(Paper.A4)).toBytes()), onA4);
+
+        onFx(() -> {
+            PdfPreviewTest.<ComboBox<Paper>>node(stage, "paper").setValue(Paper.A5);
+            return null;
+        });
+        await("the A5 batch", () -> pageCount(stage) > onA4);
+
+        Stage mixed = onFx(() -> PdfPreview.of(PdfBatch.of(report(Paper.A4), report(Paper.A5))).rightToLeft(false)
+                .show(null));
+        await("the mixed-paper failure", () -> PreviewTexts.english().buildFailed()
+                .equals(PdfPreviewTest.<Label>node(mixed, "status").getText()));
+        assertTrue(onFx(() -> PdfPreviewTest.<Button>node(mixed, "print").isDisabled()));
     }
 
     private static PdfDocument receipt(Paper paper, int items) {

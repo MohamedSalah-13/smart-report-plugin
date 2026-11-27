@@ -331,7 +331,7 @@ final class PreviewWindow {
         worker.submit(() -> {
             Loaded fresh;
             try {
-                byte[] bytes = setup.source.apply(chosen).toBytes();
+                byte[] bytes = setup.source.pdf(chosen);
                 PdfPages pages = PdfPages.open(bytes);
                 int count = pages.count();
                 float[] widths = new float[count];

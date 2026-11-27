@@ -80,6 +80,10 @@ public final class PdfDocument {
     record BarcodeBlock(BarcodeSymbol symbol, float height, Align align) implements Block {
     }
 
+    /** الجزء اللي بعده يبدأ في صفحة جديدة؛ القواعد في {@link #pageBreak()}. */
+    record PageBreakBlock() implements Block {
+    }
+
     /** ضلع رمز QR لو ما اتحدّدش: 30 مم، بيتقرا بسهولة من الموبايل ويكفي في عرض لفة 58 مم. */
     static final float DEFAULT_QR_MM = 30f;
 
@@ -92,6 +96,8 @@ public final class PdfDocument {
     private final boolean rightToLeft;
     private final List<Block> blocks = new ArrayList<>();
     private PdfStyle style;
+    private PdfFont font;
+    private boolean failOnMissingGlyphs;
     private String letterheadName = "";
     private List<String> letterheadLines = List.of();
     private byte[] logo;
@@ -118,6 +124,25 @@ public final class PdfDocument {
     /** شكل الصفحة؛ من غيره بيتاخد {@link PdfStyle#forPaper(Paper)}. */
     public PdfDocument style(PdfStyle style) {
         this.style = Objects.requireNonNull(style, "style");
+        return this;
+    }
+
+    /**
+     * خط المستند ده بدل الخط العام ({@code -Dsmart.report.pdf.font} أو Noto Naskh Arabic المضمَّن)، من غير
+     * ما يأثر على أي مستند تاني؛ {@code null} يرجّعه للخط العام.
+     */
+    public PdfDocument font(PdfFont font) {
+        this.font = font;
+        return this;
+    }
+
+    /**
+     * حرف مش في أي خط (لا خط المستند ولا الخطوط الاحتياطية) يوقّف كتابة المستند بـ
+     * {@link ReportException} فيها الحرف وكوده والنص اللي هو فيه، بدل ما يتطبع {@code ?} — للفواتير
+     * والمستندات المالية اللي علامة استفهام مكان حرف فيها غلط. مقفول من غير ما يتحدد.
+     */
+    public PdfDocument failOnMissingGlyphs(boolean value) {
+        this.failOnMissingGlyphs = value;
         return this;
     }
 
@@ -331,6 +356,30 @@ public final class PdfDocument {
         return this;
     }
 
+    /**
+     * الجزء اللي بعده يبدأ في صفحة جديدة — قسم لكل عربية، أو الملاحق بعد الكشف.
+     *
+     * <ul>
+     *   <li>الفاصل ما بيطلّعش صفحة فاضية أبدًا: لو الصفحة الحالية لسه مفيهاش حاجة تحت الترويسة (الفاصل
+     *       في أول المستند، أو فاصلين ورا بعض) ما بيعملش حاجة، والفاصل اللي مفيش بعده حاجة بتترسم (آخر
+     *       المستند، أو بعده مسافات ونص فاضي بس) ما بيسيبش صفحة، ولا صفحة فيها التذييل لوحده.</li>
+     *   <li>الصفحة الجديدة زي أي صفحة بيفتحها المحتوى الطويل: الترويسة في أعلاها لو
+     *       {@link #letterheadOnEveryPage(boolean)}، وترقيم الصفحات بيكمل («صفحة 2 من 3»).</li>
+     *   <li>بعد جدول كمل على كذا صفحة، الفاصل بييجي بعد آخر صف فيه (والإجمالي)، ورأس الجدول ما بيتكررش في
+     *       الصفحة الجديدة: الجدول خلص. عشان كل مجموعة صفوف تبدأ في صفحة، اعمل جدول لكل مجموعة وبينهم فاصل.</li>
+     *   <li>على الورق الحراري ({@link Paper#roll()}) الإيصال صفحة واحدة بطول المحتوى، فالفاصل
+     *       <b>ما بيعملش حاجة</b>: نفس المستند بيتبني لأي ورق من غير ما يفشل على اللفة، والإيصال زي ما هو من
+     *       غيره بالظبط (البيانات وسطور الملخص اللي حواليه بتفضل مع بعض). عشان كل إيصال يتقص لوحده، اطبعهم
+     *       {@link PdfBatch}.</li>
+     * </ul>
+     *
+     * <p>كل قسم بترقيمه وترويسته (كشف لكل سواق في ملف واحد) ده {@link PdfBatch}، مش فاصل.</p>
+     */
+    public PdfDocument pageBreak() {
+        // على اللفة ما بيتضافش خالص: لو اتضاف، البيانات وسطور الملخص اللي قبله وبعده كانت هتبقى صفين وصندوقين.
+        return paper.roll() ? this : add(new PageBreakBlock());
+    }
+
     /** جملة ختامية صغيرة في منتصف الصفحة بعد آخر جزء. */
     public PdfDocument footer(String text) {
         this.footer = text == null ? "" : text;
@@ -429,7 +478,7 @@ public final class PdfDocument {
 
     /** يرسم المستند على {@code page} ويكتبه في {@code out} لو مش {@code null}؛ بيرجّع الطول المستخدم. */
     private float layOut(Paper page, OutputStream out) throws ReportException {
-        try (PDDocument pdf = new PDDocument(); FontSet fonts = FontSet.load(pdf)) {
+        try (PDDocument pdf = new PDDocument(); FontSet fonts = FontSet.load(pdf, font, failOnMissingGlyphs)) {
             PageWriter writer = new PageWriter(pdf, this, fonts, page);
             writer.write();
             if (out != null) {

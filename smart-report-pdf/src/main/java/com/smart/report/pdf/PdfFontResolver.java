@@ -1,5 +1,6 @@
 package com.smart.report.pdf;
 
+import org.apache.pdfbox.pdmodel.PDDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,8 +27,12 @@ import java.util.concurrent.atomic.AtomicReference;
  *     <li>خطوط النظام المعروفة على Windows/Linux/macOS، لو الخط المضمَّن اتشال من الـ jar.</li>
  * </ol>
  *
- * <p>خط النظام بيتستخدم كمان كاحتياطي للحروف اللي مش في الخط المختار ({@link #systemFallback()}):
- * علامة ³ مثلًا مش في Noto Naskh.</p>
+ * <p>ده الخط العام للبرنامج كله؛ المستند اللي محتاج خطًا تاني بيحدّده لنفسه بـ
+ * {@link PdfDocument#font(PdfFont)} من غير ما يأثر على باقي المستندات.</p>
+ *
+ * <p>الحرف اللي مش في خط المستند بيتدوّر عليه في خطين احتياطيين بالترتيب: Liberation Sans اللي جاي جوّه
+ * PDFBox نفسه ({@link #symbolFallback()}) — فيه ² و ³ و ½ و ± و µ و ‰ و ≤ و ≥ اللي مش في Noto Naskh، وهو
+ * هو على كل جهاز — وبعده خط النظام ({@link #systemFallback()}) للباقي.</p>
  *
  * <p>لو مفيش أي خط اتلقى، المكتبة بترجع لـ Helvetica وبترمي {@link com.smart.report.ReportException}
  * برسالة واضحة أول ما يجيلها نص خارج Latin-1.</p>
@@ -70,9 +75,17 @@ public final class PdfFontResolver {
             new String[] {"/Library/Fonts/Arial.ttf", "/Library/Fonts/Arial Bold.ttf"}
     );
 
+    /**
+     * Liberation Sans (رخصة SIL OFL) جوّه jar الـ PDFBox اللي المكتبة معتمدة عليه أصلًا، و PDFBox بيستخدمه
+     * لنفس الغرض: مش ملف خط زيادة في المكتبة.
+     */
+    private static final String SYMBOL_FONT = "/org/apache/pdfbox/resources/ttf/LiberationSans-Regular.ttf";
+
     private static final AtomicReference<Fonts> CACHE = new AtomicReference<>();
     /** خط النظام الاحتياطي: مصفوفة فاضية معناها "اتدوّر عليه ومش موجود". */
     private static final AtomicReference<byte[]> FALLBACK = new AtomicReference<>();
+    /** خط الرموز الاحتياطي، والمصفوفة الفاضية بنفس المعنى. */
+    private static final AtomicReference<byte[]> SYMBOLS = new AtomicReference<>();
 
     /** بايتات الخط العادي والعريض، أو {@code null} في أي منهما لو مش متاح. */
     public record Fonts(byte[] regular, byte[] bold) {
@@ -97,6 +110,29 @@ public final class PdfFontResolver {
     public static void clearCache() {
         CACHE.set(null);
         FALLBACK.set(null);
+        SYMBOLS.set(null);
+    }
+
+    /**
+     * أول خط احتياطي للحروف اللي مش في خط المستند: Liberation Sans من PDFBox؛ {@code null} لو نسخة PDFBox
+     * ما فيهاش الملف. بيتقرا مرة واحدة، وما بيتحمّلش في المستند غير لما حرف ناقص يحتاجه.
+     */
+    static byte[] symbolFallback() {
+        byte[] cached = SYMBOLS.get();
+        if (cached == null) {
+            byte[] found;
+            try (InputStream in = PDDocument.class.getResourceAsStream(SYMBOL_FONT)) {
+                found = in == null ? new byte[0] : in.readAllBytes();
+            } catch (IOException e) {
+                found = new byte[0];
+            }
+            if (found.length == 0) {
+                log.debug("PDFBox carries no {}; glyphs the report font lacks go to the system font", SYMBOL_FONT);
+            }
+            SYMBOLS.compareAndSet(null, found);
+            cached = SYMBOLS.get();
+        }
+        return cached.length == 0 ? null : cached;
     }
 
     /**
