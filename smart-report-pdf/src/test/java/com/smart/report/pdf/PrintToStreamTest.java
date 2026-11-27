@@ -24,6 +24,7 @@ import javax.print.attribute.standard.Copies;
 import javax.print.attribute.standard.JobName;
 import javax.print.attribute.standard.Media;
 import javax.print.attribute.standard.MediaSizeName;
+import javax.print.attribute.standard.SheetCollate;
 import javax.print.event.PrintJobAttributeListener;
 import javax.print.event.PrintJobListener;
 import javax.print.event.PrintServiceAttributeListener;
@@ -70,8 +71,8 @@ class PrintToStreamTest {
         }
     }
 
-    /** اللي وصل الخدمة: طلبات المهمة، والصفحات زي ما Java سلّمتها، والـ PostScript اللي اتكتب. */
-    private record Sent(PrintRequestAttributeSet attributes, Pageable pageable, String postScript) {
+    /** اللي وصل الخدمة: عدد المهام، وطلبات المهمة، والصفحات زي ما Java سلّمتها، والـ PostScript اللي اتكتب. */
+    private record Sent(int jobs, PrintRequestAttributeSet attributes, Pageable pageable, String postScript) {
 
         Attribute media() {
             return attributes.get(Media.class);
@@ -99,7 +100,7 @@ class PrintToStreamTest {
         assertNotNull(service.doc, "the job never reached the print service");
         String postScript = out.toString(StandardCharsets.ISO_8859_1);
         assertTrue(postScript.startsWith("%!PS"), "PostScript was written");
-        return new Sent(service.attributes, (Pageable) service.doc.getPrintData(), postScript);
+        return new Sent(service.jobs, service.attributes, (Pageable) service.doc.getPrintData(), postScript);
     }
 
     /** كل صفحات المستند وصلت، وكل ورقة طلبها الـ PostScript بالمقاس ده (بالنقطة). */
@@ -178,6 +179,95 @@ class PrintToStreamTest {
 
         Sent none = print(pdf, Paper.A5, 0);
         assertEquals(new Copies(1), none.attributes().get(Copies.class));
+        assertNull(many.attributes().get(SheetCollate.class), "صفحة واحدة: مفيش ترتيب، والطابعة بتعمل النسخ");
+    }
+
+    /** المستند اللي أكتر من صفحة بيطلع نسخًا كاملة مرتبة: الطابعة بتترتب، والصفحات بتتبعت مرة واحدة. */
+    @Test
+    void copiesOfSeveralPagesAreCollated() throws Exception {
+        byte[] pdf = statement(Paper.A5, 90);
+        assertTrue(pdfPages(pdf).size() > 1);
+
+        Sent two = print(pdf, Paper.A5, 2);
+        assertEquals(SheetCollate.COLLATED, two.attributes().get(SheetCollate.class));
+        assertTrue(two.postScript().contains("/Collate true /NumCopies 2"), "الطابعة مطلوب منها ترتب النسخ");
+        assertEverySheet(pdf, two, Paper.A5.width(), Paper.A5.height());
+
+        assertNull(print(pdf, Paper.A5, 1).attributes().get(SheetCollate.class), "نسخة واحدة: مفيش ترتيب");
+    }
+
+    /**
+     * الدفعة مهمة واحدة فيها صفحات كل المستندات بترتيبها، على ورقتهم، والنسخ مجموعات كاملة: الدفعة كلها،
+     * وبعدها الدفعة كلها تاني.
+     */
+    @Test
+    void aBatchIsOneJobWithEveryPageAndCollatedCopies() throws Exception {
+        List<PdfDocument> statements = new ArrayList<>();
+        int expected = 0;
+        for (int rows : new int[] {90, 5, 60}) {
+            PdfTable table = PdfTable.create().column("Day", 1).column("Amount", 1);
+            for (int day = 1; day <= rows; day++) {
+                table.row("row" + day, "5");
+            }
+            PdfDocument document = PdfDocument.rtl(Paper.A5).title("كشف " + rows).table(table);
+            expected += pdfPages(document.toBytes()).size();
+            statements.add(document);
+        }
+        PdfBatch batch = PdfBatch.of(statements);
+        byte[] pdf = batch.toBytes();
+        assertEquals(expected, pdfPages(pdf).size());
+
+        Sent sent = print(pdf, batch.paper(), 3);
+        assertEquals(1, sent.jobs(), "مهمة واحدة");
+        assertEquals(MediaSizeName.ISO_A5, sent.media());
+        assertEverySheet(pdf, sent, Paper.A5.width(), Paper.A5.height());
+        assertEquals(SheetCollate.COLLATED, sent.attributes().get(SheetCollate.class));
+        assertTrue(sent.postScript().contains("/Collate true /NumCopies 3"));
+        assertEquals("كشف 90", ((JobName) sent.attributes().get(JobName.class)).getValue(), "باسم أول مستند");
+    }
+
+    /** دفعة إيصالات: من غير ورق مطلوب، وكل إيصال صفحة بطوله، فالطابعة بتقص بينهم. */
+    @Test
+    void aBatchOfReceiptsSendsEveryReceiptAtItsOwnLength() throws Exception {
+        PdfBatch batch = PdfBatch.of(
+                PdfDocument.ltr(Paper.ROLL_80).title("Receipt 1").text("one item"),
+                PdfDocument.ltr(Paper.ROLL_80).title("Receipt 2").table(t -> {
+                    t.column("Item", 1).column("Price", 1);
+                    for (int i = 1; i <= 20; i++) {
+                        t.row("item" + i, "10.00");
+                    }
+                }));
+        byte[] pdf = batch.toBytes();
+        List<PDRectangle> pages = pdfPages(pdf);
+        assertEquals(2, pages.size());
+        assertTrue(pages.get(1).getHeight() > pages.get(0).getHeight() + 100, "كل إيصال بطوله");
+
+        Sent sent = print(pdf, batch.paper(), 1);
+        assertEquals(1, sent.jobs());
+        assertNull(sent.media(), "اللفة من غير ورق مطلوب");
+        assertEquals(2, sent.pages());
+        List<Float> lengths = sent.sheets().stream().map(sheet -> sheet[1]).distinct().toList();
+        for (PDRectangle page : pages) {
+            assertTrue(lengths.stream().anyMatch(length -> Math.abs(length - page.getHeight()) < 0.01f),
+                    "ورقة بطول " + page.getHeight() + " في " + lengths);
+        }
+        for (float[] sheet : sent.sheets()) {
+            assertEquals(Paper.ROLL_80.width(), sheet[0], 0.01f);
+        }
+    }
+
+    /** A4 بالطول و A4 بالعرض في دفعة واحدة: ورقة A4 للكل، والصفحة العرضية بتتلف عليها. */
+    @Test
+    void aBatchMixingA4WaysRoundIsSentOnA4() throws Exception {
+        PdfBatch batch = PdfBatch.of(PdfDocument.ltr(Paper.A4).title("Upright"),
+                PdfDocument.ltr(Paper.A4.landscape()).title("Wide"));
+        byte[] pdf = batch.toBytes();
+
+        Sent sent = print(pdf, batch.paper(), 1);
+        assertEquals(MediaSizeName.ISO_A4, sent.media());
+        assertEverySheet(pdf, sent, Paper.A4.width(), Paper.A4.height());
+        assertEquals(PageFormat.PORTRAIT, sent.pageable().getPageFormat(0).getOrientation());
+        assertEquals(PageFormat.LANDSCAPE, sent.pageable().getPageFormat(1).getOrientation());
     }
 
     /**
@@ -189,6 +279,7 @@ class PrintToStreamTest {
         private final StreamPrintService postScript;
         private Doc doc;
         private PrintRequestAttributeSet attributes;
+        private int jobs;
 
         RecordingService(ByteArrayOutputStream out) {
             super(out);
@@ -204,6 +295,7 @@ class PrintToStreamTest {
             return new DocPrintJob() {
                 @Override
                 public void print(Doc sentDoc, PrintRequestAttributeSet sentAttributes) throws PrintException {
+                    jobs++;
                     doc = sentDoc;
                     attributes = sentAttributes;
                     job.print(sentDoc, sentAttributes);

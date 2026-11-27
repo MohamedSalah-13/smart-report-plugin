@@ -2,6 +2,7 @@ package com.smart.report.fx;
 
 import com.smart.report.ReportException;
 import com.smart.report.pdf.Paper;
+import com.smart.report.pdf.PdfBatch;
 import com.smart.report.pdf.PdfDocument;
 import javafx.application.Platform;
 import javafx.stage.Stage;
@@ -18,8 +19,8 @@ import java.util.function.Function;
 import java.util.prefs.Preferences;
 
 /**
- * نافذة معاينة لمستند PDF: صفحاته كما هتتطبع، واختيار الطابعة والمقاس وعدد النسخ، وزرّا الطباعة
- * وحفظ الملف.
+ * نافذة معاينة لمستند PDF (أو دفعة مستندات، {@link #of(PdfBatch)}): صفحاته كما هتتطبع، واختيار الطابعة
+ * والمقاس وعدد النسخ، وزرّا الطباعة وحفظ الملف.
  *
  * <pre>{@code
  * PdfPreview.of(paper -> StatementPdf.document(statement, companyName, paper))
@@ -42,7 +43,12 @@ public final class PdfPreview {
     /** مكان المحفوظ في {@link Preferences}: تحته عقدة لكل مفتاح {@link #remember}. */
     static final String PREFERENCES = "com/smart/report/preview/";
 
-    final Function<Paper, PdfDocument> source;
+    /** اللي بيتعاين: بايتات PDF على الورقة اللي المستخدم اختارها — مستند أو دفعة. */
+    interface Source {
+        byte[] pdf(Paper paper) throws ReportException;
+    }
+
+    final Source source;
     final List<Paper> papers = new ArrayList<>();
     final List<String> stylesheets = new ArrayList<>();
     Paper paper;
@@ -54,7 +60,7 @@ public final class PdfPreview {
     /** الطابعات ونافذة الحفظ؛ الاختبارات بتبدّلها. */
     PreviewSystem system = PreviewSystem.REAL;
 
-    private PdfPreview(Function<Paper, PdfDocument> source, boolean rightToLeft) {
+    private PdfPreview(Source source, boolean rightToLeft) {
         this.source = source;
         this.rightToLeft = rightToLeft;
     }
@@ -62,8 +68,32 @@ public final class PdfPreview {
     /** معاينة مستند جاهز على ورقته؛ النافذة باتجاه المستند ولا تعرض اختيار مقاس. */
     public static PdfPreview of(PdfDocument document) {
         Objects.requireNonNull(document, "document");
-        PdfPreview preview = new PdfPreview(paper -> document, document.rightToLeft());
+        PdfPreview preview = new PdfPreview(paper -> document.toBytes(), document.rightToLeft());
         preview.papers.add(document.paper());
+        return preview;
+    }
+
+    /**
+     * معاينة دفعة جاهزة ({@link PdfBatch}) على ورقتها: كل مستنداتها ورا بعض زي ما هتتطبع، والطباعة مهمة
+     * واحدة. النافذة باتجاه أول مستند ولا تعرض اختيار مقاس.
+     */
+    public static PdfPreview of(PdfBatch batch) {
+        Objects.requireNonNull(batch, "batch");
+        PdfPreview preview = new PdfPreview(paper -> batch.toBytes(), batch.documents().getFirst().rightToLeft());
+        preview.papers.add(batch.paper());
+        return preview;
+    }
+
+    /**
+     * معاينة دفعة بتتبني لكل مقاس ورق، زي {@link #of(Function)}: كشوف كل السواقين، والمستخدم يختار A4 أو
+     * A5 من النافذة. الدالة بتتنادى خارج thread الواجهة.
+     */
+    public static PdfPreview ofBatch(Function<Paper, PdfBatch> batch) {
+        Objects.requireNonNull(batch, "batch");
+        PdfPreview preview = new PdfPreview(paper -> batch.apply(paper).toBytes(),
+                "ar".equals(Locale.getDefault().getLanguage()));
+        preview.papers.add(Paper.A4);
+        preview.papers.add(Paper.A5);
         return preview;
     }
 
@@ -74,7 +104,8 @@ public final class PdfPreview {
      */
     public static PdfPreview of(Function<Paper, PdfDocument> document) {
         Objects.requireNonNull(document, "document");
-        PdfPreview preview = new PdfPreview(document, "ar".equals(Locale.getDefault().getLanguage()));
+        PdfPreview preview = new PdfPreview(paper -> document.apply(paper).toBytes(),
+                "ar".equals(Locale.getDefault().getLanguage()));
         preview.papers.add(Paper.A4);
         preview.papers.add(Paper.A5);
         return preview;
@@ -226,7 +257,7 @@ public final class PdfPreview {
                     });
                     return;
                 }
-                system.print(source.apply(chosen).toBytes(), target, chosen, 1);
+                system.print(source.pdf(chosen), target, chosen, 1);
                 done = new PrintOutcome.Sent(target, chosen);
             } catch (ReportException | RuntimeException e) {
                 log.warn("Printing straight to {} failed", target, e);
