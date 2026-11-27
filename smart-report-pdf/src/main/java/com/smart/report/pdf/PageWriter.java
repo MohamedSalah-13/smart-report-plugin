@@ -410,8 +410,14 @@ final class PageWriter {
      * ومقسّمًا على الخطوط. مع Helvetica المدمج مفيش تشكيل: الخط ما بيرسمش غير Latin-1 أصلًا.
      */
     private Line line(String logical, String paragraph, boolean bold, float size) throws IOException, ReportException {
+        return line(logical, paragraph, paragraph, bold, size);
+    }
+
+    /** @param source النص اللي السطر جاي منه زي ما اتكتب (الخلية كلها مثلًا)، لرسالة الحرف الناقص */
+    private Line line(String logical, String paragraph, String source, boolean bold, float size)
+            throws IOException, ReportException {
         String visual = fonts.unicode() ? ArabicTextShaper.forDisplay(logical, paragraph, rtl) : logical;
-        List<FontSet.Run> runs = fonts.runs(visual, bold);
+        List<FontSet.Run> runs = fonts.runs(visual, bold, source == null ? logical : source);
         return new Line(runs, FontSet.width(runs, size));
     }
 
@@ -1042,14 +1048,15 @@ final class PageWriter {
             return 0;
         }
         float widest = 0;
-        for (String word : clean(text).strip().split("[ \n]+")) {
+        String cell = clean(text);
+        for (String word : cell.strip().split("[ \n]+")) {
             if (word.isEmpty()) {
                 continue;
             }
             String key = (bold ? "b" : "r") + size + '|' + word;
             Float known = wordWidths.get(key);
             if (known == null) {
-                known = measure(word, word, bold, size);
+                known = line(word, word, cell, bold, size).width();
                 wordWidths.put(key, known);
             }
             widest = Math.max(widest, known);

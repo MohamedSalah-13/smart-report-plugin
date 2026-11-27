@@ -16,21 +16,28 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * خطوط مستند واحد: العادي والعريض وخط احتياطي من النظام، مع تقسيم أي نص لمقاطع كل مقطع منها
- * بيترسم بالخط اللي فيه حروفه.
+ * خطوط مستند واحد: العادي والعريض (خط المستند أو الخط العام) وخطان احتياطيان، مع تقسيم أي نص لمقاطع
+ * كل مقطع منها بيترسم بالخط اللي فيه حروفه. كل مستند بيحمّل خطوطه في ملفه هو، فمستندات بخطوط مختلفة
+ * في نفس الـ JVM ما بتلمسش بعض.
  *
  * <p><b>كل حرف بياخد أول خط بيعرف يرسمه.</b> الخط العريض المضمَّن (Noto Naskh Bold) ما فيهوش
  * علامة الطرح ولا الحروف اللاتينية؛ لو النص اترسم بيه كله، الرقم السالب في صف الإجمالي يطلع من
  * غير إشارته ويتقرا موجبًا. الحرف الناقص من العريض بيترسم بالعادي مع تسميك مصطنع، والناقص من
- * الاتنين بيتجرّب في خط النظام، وآخر حل علامة استفهام مع تحذير في الـ log بدل وقوف الطباعة.</p>
+ * الاتنين بيتجرّب في Liberation Sans اللي جوّه PDFBox (² و ³ و ½ و ±) وبعده في خط النظام. آخر حل علامة
+ * استفهام مع تحذير في الـ log بدل وقوف الطباعة — أو {@link ReportException} لو المستند طالب ده
+ * ({@link PdfDocument#failOnMissingGlyphs(boolean)}).</p>
  */
 final class FontSet implements Closeable {
 
@@ -148,31 +155,56 @@ final class FontSet implements Closeable {
         }
     }
 
+    /** أطول نص (بالحروف) بيتكتب كامل في رسالة الحرف الناقص؛ الأطول بيتقص حوالين الحرف. */
+    private static final int EXCERPT = 80;
+
+    /** الخطوط اللي اتقال عنها إن العربي بيترسم من خط احتياطي: مرة واحدة لكل خط في الـ JVM. */
+    static final Set<String> ARABIC_WARNED = ConcurrentHashMap.newKeySet();
+
     private final PDDocument pdf;
     private final Face regular;
     private final Face bold;
     private final boolean unicode;
+    /** حرف مش في أي خط بيرمي {@link ReportException} بدل ما يتطبع '?'. */
+    private final boolean strict;
+    /** اسم الخط العادي، لرسالة الحرف الناقص. */
+    private final String name;
     private final List<TrueTypeFont> opened = new ArrayList<>();
     private final Set<Integer> reportedMissing = new HashSet<>();
-    private Face fallback;
-    private boolean fallbackTried;
+    private Face symbols;
+    private boolean symbolsTried;
+    private Face system;
+    private boolean systemTried;
 
-    private FontSet(PDDocument pdf, PdfFontResolver.Fonts bytes) throws IOException {
+    private FontSet(PDDocument pdf, PdfFontResolver.Fonts bytes, boolean strict) throws IOException {
         this.pdf = pdf;
+        this.strict = strict;
         if (bytes.available()) {
             this.unicode = true;
             this.regular = load(bytes.regular());
-            // PdfFontResolver بيرجّع نفس البايتات للعريض لو مفيش ملف عريض: يبقى التسميك مصطنعًا.
-            this.bold = bytes.bold() == null || bytes.bold() == bytes.regular() ? regular : load(bytes.bold());
+            this.name = opened.get(0).getName();
+            // من غير ملف عريض (أو بنفس الملف للاتنين، -D لنفس المسار مثلًا) التسميك بيبقى مصطنعًا.
+            this.bold = bytes.bold() == null || Arrays.equals(bytes.bold(), bytes.regular())
+                    ? regular : load(bytes.bold());
         } else {
             this.unicode = false;
+            this.name = "Helvetica";
             this.regular = new Face(new PDType1Font(Standard14Fonts.FontName.HELVETICA), null);
             this.bold = new Face(new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), null);
         }
     }
 
+    /** خطوط الـ JVM العامة ({@link PdfFontResolver})، والحرف الناقص بيتطبع '?'. */
     static FontSet load(PDDocument pdf) throws IOException {
-        return new FontSet(pdf, PdfFontResolver.resolve());
+        return load(pdf, null, false);
+    }
+
+    /**
+     * @param font   خط المستند، أو {@code null} للخط العام ({@link PdfFontResolver})
+     * @param strict حرف مش في أي خط بيرمي {@link ReportException} بدل ما يتطبع '?'
+     */
+    static FontSet load(PDDocument pdf, PdfFont font, boolean strict) throws IOException {
+        return new FontSet(pdf, font != null ? font.bytes() : PdfFontResolver.resolve(), strict);
     }
 
     private Face load(byte[] bytes) throws IOException {
@@ -188,6 +220,16 @@ final class FontSet implements Closeable {
 
     /** النص مقسّمًا لمقاطع، كل مقطع بالخط اللي بيرسم حروفه. */
     List<Run> runs(String text, boolean wantBold) throws ReportException {
+        return runs(text, wantBold, text);
+    }
+
+    /**
+     * النص مقسّمًا لمقاطع، كل مقطع بالخط اللي بيرسم حروفه.
+     *
+     * @param text   النص بترتيب الرسم، بعد التشكيل
+     * @param source النص زي ما اتكتب (قبل التشكيل والترتيب)، لرسالة الحرف الناقص
+     */
+    List<Run> runs(String text, boolean wantBold, String source) throws ReportException {
         List<Run> runs = new ArrayList<>(2);
         StringBuilder buffer = new StringBuilder();
         Face current = null;
@@ -195,6 +237,9 @@ final class FontSet implements Closeable {
         for (int i = 0; i < text.length(); ) {
             int codePoint = text.codePointAt(i);
             i += Character.charCount(codePoint);
+            if (ignorable(codePoint)) {
+                continue;
+            }
             Face face;
             boolean fake;
             int drawn = codePoint;
@@ -205,11 +250,14 @@ final class FontSet implements Closeable {
                 face = regular;
                 fake = wantBold;
             } else {
-                Face system = fallback();
-                if (system != null && system.has(codePoint)) {
-                    face = system;
+                Face spare = spare(codePoint);
+                if (spare != null) {
+                    face = spare;
+                    if (Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.ARABIC) {
+                        arabicFromSpare(codePoint, spare);
+                    }
                 } else {
-                    missing(codePoint);
+                    missing(codePoint, source);
                     face = regular;
                     drawn = '?';
                 }
@@ -240,24 +288,42 @@ final class FontSet implements Closeable {
         return width;
     }
 
-    private Face fallback() {
-        if (!fallbackTried) {
-            fallbackTried = true;
-            if (unicode) {
-                byte[] bytes = PdfFontResolver.systemFallback();
-                if (bytes != null) {
-                    try {
-                        fallback = load(bytes);
-                    } catch (IOException e) {
-                        log.debug("The system fallback font could not be loaded.", e);
-                    }
-                }
-            }
+    /**
+     * أول خط احتياطي فيه الحرف، أو {@code null}: Liberation Sans من PDFBox (واحد على كل جهاز) وبعده خط
+     * النظام. كل واحد بيتحمّل في المستند أول ما حرف يحتاجه بس. مع Helvetica مفيش احتياطي: النص غير
+     * اللاتيني محتاج خطًا عربيًا أصلًا، والرسالة بتقول كده.
+     */
+    private Face spare(int codePoint) {
+        if (!unicode) {
+            return null;
         }
-        return fallback;
+        if (!symbolsTried) {
+            symbolsTried = true;
+            symbols = loadSpare(PdfFontResolver.symbolFallback());
+        }
+        if (symbols != null && symbols.has(codePoint)) {
+            return symbols;
+        }
+        if (!systemTried) {
+            systemTried = true;
+            system = loadSpare(PdfFontResolver.systemFallback());
+        }
+        return system != null && system.has(codePoint) ? system : null;
     }
 
-    private void missing(int codePoint) throws ReportException {
+    private Face loadSpare(byte[] bytes) {
+        if (bytes == null) {
+            return null;
+        }
+        try {
+            return load(bytes);
+        } catch (IOException e) {
+            log.debug("A fallback font could not be loaded.", e);
+            return null;
+        }
+    }
+
+    private void missing(int codePoint, String source) throws ReportException {
         if (!unicode) {
             throw new ReportException(String.format(
                     "The built-in PDF font (Helvetica) has no glyph for: U+%04X. Only the Standard-14 fonts were"
@@ -266,10 +332,104 @@ final class FontSet implements Closeable {
                     codePoint, PdfFontResolver.FONT_PROPERTY, PdfFontResolver.BOLD_FONT_PROPERTY,
                     PdfFontResolver.REGULAR_RESOURCE));
         }
-        if (reportedMissing.add(codePoint)) {
-            log.warn(String.format("No PDF font has a glyph for U+%04X; it is printed as '?'. Choose a font that"
-                    + " covers it with -D%s=/path/to/font.ttf", codePoint, PdfFontResolver.FONT_PROPERTY));
+        if (strict) {
+            throw new ReportException(String.format(
+                    "No PDF font has a glyph for %s in \"%s\": neither the font %s nor the fallback fonts"
+                            + " (Liberation Sans, the system font) draw it. Choose a font that has it with"
+                            + " PdfDocument.font(PdfFont.of(...)) or -D%s=/path/to/font.ttf, or turn off"
+                            + " failOnMissingGlyphs to print '?' instead.",
+                    describe(codePoint), excerpt(source, codePoint), name, PdfFontResolver.FONT_PROPERTY));
         }
+        if (reportedMissing.add(codePoint)) {
+            log.warn(String.format("No PDF font has a glyph for %s; it is printed as '?'. Choose a font that"
+                    + " covers it with PdfDocument.font(PdfFont.of(...)) or -D%s=/path/to/font.ttf",
+                    describe(codePoint), PdfFontResolver.FONT_PROPERTY));
+        }
+    }
+
+    /**
+     * الحرف وكوده. الصورة العربية الجاهزة (ﻡ U+FEE1) هي اللي بتترسم بعد التشكيل، فبيتكتب معاها الحرف اللي
+     * في النص نفسه (م U+0645) عشان القارئ يلاقيه.
+     */
+    static String describe(int codePoint) {
+        StringBuilder text = new StringBuilder(String.format(Locale.ROOT, "'%s' (U+%04X",
+                Character.toString(codePoint), codePoint));
+        String letters = written(codePoint);
+        if (letters != null) {
+            text.append(", the shaped form of '").append(letters).append('\'');
+            letters.codePoints().forEach(letter -> text.append(String.format(Locale.ROOT, " U+%04X", letter)));
+        }
+        return text.append(')').toString();
+    }
+
+    /**
+     * الحرف (أو الحرفين، زي لا) اللي الصورة العربية الجاهزة اتعملت منه وقت التشكيل؛ {@code null} لأي حرف
+     * تاني. التطبيع على الصور العربية بس: ① و ١ (العرض الكامل) و ³ حروف قايمة بذاتها في النص.
+     */
+    private static String written(int codePoint) {
+        Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
+        if (block != Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_A
+                && block != Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_B) {
+            return null;
+        }
+        String glyph = Character.toString(codePoint);
+        String letters = Normalizer.normalize(glyph, Normalizer.Form.NFKC);
+        return letters.equals(glyph) ? null : letters;
+    }
+
+    /**
+     * محارف ما لهاش شكل (Default_Ignorable_Code_Point في Unicode): محددات الشكل زي U+FE0F اللي الموبايل
+     * بيحطه بعد © و ✔، والمسافة الصفرية، وعلامات الاتجاه. ما بتترسمش، فبتتشال قبل البحث عن خط بدل ما تطلع
+     * '?' — أو تفشّل المستند في الوضع الصارم.
+     */
+    static boolean ignorable(int cp) {
+        return cp == 0x00AD || cp == 0x034F || cp == 0x061C || cp == 0x115F || cp == 0x1160
+                || cp == 0x17B4 || cp == 0x17B5 || cp >= 0x180B && cp <= 0x180F
+                || cp >= 0x200B && cp <= 0x200F || cp >= 0x202A && cp <= 0x202E || cp >= 0x2060 && cp <= 0x206F
+                || cp == 0x3164 || cp >= 0xFE00 && cp <= 0xFE0F || cp == 0xFEFF || cp == 0xFFA0
+                || cp >= 0xFFF0 && cp <= 0xFFF8 || cp >= 0x1BCA0 && cp <= 0x1BCA3
+                || cp >= 0x1D173 && cp <= 0x1D17A || cp >= 0xE0000 && cp <= 0xE0FFF;
+    }
+
+    /**
+     * حرف عربي اترسم من خط احتياطي (خط النظام غالبًا) لأن خط المستند ما فيهوش صور الحروف العربية: المستند
+     * مش غلط، بس العربي بخط تاني، وبيختلف من جهاز لجهاز، وبيطلع '?' على جهاز ما فيهوش خط بيرسمه. تحذير مرة
+     * واحدة لكل خط.
+     */
+    private void arabicFromSpare(int codePoint, Face spare) {
+        if (ARABIC_WARNED.add(name)) {
+            log.warn(String.format("The PDF font %s has no glyph for the Arabic %s; Arabic is drawn from the"
+                    + " fallback font %s instead, so it differs from computer to computer and prints as '?' where"
+                    + " no installed font has it. Use a font with the Arabic presentation forms (U+FB50-U+FDFF,"
+                    + " U+FE70-U+FEFF), such as Noto Naskh Arabic, Amiri, Arial or Tahoma.",
+                    name, describe(codePoint), spare.font().getName()));
+        }
+    }
+
+    /** النص اللي فيه الحرف؛ الطويل بيتقص حوالين أول ظهور للحرف (أو لحرفه في النص لو صورة جاهزة). */
+    static String excerpt(String source, int codePoint) {
+        int[] letters = source.codePoints().toArray();
+        if (letters.length <= EXCERPT) {
+            return source;
+        }
+        int at = indexOf(letters, codePoint);
+        String written = written(codePoint);
+        if (at < 0 && written != null) {
+            at = indexOf(letters, written.codePointAt(0));
+        }
+        at = Math.max(at, 0);
+        int start = Math.max(0, Math.min(at - EXCERPT / 2, letters.length - EXCERPT));
+        int end = start + EXCERPT;
+        return (start > 0 ? "…" : "") + new String(letters, start, EXCERPT) + (end < letters.length ? "…" : "");
+    }
+
+    private static int indexOf(int[] letters, int codePoint) {
+        for (int i = 0; i < letters.length; i++) {
+            if (letters[i] == codePoint) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** بعد حفظ المستند: PDFBox بيقرا من ملفات الخطوط لحد لحظة الحفظ، فما تتقفلش قبلها. */
