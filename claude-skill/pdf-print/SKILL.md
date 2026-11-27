@@ -53,7 +53,7 @@ preview window (`smart-report-fx`) `v2.1.0`; column formats in the generic repor
 `v2.3.0`; thermal rolls, the letterhead on every page, `pageFooter` and `signatures` `v2.4.0`; `qrCode`,
 `ZatcaQr` and the readable receipt preview `v2.5.0`; `barcode`, and signature boxes that stay with the summary
 above them, `v2.6.0`; `printOrShow` and the preview's Ctrl+P / Ctrl+S, `ZatcaQr.phase2`, the Gulf currencies and
-amounts in English words, and Arabic in Jasper PDFs `v2.7.0`. A program on an older tag that needs one of these
+amounts in English words, and Arabic in Jasper PDFs `v2.7.1`. A program on an older tag that needs one of these
 moves to the newest tag.
 
 ```xml
@@ -77,13 +77,13 @@ moves to the newest tag.
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.7.0</version>
+    <version>v2.7.1</version>
 </dependency>
 <!-- Only for a JavaFX program that wants the preview window. JavaFX itself is the program's own. -->
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-fx</artifactId>
-    <version>v2.7.0</version>
+    <version>v2.7.1</version>
 </dependency>
 ```
 
@@ -151,10 +151,10 @@ What each part is:
 - The amount in words, when the old paper had it ("فقط ... لا غير"):
   `document.text(AmountInWords.arabic(invoice.net(), AmountInWords.Currency.EGP))` (from
   `com.smart.report.util`, in `smart-report-api`, which `smart-report-pdf` brings). Ready currencies: `EGP`,
-  `SAR`, `AED`, `KWD`, `USD`, and from `v2.7.0` `QAR`, `BHD`, `OMR`, `JOD`; another is a
+  `SAR`, `AED`, `KWD`, `USD`, and from `v2.7.1` `QAR`, `BHD`, `OMR`, `JOD`; another is a
   `new AmountInWords.Currency(...)` with its noun forms (see the README). `arabicWords` gives the words without
   "فقط ... لا غير". For a bilingual invoice, `AmountInWords.english(amount, AmountInWords.EnglishCurrency.EGP)`
-  gives "Seven thousand two hundred Egyptian pounds only" (from `v2.7.0`). Pass the `BigDecimal` itself, not a
+  gives "Seven thousand two hundred Egyptian pounds only" (from `v2.7.1`). Pass the `BigDecimal` itself, not a
   formatted string; a negative amount is rejected, so write a refund's words from its absolute value.
 - `qrCode(text)` - a QR code, 30 mm and centred; `qrCode(text, Align.START)` puts it at the start of the line
   (right on an Arabic page), and `qrCode(text, sizeMm, align)` sets its side in millimetres. It is drawn as
@@ -181,7 +181,7 @@ What each part is:
   ending with 3, and the amounts must not be negative; otherwise it throws `IllegalArgumentException` -
   validate where the company's settings are saved, not at the till. Use the seller name exactly as registered,
   and the same totals the page prints. **Phase 2 (integration)** invoices carry four more fields (from
-  `v2.7.0`): the invoice hash, its signature, and the public key and ZATCA's signature from the device's
+  `v2.7.1`): the invoice hash, its signature, and the public key and ZATCA's signature from the device's
   certificate (CSID). They come from signing the invoice's XML with the program's ZATCA certificate, which
   `ZatcaQr` does not do; the program passes them in:
 
@@ -249,7 +249,7 @@ otherwise the preview fails only sometimes, which is the worst way to fail.
 In the window Ctrl+P prints and Ctrl+S saves (⌘ on a Mac); PageUp/PageDown turn the pages and Esc closes it.
 
 For a document printed many times a day (a cashier's receipt), print straight to the remembered printer
-instead of opening the window each time. This needs `v2.7.0` or newer:
+instead of opening the window each time. This needs `v2.7.1` or newer:
 
 ```java
 PdfPreview.of(paper -> ReceiptPdf.document(sale, shop, paper))
@@ -361,7 +361,7 @@ has not been on a real printer yet; the old one usually had.
   6 from `v2.5.0`; a program that uses POI itself should know that.
 - **A page designed in Jaspersoft Studio** - add `smart-report-jasper` and ask for `ReportType.JASPER` with
   the template's path. Only for a program that already has templates; a new page is quicker as a
-  `PdfDocument`. From `v2.7.0` Arabic in a template that names no font is drawn with Noto Naskh Arabic; give
+  `PdfDocument`. From `v2.7.1` Arabic in a template that names no font is drawn with Noto Naskh Arabic; give
   each Arabic text box about 1.7 times its font size in height, or JasperReports prints nothing of it, and
   merge `jasperreports_extension.properties` in a fat jar (see the README).
 - **A program with `module-info.java`** - the jars have no module descriptor, only stable automatic names:

@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.7.1] - 2026-11-27
+
+### Fixed
+- 2.7.0 could not be downloaded from JitPack: its build ran on an old Maven that the new API check does not support.
+  2.7.1 is the same release, built with a Maven wrapper; use it instead of 2.7.0.
+
 ## [2.7.0] - 2026-11-27
 
 ### Added

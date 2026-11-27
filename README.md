@@ -15,8 +15,9 @@ A Java library for reports and printing, added to any project as a dependency:
 
 ## What's New
 
-### 2.7.0
+### 2.7.1
 
+- 2.7.1 is 2.7.0 that JitPack can build; 2.7.0 itself cannot be downloaded. Everything below came with it.
 - **New:** print a receipt straight on the printer the user last chose, without opening the preview each time (`printOrShow`), and Ctrl+P / Ctrl+S in the preview window. See [Preview](#preview-pdfpreview).
 - **New:** the QR code of a ZATCA phase 2 simplified tax invoice (`ZatcaQr.phase2`). See [QR code](#qr-code-and-the-saudi-tax-invoice-qr).
 - **New:** the amount in words for QAR, BHD, OMR and JOD, and in English. See [Amount in words](#amount-in-words-amountinwords).
@@ -57,7 +58,7 @@ The library is served by [JitPack](https://jitpack.io) straight from the reposit
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.7.0</version>
+    <version>v2.7.1</version>
 </dependency>
 ```
 
