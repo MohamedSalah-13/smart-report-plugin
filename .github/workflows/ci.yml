@@ -18,11 +18,13 @@ concurrency:
 
 jobs:
   build:
-    name: Build and test (Java ${{ matrix.java }})
-    runs-on: ubuntu-latest
+    name: Build and test (${{ matrix.os }}, Java ${{ matrix.java }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        # Linux: what JitPack builds on. Windows: where the programs that use the library run and print.
+        os: [ubuntu-latest, windows-latest]
         # 21: what the library is compiled for and what JitPack builds with. 25: the current LTS.
         java: ['21', '25']
     steps:
@@ -36,6 +38,7 @@ jobs:
       # setup-java's own Maven cache is keyed on the pom files alone, and every release changes their version,
       # so each release run used to download everything again - and Maven Central answered 429 Too Many Requests.
       # restore-keys brings back the newest cache when the poms changed; the full key saves an updated one.
+      # runner.os keeps the Linux and Windows caches apart.
       - name: Maven cache
         uses: actions/cache@v6
         with:
@@ -44,19 +47,35 @@ jobs:
           restore-keys: |
             maven-${{ runner.os }}-java${{ matrix.java }}-
 
-      # The preview window's tests open a real JavaFX window; xvfb gives them a display.
-      # Without one they are skipped rather than failed, so the run still says whether they ran.
+      # The preview window's tests open a real JavaFX window; on Linux xvfb gives them a display, and the Windows
+      # runner has a desktop of its own. Without one they are skipped rather than failed, so the run still says
+      # whether they ran.
       # Maven retries 429/503 three times 5 s apart by default; six tries 10 s, 20 s, ... apart ride out a rate limit.
+      # bash on both systems, so the command and its -D flags read the same on Windows.
       - name: Build and test
+        shell: bash
         run: >-
-          xvfb-run -a mvn -B -ntp verify
+          ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }} mvn -B -ntp verify
           -Daether.connector.http.retryHandler.count=6
           -Daether.connector.http.retryHandler.interval=10000
+
+      # Whether the preview window's tests ran or were skipped for want of a display, in the run's summary.
+      - name: JavaFX preview tests
+        if: always()
+        shell: bash
+        run: |
+          report=smart-report-fx/target/surefire-reports/TEST-com.smart.report.fx.PdfPreviewTest.xml
+          if [ -f "$report" ]; then
+            summary=$(grep -o -m1 '<testsuite [^>]*>' "$report" | grep -o -E '(tests|skipped|failures|errors)="[0-9]+"' | tr '\n' ' ')
+            echo "PdfPreviewTest on ${{ runner.os }}, Java ${{ matrix.java }}: $summary" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "PdfPreviewTest on ${{ runner.os }}, Java ${{ matrix.java }}: no report" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Test reports
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: surefire-reports-java-${{ matrix.java }}
+          name: surefire-reports-${{ runner.os }}-java-${{ matrix.java }}
           path: '**/target/surefire-reports/'
           retention-days: 14
