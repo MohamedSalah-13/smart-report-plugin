@@ -456,6 +456,13 @@ It is off unless set, so a document that does not ask for it prints `?` as befor
 `.parameter(PdfReportProvider.FAIL_ON_MISSING_GLYPHS, true)`. Only a character that neither the document's font
 nor Liberation Sans has depends on the computer: it passes where a system font has it.
 
+**Turn it on for invoices, receipts, statements and other money documents.** The error comes before anything is
+saved or printed, so no customer gets a document with a `?` in it:
+
+```java
+PdfDocument invoice = PdfDocument.rtl(Paper.A4).failOnMissingGlyphs(true);
+```
+
 > Arabic is prepared automatically before drawing: letters are joined and ordered right to left, with the
 > lam-alef ligature, and letters such as ڤ, چ, گ, پ, ک and ی join as well. This is the work of `ArabicTextShaper`, and it needs no extra dependency (no ICU4J or
 > anything else). Diacritics (tashkeel) are centred over their letters approximately — PDFBox does not apply

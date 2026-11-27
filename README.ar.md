@@ -504,6 +504,13 @@ PdfDocument.rtl(Paper.A4).failOnMissingGlyphs(true).text("رقم الصنف 中 
 `.parameter(PdfReportProvider.FAIL_ON_MISSING_GLYPHS, true)`. الحرف الوحيد اللي نتيجته بتفرق من جهاز لجهاز هو
 اللي مش في خط المستند ولا في Liberation Sans: بيعدّي على الجهاز اللي فيه خط نظام بيرسمه.
 
+**فعّله في الفواتير والإيصالات وكشوف الحساب وسائر المستندات المالية.** يظهر الخطأ قبل حفظ المستند أو طباعته،
+فلا يصل إلى العميل مستند فيه `?`:
+
+```java
+PdfDocument invoice = PdfDocument.rtl(Paper.A4).failOnMissingGlyphs(true);
+```
+
 > العربي بيتظبط تلقائيًا قبل الرسم: الحروف بتتوصّل ببعضها وبتترتب من اليمين لليسار، مع دمج لام-ألف،
 > ومعاها حروف زي ڤ و چ و گ و پ و ک و ی.
 > ده شغل `ArabicTextShaper`، وما بيحتاجش أي dependency إضافية (لا ICU4J ولا غيره).
