@@ -91,6 +91,10 @@ final class PageWriter {
     private float freshTop;
     /** الترويسة بتترسم دلوقتي: مفيش فتح صفحات من جوّاها. */
     private boolean inLetterhead;
+    /** مفيش حاجة اترسمت في الصفحة الحالية تحت الترويسة: فاصل الصفحات هنا ما بيفتحش صفحة فاضية. */
+    private boolean pageEmpty;
+    /** الصفحة اللي آخر فاصل سابها، عشان لو الصفحة اللي فتحها فضلت فاضية لحد آخر جزء نرجع لها. */
+    private BeforeBreak beforeBreak;
     /**
      * أوطى نقطة اتحجزت في الصفحة الحالية: الجزء اللي بيحجز مكانه قبل ما يترسم (عنوان القسم بيحجز لنفسه
      * ولرأس جدول وصف بعده) ممكن يحجز أكتر من اللي رسمه، والورقة الحرارية لازم تكفّي الحجز ده كمان.
@@ -152,6 +156,7 @@ final class PageWriter {
                 groupMoved = false;
                 lastLineReserve = 0;
             }
+            dropEmptyBreakPage();
             footer();
         } finally {
             stream.close();
@@ -199,10 +204,50 @@ final class PageWriter {
             case PdfDocument.SignaturesBlock signatures -> signatures(signatures.labels());
             case PdfDocument.QrBlock qr -> qrCode(qr);
             case PdfDocument.BarcodeBlock barcode -> barcode(barcode);
+            case PdfDocument.PageBreakBlock ignored -> pageBreak();
         }
     }
 
     // ===================== الصفحات =====================
+
+    /** مكان الكتابة في الصفحة اللي فاصل سابها. */
+    private record BeforeBreak(PDPage page, int pages, float y, float pageTop, float lowestReserved) {
+    }
+
+    /**
+     * فاصل الصفحات ({@link PdfDocument#pageBreak()}): صفحة جديدة، إلا لو الصفحة الحالية لسه مفيهاش حاجة
+     * تحت الترويسة. الصفحة الجديدة بتفضل بس لو اترسم فيها حاجة ({@link #dropEmptyBreakPage()}). الورقة الحرارية
+     * صفحة واحدة بطول المحتوى، و{@link PdfDocument} أصلًا ما بيضيفش فاصل على اللفة.
+     */
+    private void pageBreak() throws IOException, ReportException {
+        if (paper.roll() || pageEmpty) {
+            return;
+        }
+        beforeBreak = new BeforeBreak(pdf.getPage(pages - 1), pages, y, pageTop, lowestReserved);
+        newPage();
+    }
+
+    /**
+     * الصفحة اللي فتحها آخر فاصل وما اترسمش فيها حاجة لحد آخر جزء بتتشال، والتذييل بيكمل في الصفحة اللي
+     * قبلها زي ما لو الفاصل ما كانش موجود. كده الفاصل اللي مفيش بعده غير أجزاء ما بترسمش (مسافة، نص فاضي،
+     * عنوان {@code null}، فاصل تاني) ما بيسيبش صفحة فاضية ولا صفحة فيها التذييل لوحده. الحكم من الرسم نفسه
+     * ({@link #pageEmpty})، مش من نوع الجزء، فأي جزء جديد ما بيرسمش داخل في القاعدة من غير ما حد يفتكره.
+     */
+    private void dropEmptyBreakPage() throws IOException {
+        BeforeBreak left = beforeBreak;
+        if (left == null || !pageEmpty || pages != left.pages() + 1) {
+            return;
+        }
+        stream.close();
+        pdf.removePage(pages - 1);
+        pages--;
+        stream = new PDPageContentStream(pdf, left.page(), PDPageContentStream.AppendMode.APPEND, true, true);
+        y = left.y();
+        pageTop = left.pageTop();
+        lowestReserved = left.lowestReserved();
+        pageEmpty = false;
+        beforeBreak = null;
+    }
 
     /**
      * صفحة جديدة، والترويسة في أعلاها لو دي أول صفحة أو لو المستند طالبها في كل صفحة. بعدها
@@ -227,6 +272,7 @@ final class PageWriter {
             }
         }
         pageTop = y;
+        pageEmpty = true;
         if (pages == 1) {
             freshTop = document.letterheadOnEveryPage() ? pageTop : top;
         }
@@ -1113,11 +1159,14 @@ final class PageWriter {
         stream.stroke();
     }
 
+    /** أي علامة على الورقة (حرف، خط، خلفية، رمز) بتختار لونها الأول، فهنا الصفحة بتبطّل تبقى فاضية. */
     private void setFill(int rgb) throws IOException {
+        pageEmpty = false;
         stream.setNonStrokingColor(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f);
     }
 
     private void setStroke(int rgb) throws IOException {
+        pageEmpty = false;
         stream.setStrokingColor(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f);
     }
 }

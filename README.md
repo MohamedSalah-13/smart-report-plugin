@@ -38,7 +38,7 @@ Each kind of report is its own Maven module, so a program that only prints PDFs 
 
 | Module | What is in it | What it brings |
 |---|---|---|
-| `smart-report-pdf` | `PdfDocument`, `PdfPrinter`, `PdfPages`, and the generic PDF report | PDFBox, ZXing core (QR code, barcode) |
+| `smart-report-pdf` | `PdfDocument`, `PdfBatch`, `PdfPrinter`, `PdfPages`, and the generic PDF report | PDFBox, ZXing core (QR code, barcode) |
 | `smart-report-fx` | `PdfPreview`: the preview window | `smart-report-pdf`; and your program's own JavaFX (`provided`) |
 | `smart-report-excel` | The generic Excel report | Apache POI |
 | `smart-report-jasper` | Jasper template reports | JasperReports |
@@ -152,6 +152,32 @@ document.letterheadOnEveryPage(true)                              // the letterh
 - `signatures(...)`: the boxes stay together, and stay with the summary before them (and any text between, such as
   the amount in words): when they do not fit under it, the summary moves to the next page with them. If that
   group cannot move, at least the last line of the text before the boxes goes with them.
+
+### Page breaks (`pageBreak`)
+
+```java
+document.title("كشف حساب عربية")
+        .table(movements)
+        .pageBreak()                       // the next part starts on a new page
+        .heading("ملحق: إيصالات الواصل")
+        .table(receipts);
+```
+
+- A break never leaves a blank page. On a page with nothing on it yet below the letterhead (at the very top of the
+  document, or right after another break) it does nothing. The page a break opens is kept only if something is
+  drawn on it, so a break followed only by parts that draw nothing (spaces, empty text such as notes that were left
+  blank, other breaks, or the end of the document in a loop that adds a section and a break) leaves no page, not
+  even one for the footer alone.
+- The new page is like any page the content opens: the letterhead is on top of it with
+  `letterheadOnEveryPage(true)`, and the page numbers carry on ("Page 2 of 3").
+- After a table that ran over several pages, the break comes after its last row and totals, and the table header
+  is not repeated on the new page: the table has ended. To start each group of rows on its own page, make a table
+  per group with a break between them.
+- On a thermal roll a receipt is one page as long as its content, so `pageBreak()` **does nothing** there and the
+  receipt is exactly as it is without it: the same code builds the document for A4 or a roll. To cut several
+  receipts, print them as a `PdfBatch`.
+- Sections that each need their own letterhead and their own page numbers (a statement per driver in one file)
+  are separate documents in a `PdfBatch`, not breaks.
 
 ### Thermal receipts (80 mm and 58 mm)
 
@@ -279,8 +305,38 @@ PdfPrinter.print(pdfBytes, printerName, Paper.A5, 2);       // or a ready PDF
 ```
 
 The printer is asked for the document's paper (A4 or A5) and pages are sent at their actual size. An empty
-`printerName` means the default printer. Printing takes its time, so call it off the UI thread. If the
-printer is not on the computer, a `ReportException` names it and lists the printers that are available.
+`printerName` means the default printer. Copies of a document with more than one page come out as whole sets
+(1, 2, 3, 1, 2, 3). Printing takes its time, so call it off the UI thread. If the printer is not on the
+computer, a `ReportException` names it and lists the printers that are available.
+
+### Several documents in one file and one print job (`PdfBatch`)
+
+For "print every driver's statement for the month":
+
+```java
+List<PdfDocument> statements = drivers.stream()
+        .map(driver -> StatementPdf.document(driver, Paper.A4))
+        .toList();
+PdfBatch batch = PdfBatch.of(statements);
+
+batch.save(Path.of("statements-2026-11.pdf"));   // one file
+PdfPrinter.print(batch, printerName, 2);          // one job: every statement, then every statement again
+byte[] pdf = batch.toBytes();                     // or bytes
+```
+
+- Each document keeps its pages as if it were printed alone: its own letterhead, page footer and page numbers
+  ("Page 1 of 3" starts again for each document). Each document starts on a new page, in the order given.
+- The printer gets **one job**, and copies come out as whole sets of the batch.
+- A print job asks the printer for one paper, so every document must be on the same paper: the same size either
+  way round (A4 with A4 landscape is fine, the landscape pages are turned onto the sheet), or the same roll width.
+  A4 with A5, a sheet with a roll, or the 80 mm roll with the 58 mm one fails with a `ReportException` when the
+  batch is written: make one batch per paper.
+- A document that cannot be built fails the batch with an error that names its place ("Document 3 of 40 in the
+  batch ..."), with the original error as its cause.
+- On a roll each document is its own receipt, a page as long as its content, so a printer that cuts at the end of
+  each page cuts between them.
+- The batch holds the documents themselves, not copies: a change to one after `PdfBatch.of` shows in what is
+  written next.
 
 ### Preview (`PdfPreview`)
 
@@ -301,9 +357,16 @@ PdfPreview.of(paper -> StatementPdf.document(statement, companyName, paper))
         .show(ownerWindow);
 
 PdfPreview.of(document).show(ownerWindow);   // or a ready document on its own paper
+PdfPreview.of(batch).show(ownerWindow);      // or a batch: all its documents, printed as one job
+PdfPreview.ofBatch(paper -> PdfBatch.of(statementsOn(paper)))   // a batch built for the paper the user picks
+        .papers(Paper.A4, Paper.A5)
+        .show(ownerWindow);
 ```
 
 - The window shows the pages with the same drawing the printer receives, and does not block the program.
+- A batch is shown and printed like one document: the window's page counter runs over the whole batch, while each
+  printed page keeps its own document's number. A batch whose documents are on different papers shows that it
+  could not be built.
 - When the user changes the paper, the document is built again for the new paper.
 - The function that builds the document is called **off the UI thread**: read your data before it and touch no JavaFX node inside it.
 - The window's wording is Arabic or English by `rightToLeft`, and `texts(PreviewTexts)` replaces it with your program's terms.
