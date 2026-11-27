@@ -1,5 +1,7 @@
 # Builds every module and runs every test on each push to master, each pull request and each release tag.
 # JitPack builds the library straight from a tag, so this is the check that stands between a tag and its users.
+# It builds with ./mvnw, the same Maven JitPack uses: with a newer Maven of its own, CI passed a tag (v2.7.0) that
+# JitPack's Maven could not build.
 name: CI
 
 on:
@@ -38,12 +40,14 @@ jobs:
       # setup-java's own Maven cache is keyed on the pom files alone, and every release changes their version,
       # so each release run used to download everything again - and Maven Central answered 429 Too Many Requests.
       # restore-keys brings back the newest cache when the poms changed; the full key saves an updated one.
-      # runner.os keeps the Linux and Windows caches apart.
+      # runner.os keeps the Linux and Windows caches apart. ~/.m2/wrapper holds the Maven that ./mvnw downloads.
       - name: Maven cache
         uses: actions/cache@v6
         with:
-          path: ~/.m2/repository
-          key: maven-${{ runner.os }}-java${{ matrix.java }}-${{ hashFiles('**/pom.xml') }}
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper
+          key: maven-${{ runner.os }}-java${{ matrix.java }}-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
           restore-keys: |
             maven-${{ runner.os }}-java${{ matrix.java }}-
 
@@ -55,7 +59,7 @@ jobs:
       - name: Build and test
         shell: bash
         run: >-
-          ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }} mvn -B -ntp verify
+          ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }} ./mvnw -B -ntp verify
           -Daether.connector.http.retryHandler.count=6
           -Daether.connector.http.retryHandler.interval=10000
 
@@ -71,6 +75,19 @@ jobs:
           else
             echo "PdfPreviewTest on ${{ runner.os }}, Java ${{ matrix.java }}: no report" | tee -a "$GITHUB_STEP_SUMMARY"
           fi
+
+      # The command JitPack runs on a tag (Linux, Java 21 from jitpack.yml), with the JITPACK variable it sets, so a
+      # change that only breaks JitPack's build - a plugin its Maven cannot load, say - shows here before a tag is
+      # pushed. Without clean, so the test reports above stay for the steps below.
+      - name: JitPack's build
+        if: runner.os == 'Linux' && matrix.java == '21'
+        shell: bash
+        env:
+          JITPACK: 'true'
+        run: >-
+          ./mvnw -B -ntp install -DskipTests
+          -Daether.connector.http.retryHandler.count=6
+          -Daether.connector.http.retryHandler.interval=10000
 
       - name: Test reports
         if: failure()
