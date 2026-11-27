@@ -1,6 +1,6 @@
 ---
 name: pdf-print
-description: Adds PDF output and printing to a Java program using the shared smart-report library (com.github.MohamedSalah-13.smart-report-plugin on JitPack) instead of writing print code again - an Arabic-ready document on A4 or A5 with letterhead, tables with totals rows, a summary and page numbers, a JavaFX preview window, saving as a file and sending to a chosen printer. Use this whenever the user wants to print something or produce a PDF from a desktop or backend Java program - an invoice, a statement, a receipt on a full page, a report, a list - including phrasings like "print", "PDF", "preview before printing", "A5", "طباعة", "اطبع الكشف", "فاتورة PDF", "معاينة قبل الطباعة", "حفظ PDF", "تقرير يتطبع", "زي الطباعة اللى فى naqlat" - and also when a program's printed page comes out wrong in Arabic (table running the wrong way, text cut with "...", a minus sign or a date on the wrong side, letters not joined), when a long page is shrunk onto one sheet, or when a program still prints a JavaFX node or uses iText.
+description: Adds PDF output and printing to a Java program using the shared smart-report library (com.github.MohamedSalah-13.smart-report-plugin on JitPack) instead of writing print code again - an Arabic-ready document on A4 or A5, or a receipt on an 80 mm or 58 mm thermal roll, with letterhead (on every page if asked), tables with totals rows, a summary, the amount in Arabic words (تفقيط), signature boxes, a page footer and page numbers, a JavaFX preview window, saving as a file and sending to a chosen printer. Use this whenever the user wants to print something or produce a PDF from a desktop or backend Java program - an invoice, a statement, a cashier's receipt, a report, a list - including phrasings like "print", "PDF", "preview before printing", "A5", "receipt printer", "طباعة", "اطبع الكشف", "فاتورة PDF", "إيصال", "طابعة الكاشير", "طابعة حرارية", "ورق 80 مم", "التفقيط", "المبلغ بالحروف", "خانة توقيع المستلم", "معاينة قبل الطباعة", "حفظ PDF", "تقرير يتطبع", "زي الطباعة اللى فى naqlat" - and also when a program's printed page comes out wrong in Arabic (table running the wrong way, text cut with "...", a minus sign or a date on the wrong side, letters not joined), when a long page is shrunk onto one sheet, or when a program still prints a JavaFX node or uses iText.
 ---
 
 # PDF print
@@ -37,7 +37,8 @@ and says whether the page runs right to left.
    - whether the program is JavaFX, and whether it has a `module-info.java`;
    - the packaging script (`jpackage ...`) if there is one;
    - the paper the customer prints on. Ask if nothing says: A4 and A5 are both common, and a statement that
-     fits A5 upright saves half the paper.
+     fits A5 upright saves half the paper. A cashier's receipt usually goes to a thermal printer with an
+     80 mm roll (58 mm on small ones) - see "Receipts on a thermal printer" below.
 3. If the program uses **iText**, tell the user before going on: iText 7 and 8 are AGPL, which a closed
    program cannot ship without a commercial licence. This library exists partly to avoid that. Do not add
    iText to make something work.
@@ -47,8 +48,10 @@ and says whether the page runs right to left.
 ### 1. Dependency
 
 Use the newest tag of the library:
-`gh api repos/MohamedSalah-13/smart-report-plugin/tags --jq '.[0].name'`. The preview window
-(`smart-report-fx`) exists from `v2.1.0`.
+`gh api repos/MohamedSalah-13/smart-report-plugin/tags --jq '.[0].name'`. What needs which version: the
+preview window (`smart-report-fx`) `v2.1.0`; column formats in the generic report `v2.2.0`; `AmountInWords`
+`v2.3.0`; thermal rolls, the letterhead on every page, `pageFooter` and `signatures` `v2.4.0`. A program on an
+older tag that needs one of these moves to the newest tag.
 
 ```xml
 <repositories>
@@ -131,7 +134,20 @@ What each part is:
 - `table(...)` - columns with weights, rows, and `totals(...)` rows drawn as a band with one cell under each
   column. Several tables are fine; the column headings repeat on every page a table runs onto.
 - `summary(label, value)` lines and one `summaryTotal(label, value)` - the figure the reader looks for.
-- `footer(text)`, and page numbers by themselves once there is more than one page.
+- `footer(text)` - a closing sentence drawn once, after the last part; and page numbers by themselves once
+  there is more than one page.
+- `letterheadOnEveryPage(true)` - the letterhead (and logo) on top of every page, for long statements; a table
+  that continues has its header under it. Without it the letterhead is on the first page only.
+- `pageFooter(text)` - a small line at the bottom of **every** page, above the page number (the company's
+  address or a "printed from" line). Not the same as `footer`.
+- `signatures("المستلم", "المحاسب", "الختم")` - boxes side by side in reading order, each with its label and
+  room to sign, kept together on one page. Put it last, where the old paper had its signature lines.
+- The amount in words, when the old paper had it ("فقط ... لا غير"):
+  `document.text(AmountInWords.arabic(invoice.net(), AmountInWords.Currency.EGP))` (from
+  `com.smart.report.util`, in `smart-report-api`, which `smart-report-pdf` brings). Ready currencies: `EGP`,
+  `SAR`, `AED`, `KWD`, `USD`; another is a `new AmountInWords.Currency(...)` with its noun forms (see the
+  README). `arabicWords` gives the words without "فقط ... لا غير". Pass the `BigDecimal` itself, not a
+  formatted string; a negative amount is rejected, so write a refund's words from its absolute value.
 
 Things that matter and are easy to get wrong:
 
@@ -247,9 +263,17 @@ has not been on a real printer yet; the old one usually had.
   byte[] pdf = ReportService.generate(ReportType.PDF, request);
   ```
 
-  Columns are read from the objects by name. Use `PdfDocument` instead as soon as figures need formatting
-  or the page needs more than one table.
-- **The same list as Excel** - add `smart-report-excel` and ask for `ReportType.EXCEL`.
+  Columns are read from the objects by name. A column can carry a format, an alignment and a width weight
+  (from `v2.2.0`):
+  `.addColumn(ColumnDefinition.of("salary", "الراتب").withFormat("#,##0.00").withAlign(Alignment.END).withWeight(2))`
+  - a `DecimalFormat` pattern for numbers, a `DateTimeFormatter` pattern for dates (`d MMMM yyyy` gives
+  Arabic month names in an Arabic report). Use `PdfDocument` instead as soon as the page needs fields, a
+  summary or more than one table.
+- **The same list as Excel** - add `smart-report-excel` and ask for `ReportType.EXCEL`. It applies each
+  column's format (as an Excel format, so numbers stay numbers) and alignment, and ignores the weight. A date
+  pattern Excel would show differently - `hh` without `a`, `HH` with `a`, `k`, or a time zone `z` - fails
+  with a `ReportException` naming the column: use `HH:mm`, or `hh:mm a`. The Excel module brings Apache POI
+  6 from the release after `v2.4.0`; a program that uses POI itself should know that.
 - **A page designed in Jaspersoft Studio** - add `smart-report-jasper` and ask for `ReportType.JASPER` with
   the template's path. Only for a program that already has templates; a new page is quicker as a
   `PdfDocument`.
@@ -259,8 +283,32 @@ has not been on a real printer yet; the old one usually had.
   complains, say so to the user rather than working round it silently.
 - **Another font** - the program's own TTF as the classpath resource `fonts/report-font.ttf` (and
   `fonts/report-font-bold.ttf`), or `-Dsmart.report.pdf.font=/path/to/font.ttf`.
-- **Receipts on a roll (80 mm)** - not what this library lays out. `Paper.ofMillimetres("80mm", 80, 200)`
-  gives a page of that size, but a receipt has no fixed height; say this to the user before building one.
+- **Receipts on a thermal printer** - the same `PdfDocument` on a roll (from `v2.4.0`):
+
+  ```java
+  PdfDocument receipt = PdfDocument.rtl(Paper.ROLL_80)            // Paper.ROLL_58 for a 58 mm printer
+          .letterhead(shop.name(), shop.phone())
+          .field("رقم الإيصال", sale.number())
+          .field("التاريخ", Ui.dateTime(sale.at()))
+          .table(items)                                           // three columns at most: الصنف، الكمية، المبلغ
+          .summaryTotal("الإجمالى", Ui.amount(sale.total()))
+          .text(AmountInWords.arabic(sale.total(), AmountInWords.Currency.EGP))
+          .footer("شكرًا لزيارتكم");
+  ```
+
+  - A receipt is **one page as long as its content**, cut where the text ends - not an A4 sheet and not
+    several pages (only a receipt longer than about five metres continues on a second page).
+  - The roll gets a smaller font and narrow margins by itself; do not give it an A4 style.
+  - `PdfPrinter.print(receipt, printerName, 1)` asks the printer for no paper size, so it uses its roll. The
+    printer must have its system driver installed: if it is not in `PdfPrinter.printerNames()`, the program
+    cannot print a PDF to it, and the user has to install the driver - say so rather than writing ESC/POS
+    code.
+  - In the preview give the roll alone, `.papers(Paper.ROLL_80)`, so there is no paper choice. The window
+    opens with the whole page fitted ("الصفحة كاملة"), which shows a long receipt as a narrow strip; "ملء
+    العرض" makes it readable. Tell the user, or have them try it, before they report it as a bug.
+  - `Paper.parse("80mm")` / `"58mm"` reads a saved setting; `Paper.roll("76mm", 76)` is another width.
+  - Test that it is one page, about 226.8 points wide (80 mm), with the last line and the total on it. Its
+    height follows the number of lines, so assert a bound, not an exact height.
 
 ## When it does not work
 
