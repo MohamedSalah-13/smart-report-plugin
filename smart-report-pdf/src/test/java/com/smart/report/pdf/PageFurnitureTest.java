@@ -123,6 +123,123 @@ class PageFurnitureTest {
         }
     }
 
+    private static PdfTable days(int rows) {
+        PdfTable table = PdfTable.create().column("Day", 1);
+        for (int i = 1; i <= rows; i++) {
+            table.row("row" + i);
+        }
+        return table;
+    }
+
+    private static PdfDocument closing(PdfDocument document, int rows) {
+        return document.table(days(rows))
+                .summary("Due", "100").summary("Paid", "10").summaryTotal("Remaining", "90")
+                .space(4).text("Ninety only")
+                .signatures("AAA", "BBB")
+                .pageNumbers(PageNumbers.NONE);
+    }
+
+    /**
+     * الخانات ما بتنزلش لوحدها في صفحة من غير الأرقام: لو ما كفّاهاش المكان تحت الملخص، الملخص والنص اللي
+     * بينهم (التفقيط) بيتنقلوا معاها — أيًا كان مكانهم في آخر الصفحة، وفي الاتجاهين.
+     */
+    @Test
+    void signatureBoxesTakeTheSummaryAndTheTextBetweenAlong() throws Exception {
+        for (boolean rtl : new boolean[] {false, true}) {
+            for (int rows = 20; rows <= 44; rows++) {
+                PdfDocument document = closing(rtl ? PdfDocument.rtl(Paper.A5) : PdfDocument.ltr(Paper.A5), rows);
+                Glyphs glyphs = Glyphs.of(document.toBytes());
+                int page = glyphs.pages();
+                String what = (rtl ? "rtl, " : "ltr, ") + rows + " صف";
+                assertTrue(glyphs.drawn("AAA", page) && glyphs.drawn("BBB", page), what);
+                assertTrue(glyphs.drawn("Due", page) && glyphs.drawn("Remaining", page), "الملخص مع الخانات: " + what);
+                assertTrue(glyphs.drawn("Ninety", page), "التفقيط مع الخانات: " + what);
+                assertTrue(glyphs.lowest() <= Paper.A5.height() - PdfStyle.forPaper(Paper.A5).margin(), what);
+            }
+        }
+    }
+
+    /**
+     * الملخص اللي اتنقل مع الخانات بيبدأ تحت الترويسة في نفس المكان اللي كان بيبدأ فيه لما بيتنقل لوحده،
+     * من غير المسافة اللي قبله.
+     */
+    @Test
+    void aMovedGroupStartsWhereAMovedSummaryDid() throws Exception {
+        int compared = 0;
+        for (int rows = 20; rows <= 44; rows++) {
+            Glyphs alone = Glyphs.of(statement().letterheadOnEveryPage(true).table(days(rows))
+                    .summary("Due", "100").summaryTotal("Remaining", "90").pageNumbers(PageNumbers.NONE).toBytes());
+            int page = alone.pages();
+            if (alone.drawn("row" + rows, page)) {
+                continue; // الملخص ما اتنقلش لوحده هنا
+            }
+            Glyphs together = Glyphs.of(statement().letterheadOnEveryPage(true).table(days(rows))
+                    .summary("Due", "100").summaryTotal("Remaining", "90").text("Ninety only")
+                    .signatures("AAA", "BBB").pageNumbers(PageNumbers.NONE).toBytes());
+            assertEquals(alone.first("Due", page).y(), together.first("Due", page).y(), 0.5f, rows + " صف");
+            compared++;
+        }
+        assertTrue(compared > 0, "ولا حالة اتنقل فيها الملخص لوحده");
+    }
+
+    /** من غير ملخص: النص اللي قبل الخانات على طول («استلمت ...») بيتنقل معاها. */
+    @Test
+    void signatureBoxesTakeTheTextJustBeforeThemAlong() throws Exception {
+        for (int rows = 20; rows <= 44; rows++) {
+            Glyphs glyphs = Glyphs.of(PdfDocument.ltr(Paper.A5).table(days(rows))
+                    .text("I received the goods listed above").signatures("AAA", "BBB")
+                    .pageNumbers(PageNumbers.NONE).toBytes());
+            int page = glyphs.pages();
+            assertTrue(glyphs.drawn("received", page) && glyphs.drawn("AAA", page), rows + " صف");
+        }
+    }
+
+    /**
+     * المجموعة اللي مفيش فوقها غير ترويسة أول صفحة ما بتتنقلش (كانت هتسيب صفحة فيها الترويسة بس): النص بيبدأ
+     * تحت الترويسة، وآخر سطر فيه بينزل مع الخانات لو ما كفّاهمش المكان.
+     */
+    @Test
+    void aGroupRightUnderTheFirstLetterheadKeepsItsLastLineWithTheBoxes() throws Exception {
+        for (int count = 30; count <= 45; count++) {
+            StringBuilder text = new StringBuilder();
+            for (int line = 1; line <= count; line++) {
+                text.append(line == 1 ? "" : "\n").append("line").append(line);
+            }
+            Glyphs glyphs = Glyphs.of(PdfDocument.ltr(Paper.A5).letterhead("Company", "Address")
+                    .text(text.toString()).signatures("AAA", "BBB").pageNumbers(PageNumbers.NONE).toBytes());
+            int page = glyphs.pages();
+            assertTrue(glyphs.drawn("line1", 1), count + " سطر: النص بيبدأ تحت الترويسة");
+            assertTrue(glyphs.drawn("AAA", page) && glyphs.drawn("line" + count, page),
+                    count + " سطر: آخر سطر مع الخانات");
+            assertTrue(glyphs.lowest() <= Paper.A5.height() - PdfStyle.forPaper(Paper.A5).margin(), count + " سطر");
+        }
+    }
+
+    /** المجموعة الأطول من صفحة ما بتتنقلش: الملخص بيفضل مكانه، والنص بيكمل وآخر سطر فيه مع الخانات. */
+    @Test
+    void aGroupTallerThanAPageIsDrawnAsBefore() throws Exception {
+        StringBuilder note = new StringBuilder();
+        for (int word = 1; word <= 900; word++) {
+            note.append('w').append(word).append(' ');
+        }
+        Glyphs glyphs = Glyphs.of(PdfDocument.ltr(Paper.A5).table(days(10)).summaryTotal("Remaining", "90")
+                .text(note.toString().trim()).signatures("AAA", "BBB").pageNumbers(PageNumbers.NONE).toBytes());
+
+        assertTrue(glyphs.drawn("Remaining", 1), "الملخص ما اتزقّش من أول صفحة");
+        assertTrue(glyphs.pages() >= 2);
+        assertTrue(glyphs.drawn("w900", glyphs.pages()) && glyphs.drawn("AAA", glyphs.pages()));
+        assertTrue(glyphs.lowest() <= Paper.A5.height() - PdfStyle.forPaper(Paper.A5).margin(), "" + glyphs.lowest());
+    }
+
+    /** الإيصال الحراري صفحة واحدة بطول المحتوى: مفيش حاجة تتنقل. */
+    @Test
+    void aReceiptWithSignaturesStaysOnePage() throws Exception {
+        Glyphs glyphs = Glyphs.of(closing(PdfDocument.rtl(Paper.ROLL_80), 44).toBytes());
+
+        assertEquals(1, glyphs.pages());
+        assertTrue(glyphs.drawn("row1", 1) && glyphs.drawn("Remaining", 1) && glyphs.drawn("AAA", 1));
+    }
+
     @Test
     void signaturesNeedALabel() {
         assertThrows(IllegalArgumentException.class, () -> PdfDocument.ltr(Paper.A4).signatures());

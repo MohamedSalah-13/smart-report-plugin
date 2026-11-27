@@ -89,7 +89,7 @@ PdfDocument document = PdfDocument.rtl(Paper.A5)            // or Paper.A4, or P
         .summary("الواصل", "4,000.00")
         .summaryTotal("الباقى", "3,200.00")
         .footer("شكرًا لتعاملكم")
-        .signatures("المستلم", "المحاسب", "الختم");          // signature boxes, kept together
+        .signatures("المستلم", "المحاسب", "الختم");          // signature boxes, kept with the summary above
 
 document.save(Path.of("statement.pdf"));     // a file
 byte[] pdf = document.toBytes();             // or bytes
@@ -135,6 +135,9 @@ document.letterheadOnEveryPage(true)                              // the letterh
 - `letterheadOnEveryPage(true)`: for long statements; a table that continues on a new page has its header under the letterhead.
 - `pageFooter(text)`: above the page number on every page, including a single page. `footer(text)` is different:
   a closing sentence drawn once after the last part.
+- `signatures(...)`: the boxes stay together, and stay with the summary before them (and any text between, such as
+  the amount in words): when they do not fit under it, the summary moves to the next page with them. If that
+  group cannot move, at least the last line of the text before the boxes goes with them.
 
 ### Thermal receipts (80 mm and 58 mm)
 

@@ -9,6 +9,14 @@
   too long for that fails with a `ReportException` naming it rather than printing unreadable bars. Encoded by the
   ZXing core that `smart-report-pdf` already brings.
 
+### Fixed
+- Signature boxes no longer land alone at the top of a new page, away from the figures they sign for. When they
+  do not fit under the summary before them, the summary moves to the next page with them, together with any text
+  and space between the two (such as the amount in words). Text written straight before the boxes (no summary)
+  moves with them the same way. When the group cannot move (it is taller than a page, or nothing but the first
+  page's letterhead is above it), the last line of the text before the boxes goes with them instead. A thermal
+  roll is drawn as before.
+
 ## [2.5.0] - 2026-11-27
 
 ### Upgrade notes
