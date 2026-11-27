@@ -6,6 +6,16 @@
 - `smart-report-excel` now brings Apache POI 6.0.0 (from 5.3.0), with its new dependencies (`jakarta.xml.bind-api`,
   `xmlsec` 4). A program that uses POI itself as well gets 6.0.0 unless it pins its own version. (#9)
 
+### Added
+- `PdfDocument.qrCode(text)` (and `qrCode(text, align)`, `qrCode(text, sizeMm, align)`): a QR code drawn as vector
+  squares with its quiet zone, at the start, centre or end of the line in the document's direction, and kept on one
+  page. A code wider than a thermal roll shrinks to fit, and the receipt is still cut right under it. Arabic text is
+  encoded as UTF-8. The encoding is done by ZXing core 3.5.4 (Apache License 2.0, no dependencies of its own), which
+  `smart-report-pdf` now brings.
+- `ZatcaQr.payload(sellerName, vatNumber, timestamp, totalWithVat, vatTotal)` in `smart-report-api`: the text of the
+  QR code a simplified tax invoice carries in Saudi Arabia (ZATCA e-invoicing, phase 1): the Base64 of its five TLV
+  fields, with lengths in UTF-8 bytes.
+
 ### Changed
 - Build plugins (compiler, surefire, jar, source) updated, the JavaFX the preview compiles against is 21.0.13.1, and
   the tests run on JUnit 6.1.3. (#6, #7)

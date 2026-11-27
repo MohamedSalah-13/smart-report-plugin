@@ -72,6 +72,15 @@ public final class PdfDocument {
     record SignaturesBlock(List<String> labels) implements Block {
     }
 
+    /** @param size ضلع الرمز بالنقطة، من غير المنطقة الفاضية حواليه */
+    record QrBlock(QrSymbol symbol, float size, Align align) implements Block {
+    }
+
+    /** ضلع رمز QR لو ما اتحدّدش: 30 مم، بيتقرا بسهولة من الموبايل ويكفي في عرض لفة 58 مم. */
+    static final float DEFAULT_QR_MM = 30f;
+
+    private static final float POINTS_PER_MM = 72f / 25.4f;
+
     private final Paper paper;
     private final boolean rightToLeft;
     private final List<Block> blocks = new ArrayList<>();
@@ -153,6 +162,41 @@ public final class PdfDocument {
             throw new IllegalArgumentException("At least one signature label is required.");
         }
         return add(new SignaturesBlock(List.copyOf(kept)));
+    }
+
+    /**
+     * رمز QR في منتصف السطر، ضلعه 30 مم — رابط، رقم فاتورة، أو رمز فاتورة الزكاة والضريبة
+     * ({@link com.smart.report.util.ZatcaQr#payload}).
+     *
+     * @throws IllegalArgumentException لو النص فاضي أو أطول من اللي يشيله رمز QR
+     * @see #qrCode(String, float, Align)
+     */
+    public PdfDocument qrCode(String text) {
+        return qrCode(text, DEFAULT_QR_MM, Align.CENTER);
+    }
+
+    /** رمز QR ضلعه 30 مم، عند بداية السطر أو في منتصفه أو آخره حسب اتجاه المستند. */
+    public PdfDocument qrCode(String text, Align align) {
+        return qrCode(text, DEFAULT_QR_MM, align);
+    }
+
+    /**
+     * رمز QR مرسوم مربعات متجهة (مش صورة)، فبيفضل حادًا على أي طابعة. حواليه منطقة فاضية بعرض 4
+     * مربعات زيادة على {@code sizeMm}، والقارئ بيحتاجها. الرمز ما بيتقسمش: لو ما كفّاهوش الباقي بيتنقل
+     * كله للصفحة الجاية، ولو أعرض من الصفحة (لفة 58 مم مثلًا) بيصغر لحد ما يكفي هو ومنطقته الفاضية.
+     *
+     * @param text   النص اللي الرمز بيشيله؛ العربي بيتشفّر UTF-8
+     * @param sizeMm ضلع الرمز بالمليمتر، من غير المنطقة الفاضية
+     * @param align  {@link Align#START} عند بداية السطر (يمين في المستند العربي)، {@link Align#CENTER}، أو
+     *               {@link Align#END}
+     * @throws IllegalArgumentException لو النص فاضي أو أطول من اللي يشيله رمز QR (حوالي 2300 بايت)، أو
+     *                                  المقاس مش موجب
+     */
+    public PdfDocument qrCode(String text, float sizeMm, Align align) {
+        if (!(sizeMm > 0) || Float.isInfinite(sizeMm)) {
+            throw new IllegalArgumentException("The QR code size must be a positive number of millimetres.");
+        }
+        return add(new QrBlock(QrSymbol.encode(text), sizeMm * POINTS_PER_MM, align == null ? Align.CENTER : align));
     }
 
     /** شعار الجهة (PNG أو JPEG) بجانب الترويسة، في الجهة اللي الصفحة بتبدأ منها. */

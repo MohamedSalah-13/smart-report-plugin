@@ -28,5 +28,11 @@
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
         </dependency>
+        <!-- Encodes the QR code (the PDF draws its squares itself), and reads it back in the tests.
+             Apache License 2.0, no dependencies of its own. -->
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+        </dependency>
     </dependencies>
 </project>

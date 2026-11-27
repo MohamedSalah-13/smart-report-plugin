@@ -8,7 +8,7 @@
 
 مكتبة جافا للتقارير والطباعة، بتضاف كـ dependency لأي مشروع:
 
-- **مستندات PDF عربية جاهزة للطباعة** على A4 و A5 (طولي وعرضي): ترويسة، عنوان، بيانات، أكتر من جدول بصف إجمالي، ملخص، ترقيم صفحات — وإرسال مباشر للطابعة. عبر Apache PDFBox فقط.
+- **مستندات PDF عربية جاهزة للطباعة** على A4 و A5 (طولي وعرضي): ترويسة، عنوان، بيانات، أكتر من جدول بصف إجمالي، ملخص، ترقيم صفحات، رمز QR — وإرسال مباشر للطابعة. عبر Apache PDFBox (و ZXing core لتشفير رمز QR).
 - **نافذة معاينة JavaFX** جاهزة: الصفحات كما هتتطبع، اختيار الطابعة والمقاس وعدد النسخ، طباعة وحفظ PDF.
 - **PDF أو Excel عام من `List<POJO>`** بدون أي قالب.
 - **JasperReports** (قوالب `.jrxml`/`.jasper` مصممة بصريًا): تصدير PDF, XLSX, HTML, أو CSV.
@@ -36,11 +36,11 @@
 
 | الوحدة | فيها إيه | بتجيب معاها |
 |---|---|---|
-| `smart-report-pdf` | `PdfDocument`، `PdfPrinter`، `PdfPages`، وتقرير PDF العام | PDFBox |
+| `smart-report-pdf` | `PdfDocument`، `PdfPrinter`، `PdfPages`، وتقرير PDF العام | PDFBox، و ZXing core (رمز QR) |
 | `smart-report-fx` | `PdfPreview`: نافذة المعاينة | `smart-report-pdf`؛ و JavaFX بتاع برنامجك (`provided`) |
 | `smart-report-excel` | تقرير Excel العام | Apache POI |
 | `smart-report-jasper` | تقارير قوالب Jasper | JasperReports |
-| `smart-report-api` | `ReportService` و`ReportRequest` — بتيجي لوحدها مع أي وحدة فوق | slf4j-api فقط |
+| `smart-report-api` | `ReportService` و`ReportRequest` و`AmountInWords` و`ZatcaQr` — بتيجي لوحدها مع أي وحدة فوق | slf4j-api فقط |
 
 ## التثبيت
 
@@ -169,6 +169,55 @@ PdfDocument receipt = PdfDocument.rtl(Paper.ROLL_80)          // أو Paper.ROLL
 - الإيصال **صفحة واحدة بطول المكتوب فيه**، مش ورقة A4: اللفة بتتقص عند آخر سطر.
 - الخط أصغر والهوامش ضيقة على اللفة. و`PdfPrinter` ما بيطلبش من الطابعة مقاس ورق، فبتستخدم لفتها.
 - `Paper.parse("80mm")` ونافذة المعاينة بيعرفوا اللفات كمان.
+
+### رمز QR (ورمز الفاتورة الضريبية في السعودية)
+
+<div dir="ltr">
+
+```java
+document.qrCode("https://example.com/invoices/2026-0042");   // 30 مم، في المنتصف
+document.qrCode(invoiceNumber, 25, Align.START);              // 25 مم، عند بداية السطر (يمين في العربي)
+```
+
+</div>
+
+رمز QR اللي بتشيله الفاتورة الضريبية المبسطة في السعودية (الفوترة الإلكترونية، المرحلة الأولى — هيئة الزكاة
+والضريبة والجمارك): اسم البائع، والرقم الضريبي، والوقت، والإجمالي شامل الضريبة، والضريبة، بالترميز اللي الهيئة
+طالباه:
+
+<div dir="ltr">
+
+```java
+import com.smart.report.util.ZatcaQr;
+
+String qr = ZatcaQr.payload("مؤسسة الهدى للتجارة", "310122393500003",
+        LocalDateTime.now().atZone(ZoneId.of("Asia/Riyadh")).toInstant(),
+        new BigDecimal("1150.00"), new BigDecimal("150.00"));
+
+PdfDocument receipt = PdfDocument.rtl(Paper.ROLL_80)
+        .letterhead("مؤسسة الهدى للتجارة", "الرقم الضريبي 310122393500003")
+        .title("فاتورة ضريبية مبسطة")
+        .table(items)
+        .summary("ضريبة القيمة المضافة 15%", "150.00")
+        .summaryTotal("الإجمالى شامل الضريبة", "1,150.00")
+        .qrCode(qr);
+```
+
+</div>
+
+- مرسوم مربعات متجهة مش صورة، فبيفضل حادًا على أي طابعة. حواليه منطقة فاضية بعرض 4 مربعات، وما بيتقسمش على
+  صفحتين أبدًا.
+- المقاس هو ضلع الرمز بالمليمتر. على اللفة الضيقة الرمز الأعرض من السطر بيصغر لحد ما يكفي، والإيصال بيتقص
+  تحته على طول.
+- `Align.START` عند بداية السطر (يمين في المستند العربي)، و`Align.END` عند آخره، و`Align.CENTER` (الافتراضي) في
+  المنتصف. والنص العربي بيتشفّر UTF-8.
+- `ZatcaQr.payload` بيرجّع Base64 لقيم الـ TLV (الأرقام من 1 لـ 5، وطول كل قيمة بعدد بايتاتها في UTF-8، فالاسم
+  العربي بيتعد ببايتاته مش بحروفه). الوقت بيتكتب بتوقيت UTC والمبالغ بخانتين عشريتين، والرقم الضريبي اللي مش
+  15 رقمًا أوله وآخره 3 بيترفض. موجود في `smart-report-api` ومش محتاج أي مكتبة.
+- رمز المرحلة الثانية (الربط) فيه قيم زيادة (بصمة الفاتورة وتوقيعها) ما بتطلعش غير من توقيع الفاتورة نفسها؛
+  `ZatcaQr` للمرحلة الأولى.
+- الرمز بيتشفّر بـ [ZXing](https://github.com/zxing/zxing) core (رخصة Apache 2.0، ومالهاش dependencies)،
+  و`smart-report-pdf` بيجيبها معاه.
 
 ### الشكل (`PdfStyle`)
 
