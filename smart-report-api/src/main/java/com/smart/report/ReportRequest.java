@@ -22,6 +22,7 @@ public final class ReportRequest<T> {
     private final Map<String, Object> parameters;
     private final String template;
     private final JasperExportFormat exportFormat;
+    private final String totalsLabel;
 
     private ReportRequest(Builder<T> builder) {
         this.title = builder.title;
@@ -31,6 +32,7 @@ public final class ReportRequest<T> {
         this.parameters = Collections.unmodifiableMap(new LinkedHashMap<>(builder.parameters));
         this.template = builder.template;
         this.exportFormat = builder.exportFormat;
+        this.totalsLabel = builder.totalsLabel;
     }
 
     /**
@@ -75,6 +77,14 @@ public final class ReportRequest<T> {
         return exportFormat;
     }
 
+    /**
+     * الكلمة اللي في أول صف الإجمالي، زي ما البرنامج حددها؛ {@code null} = الافتراضي حسب اتجاه التقرير
+     * («الإجمالى» أو «Total»، شوف {@link com.smart.report.util.Totals#label}).
+     */
+    public String totalsLabel() {
+        return totalsLabel;
+    }
+
     public static <T> Builder<T> builder() {
         return new Builder<>();
     }
@@ -86,6 +96,7 @@ public final class ReportRequest<T> {
         private final Map<String, Object> parameters = new LinkedHashMap<>();
         private String template;
         private JasperExportFormat exportFormat = JasperExportFormat.PDF;
+        private String totalsLabel;
 
         public Builder<T> title(String title) {
             this.title = title == null ? "" : title;
@@ -136,6 +147,16 @@ public final class ReportRequest<T> {
 
         public Builder<T> exportFormat(JasperExportFormat exportFormat) {
             this.exportFormat = exportFormat == null ? JasperExportFormat.PDF : exportFormat;
+            return this;
+        }
+
+        /**
+         * الكلمة اللي في أول صف الإجمالي، تحت أول عمود مش متجمّع ({@link ColumnDefinition#withTotal()}):
+         * {@code "المجموع"} أو {@code "Grand total"} مثلًا. {@code null} يرجّع الافتراضي حسب اتجاه التقرير
+         * («الإجمالى» أو «Total»)، والنص الفاضي بيسيب الخانة فاضية.
+         */
+        public Builder<T> totalsLabel(String label) {
+            this.totalsLabel = label;
             return this;
         }
 

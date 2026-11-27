@@ -352,10 +352,19 @@ has not been on a real printer yet; the old one usually had.
   (from `v2.2.0`):
   `.addColumn(ColumnDefinition.of("salary", "الراتب").withFormat("#,##0.00").withAlign(Alignment.END).withWeight(2))`
   - a `DecimalFormat` pattern for numbers, a `DateTimeFormatter` pattern for dates (`d MMMM yyyy` gives
-  Arabic month names in an Arabic report). Use `PdfDocument` instead as soon as the page needs fields, a
-  summary or more than one table.
+  Arabic month names in an Arabic report). For a total under the table (the release after `v2.7.1`), add
+  `.withTotal()` to each column to sum - `ColumnDefinition.of("amount", "المبلغ").withFormat("#,##0.00").withTotal()`:
+  each sum sits under its column in the column's format, exact in the PDF (`BigDecimal`; a `double` adds as the
+  decimal it shows; `null` adds nothing), with the label `الإجمالى` (`Total` in a left-to-right report) under the first
+  column that is not summed; `.totalsLabel("...")` on the request changes it. A value that is not a number in
+  a summed column fails with a `ReportException` naming the column and row. Do not add the total as a fake data
+  row. Use `PdfDocument` instead as soon as the page needs fields, a summary or more than one table.
 - **The same list as Excel** - add `smart-report-excel` and ask for `ReportType.EXCEL`. It applies each
-  column's format (as an Excel format, so numbers stay numbers) and alignment, and ignores the weight. A date
+  column's format (as an Excel format, so numbers stay numbers) and alignment, and ignores the weight. A
+  `withTotal()` column gets a bold totals row, one empty row below the data, holding a real `SUM` formula with
+  its computed value, outside the filter. That total is Excel's own `double` arithmetic over the stored cells,
+  so it can differ from the exact PDF total in the last digits of a `float` or a number past ~15 digits; for
+  two-decimal money they match. A date
   pattern Excel would show differently - `hh` without `a`, `HH` with `a`, `k`, or a time zone `z` - fails
   with a `ReportException` naming the column: use `HH:mm`, or `hh:mm a`. The Excel module brings Apache POI
   6 from `v2.5.0`; a program that uses POI itself should know that.
