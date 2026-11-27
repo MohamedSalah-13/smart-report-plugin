@@ -147,7 +147,8 @@ PdfDocument receipt = PdfDocument.rtl(Paper.ROLL_80)          // or Paper.ROLL_5
 - A receipt is **one page as long as its content**, not an A4 sheet: the roll is cut where the text ends.
 - A smaller font and narrow margins are chosen for the roll. `PdfPrinter` asks the printer for no paper size, so it
   uses its own roll.
-- `Paper.parse("80mm")` and the preview window know the rolls too.
+- `Paper.parse("80mm")` and the preview window know the rolls too. The preview opens a receipt at a readable size
+  (as wide as the window allows, up to twice its size) instead of fitting the whole length into the window.
 
 ### Style (`PdfStyle`)
 

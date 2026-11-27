@@ -62,8 +62,21 @@ final class PreviewWindow {
     private static final double ZOOM_STEP = 1.25;
     private static final double MIN_ZOOM = 0.25;
     private static final double MAX_ZOOM = 4;
+    /**
+     * الإيصال بيتفتح بعرض النافذة لحد ضعف مقاسه: أكبر من كده خط الإيصال الضيّق بيبقى ضخم في نافذة
+     * عريضة، و«الصفحة كاملة» بتخلّي الإيصال الطويل شريط رفيع ما يتقريش.
+     */
+    private static final double ROLL_SCALE = 2;
+    /**
+     * أكبر صورة بترسمها المعاينة للصفحة: ضلع 8192 بكسل (كروت شاشة كتير ما بتعرضش صورة أكبر في
+     * قطعة واحدة) وحوالي 16 مليون بكسل (64 ميجا). الإيصال الأطول بيترسم بدقة أقل ويتكبّر لنفس مقاسه
+     * على الشاشة؛ الطباعة والحفظ من الـ PDF نفسه فمش بيتأثروا.
+     */
+    static final int MAX_IMAGE_SIDE = 8192;
+    static final double MAX_IMAGE_PIXELS = 8192.0 * 2048;
 
-    private enum Fit { PAGE, WIDTH, NONE }
+    /** {@code ROLL}: عرض الورق اللفة الافتراضي، لحد ما المستخدم يختار عرض بنفسه. */
+    private enum Fit { PAGE, WIDTH, ROLL, NONE }
 
     /** مستند اتبنى واتفتح: بايتاته للطباعة والحفظ، وصفحاته ومقاساتها للعرض. */
     private record Loaded(Paper paper, byte[] bytes, PdfPages pages, float[] widths, float[] heights) {
@@ -103,6 +116,8 @@ final class PreviewWindow {
     private Loaded loaded;
     private int pageIndex;
     private Fit fit = Fit.PAGE;
+    /** المستخدم اختار تكبير أو ملء: بيفضل زي ما هو حتى لو غيّر الورق. */
+    private boolean viewChosen;
     private double zoom = 1;
     private boolean printing;
     private boolean closed;
@@ -348,6 +363,9 @@ final class PreviewWindow {
                 }
                 Loaded old = loaded;
                 loaded = fresh;
+                if (!viewChosen) {
+                    fit = fresh.paper().roll() ? Fit.ROLL : Fit.PAGE;
+                }
                 pageIndex = Math.clamp(pageIndex, 0, Math.max(0, fresh.widths().length - 1));
                 say(noPrinters ? texts.noPrinter() : "", false);
                 updatePager();
@@ -393,11 +411,13 @@ final class PreviewWindow {
         }
         zoom = Math.clamp(scale() * factor, MIN_ZOOM, MAX_ZOOM);
         fit = Fit.NONE;
+        viewChosen = true;
         render();
     }
 
     private void fit(Fit mode) {
         fit = mode;
+        viewChosen = true;
         render();
     }
 
@@ -412,8 +432,22 @@ final class PreviewWindow {
             return zoom;
         }
         double byWidth = room / loaded.widths()[pageIndex];
-        double chosen = fit == Fit.WIDTH ? byWidth : Math.min(byWidth, tall / loaded.heights()[pageIndex]);
+        double chosen = switch (fit) {
+            case WIDTH -> byWidth;
+            case ROLL -> Math.min(byWidth, ROLL_SCALE);
+            default -> Math.min(byWidth, tall / loaded.heights()[pageIndex]);
+        };
         return Math.clamp(chosen, MIN_ZOOM, MAX_ZOOM);
+    }
+
+    /**
+     * دقة رسم الصفحة (بكسل لكل نقطة): المطلوبة، لحد {@link PdfPages#MAX_SCALE} ولحد ما الصورة تفضل
+     * جوّه {@link #MAX_IMAGE_SIDE} و{@link #MAX_IMAGE_PIXELS}.
+     */
+    static float renderScale(float width, float height, double wanted) {
+        double bySide = MAX_IMAGE_SIDE / Math.max(width, height);
+        double byArea = Math.sqrt(MAX_IMAGE_PIXELS / ((double) width * height));
+        return (float) Math.min(Math.min(wanted, PdfPages.MAX_SCALE), Math.min(bySide, byArea));
     }
 
     private void resize() {
@@ -431,7 +465,8 @@ final class PreviewWindow {
         Loaded current = loaded;
         int index = pageIndex;
         // على شاشة عالية الكثافة الصفحة بتترسم ببكسلات أكتر من مقاسها المعروض.
-        float pixels = (float) Math.min(PdfPages.MAX_SCALE, scale() * Math.max(1, stage.getOutputScaleX()));
+        float pixels = renderScale(current.widths()[index], current.heights()[index],
+                scale() * Math.max(1, stage.getOutputScaleX()));
         worker.submit(() -> {
             if (mine != ticket.get()) {
                 return;

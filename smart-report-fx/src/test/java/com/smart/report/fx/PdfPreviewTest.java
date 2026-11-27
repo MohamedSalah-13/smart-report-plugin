@@ -8,6 +8,7 @@ import javafx.geometry.NodeOrientation;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.image.ImageView;
 import javafx.stage.Stage;
 import javafx.stage.Window;
@@ -205,6 +206,96 @@ class PdfPreviewTest {
         assertTrue(onFx(() -> PdfPreviewTest.<Button>node(stage, "save").isDisabled()));
         assertTrue(onFx(() -> PdfPreviewTest.<Button>node(stage, "print").isDisabled()));
         assertNotNull(stage);
+    }
+
+    private static PdfDocument receipt(Paper paper, int items) {
+        PdfTable table = PdfTable.create().column("Item", 3).column("Price", 2);
+        for (int i = 1; i <= items; i++) {
+            table.row("item" + i, "10.00");
+        }
+        return PdfDocument.ltr(paper).letterhead("Corner Shop").table(table).summaryTotal("Total", "99.00");
+    }
+
+    private static double shownWidth(Stage stage) {
+        return PdfPreviewTest.<ImageView>node(stage, "page-image").getFitWidth();
+    }
+
+    /**
+     * الإيصال الطويل بيتفتح مقروء: بعرض النافذة لحد ضعف مقاسه، مش شريط رفيع بطول الشاشة. واختيار
+     * المستخدم للعرض بيفضل.
+     */
+    @Test
+    void longReceiptOpensReadableAndTheChosenViewStays() throws Exception {
+        assumeTrue(toolkit, "no display");
+        float width = Paper.ROLL_80.width();
+        Stage stage = onFx(() -> PdfPreview.of(receipt(Paper.ROLL_80, 120)).show(null));
+        await("the receipt", () -> PdfPreviewTest.<ImageView>node(stage, "page-image").getImage() != null);
+
+        double shown = onFx(() -> shownWidth(stage));
+        double room = onFx(() -> stage.getScene().lookup(".scroll-pane") instanceof ScrollPane pane
+                ? pane.getViewportBounds().getWidth() : 0.0);
+        assertEquals(Math.min(2 * width, room - 2 * 18 - 2), shown, 1, "العرض " + shown + " من " + room);
+        assertTrue(shown >= 1.5 * width, "مش شريط رفيع: " + shown);
+
+        onFx(() -> {
+            PdfPreviewTest.<Button>node(stage, "fit-page").fire();
+            return null;
+        });
+        await("the whole receipt", () -> shownWidth(stage) < width);
+        double whole = onFx(() -> shownWidth(stage));
+        onFx(() -> {
+            stage.setWidth(stage.getWidth() - 60);
+            return null;
+        });
+        Thread.sleep(300);
+        assertTrue(onFx(() -> shownWidth(stage)) <= whole + 0.5, "اختيار «الصفحة كاملة» بيفضل بعد التحجيم");
+    }
+
+    /** من إيصال لـ A4: العرض الافتراضي بيرجع «الصفحة كاملة» طالما المستخدم ما اختارش. */
+    @Test
+    void changingFromARollToAPageShowsTheWholePage() throws Exception {
+        assumeTrue(toolkit, "no display");
+        Stage stage = onFx(() -> PdfPreview.of(paper -> receipt(paper, 30)).papers(Paper.ROLL_80, Paper.A4)
+                .rightToLeft(false).show(null));
+        await("the receipt", () -> PdfPreviewTest.<ImageView>node(stage, "page-image").getImage() != null
+                && shownWidth(stage) > Paper.ROLL_80.width());
+
+        onFx(() -> {
+            PdfPreviewTest.<ComboBox<Paper>>node(stage, "paper").setValue(Paper.A4);
+            return null;
+        });
+        await("the whole A4 page", () -> {
+            ImageView view = node(stage, "page-image");
+            ScrollPane pane = (ScrollPane) stage.getScene().lookup(".scroll-pane");
+            return Math.abs(view.getFitHeight() / view.getFitWidth() - Paper.A4.height() / Paper.A4.width()) < 0.01
+                    && view.getFitHeight() <= pane.getViewportBounds().getHeight();
+        });
+    }
+
+    /** صورة الإيصال الطويل جدًا بتفضل جوّه الحد، والمعروض على الشاشة بنفس المقاس. */
+    @Test
+    void veryLongReceiptIsDrawnWithinTheImageLimit() throws Exception {
+        assumeTrue(toolkit, "no display");
+        PdfDocument document = receipt(Paper.ROLL_80, 500);
+        Stage stage = onFx(() -> PdfPreview.of(document).show(null));
+        await("the receipt", () -> PdfPreviewTest.<ImageView>node(stage, "page-image").getImage() != null);
+
+        ImageView view = onFx(() -> node(stage, "page-image"));
+        double imageHeight = onFx(() -> view.getImage().getHeight());
+        double shownHeight = onFx(view::getFitHeight);
+        assertTrue(imageHeight <= PreviewWindow.MAX_IMAGE_SIDE, "" + imageHeight);
+        assertTrue(shownHeight > PreviewWindow.MAX_IMAGE_SIDE, "الإيصال أطول من الحد على الشاشة: " + shownHeight);
+    }
+
+    @Test
+    void renderScaleKeepsThePageImageWithinTheLimits() {
+        assertEquals(2f, PreviewWindow.renderScale(595f, 842f, 2), 1e-6, "A4 زي ما هي");
+        assertEquals(4f, PreviewWindow.renderScale(595f, 842f, 9), 1e-6, "لحد أقصى دقة");
+
+        float roll = PreviewWindow.renderScale(226.77f, 14400f, 4);
+        assertTrue(14400f * roll <= PreviewWindow.MAX_IMAGE_SIDE + 0.5f, "" + roll);
+        float square = PreviewWindow.renderScale(3000f, 3000f, 4);
+        assertTrue(3000.0 * square * 3000.0 * square <= PreviewWindow.MAX_IMAGE_PIXELS * 1.0001, "" + square);
     }
 
     @Test
