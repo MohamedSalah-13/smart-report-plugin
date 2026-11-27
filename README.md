@@ -115,11 +115,23 @@ AmountInWords.arabic(new BigDecimal("1234.50"), AmountInWords.Currency.EGP);
 // فقط ألف ومائتان وأربعة وثلاثون جنيهًا وخمسون قرشًا لا غير
 AmountInWords.arabicWords(new BigDecimal("0.13"), AmountInWords.Currency.SAR);   // without «فقط ... لا غير»
 // ثلاث عشرة هللةً
+
+// In English, for a bilingual invoice:
+AmountInWords.english(new BigDecimal("7200"), AmountInWords.EnglishCurrency.EGP);
+// Seven thousand two hundred Egyptian pounds only
+AmountInWords.english(new BigDecimal("7200.50"), AmountInWords.EnglishCurrency.EGP);
+// Seven thousand two hundred Egyptian pounds and fifty piastres only
 ```
 
 - The counted noun follows the number: `جنيه واحد`, `جنيهان`, `ثلاثة جنيهات`, `أحد عشر جنيهًا`, `مائة جنيه`, `مائتا جنيه`, `ألفا جنيه`.
-- Numbers agree with the noun's gender: `ثلاثة جنيهات` but `ثلاث هللات`.
-- Ready currencies: `EGP`, `SAR`, `AED`, `KWD` (3 fraction digits) and `USD`. Any other is a `new Currency(...)` with its noun forms.
+- Numbers agree with the noun's gender: `ثلاثة جنيهات` but `ثلاث هللات`, and the Omani baisa is feminine too:
+  `ثلاث بيسات`, `إحدى عشرة بيسةً`.
+- Ready currencies: `EGP`, `SAR`, `AED`, `KWD`, `USD`, `QAR`, `BHD`, `OMR` and `JOD`. The fraction digits follow
+  ISO 4217: 3 for the Kuwaiti, Bahraini and Jordanian dinar (fils) and the Omani rial (baisa), 2 for the others.
+  Any other is a `new Currency(...)` with its noun forms.
+- English: `english(...)` (with «only») and `englishWords(...)` take an `EnglishCurrency` with the same codes. The
+  numbers are written as on invoices and cheques (`two hundred fifty`, `thirty-four`), with «and» only before the
+  fraction. Any other currency is `new EnglishCurrency("Libyan dinar", "Libyan dinars", "dirham", "dirhams", 3)`.
 - The amount is rounded to the currency's digits (half up). Negative amounts and amounts of a trillion or more are rejected.
 - It lives in `smart-report-api`, so a Jasper or Excel report can use it too (as a parameter, for example).
 
@@ -160,8 +172,8 @@ document.qrCode("https://example.com/invoices/2026-0042");   // 30 mm, centred
 document.qrCode(invoiceNumber, 25, Align.START);              // 25 mm, at the start of the line (right in Arabic)
 ```
 
-The QR code a simplified tax invoice carries in Saudi Arabia (ZATCA e-invoicing, phase 1): the seller's name, VAT
-number, the time, the total with VAT and the VAT, encoded as ZATCA specifies:
+The QR code a simplified tax invoice carries in Saudi Arabia (ZATCA e-invoicing, phase 1; phase 2 below): the
+seller's name, VAT number, the time, the total with VAT and the VAT, encoded as ZATCA specifies:
 
 ```java
 import com.smart.report.util.ZatcaQr;
@@ -189,10 +201,37 @@ PdfDocument receipt = PdfDocument.rtl(Paper.ROLL_80)
   Arabic name counts its bytes, not its letters). The time is written in UTC and the amounts with two decimals; a
   VAT number that is not 15 digits beginning and ending with 3 is rejected. It lives in `smart-report-api` and
   needs no library.
-- Phase 2 (integration) codes carry more fields (the invoice hash and its signature) that only come from signing
-  the invoice; `ZatcaQr` covers phase 1.
 - The code is encoded by [ZXing](https://github.com/zxing/zxing) core (Apache License 2.0, no dependencies of its
   own), which `smart-report-pdf` brings.
+
+**Phase 2 (integration).** A simplified tax invoice (and its credit and debit notes) adds four values that come from
+signing it: the invoice hash, the ECDSA signature, the public key, and ZATCA's signature of the stamp certificate.
+`ZatcaQr` does not sign anything: the values come from the program's signing code or ZATCA's SDK.
+
+```java
+String qr = ZatcaQr.phase2("مؤسسة الهدى للتجارة", "310122393500003", issued,
+                new BigDecimal("1150.00"), new BigDecimal("150.00"))
+        .invoiceHash(digestValue)        // ds:DigestValue of the signed invoice (Base64)
+        .signature(signatureValue)       // ds:SignatureValue (Base64)
+        .certificate(certificate)        // the device's stamp certificate (CSID) as an X509Certificate
+        .payload();
+
+receipt.qrCode(qr, 45);                  // a phase 2 code is denser: give it 45 mm (see below)
+```
+
+- Tags 6 to 9 are written as in the worked example of ZATCA's
+  [E-invoicing Detailed Technical Guidelines](https://zatca.gov.sa/en/E-Invoicing/Introduction/Guidelines/Documents/E-invoicing-Detailed-Technical-Guideline.pdf)
+  (section 6.2): the hash and the signature as their Base64 text, the public key and the certificate's signature as
+  DER bytes. Without an `X509Certificate`, `publicKey(byte[])` and `certificateSignature(byte[])` take those bytes.
+- The values must match the signed XML: the same seller name, VAT number, amounts and issue time.
+- A value in the wrong form (a hash in hex, a signature that is not Base64 DER) or a missing one fails at once, and
+  a code longer than ZATCA's 700 characters is rejected (a very long seller name is the usual cause).
+- A standard tax invoice (B2B) is stamped by ZATCA at clearance and comes back with its QR code: print that one as
+  it is.
+- **Size.** A phase 2 code is about 90 to 100 modules wide (QR version 18 to 21), against about 40 for phase 1. At
+  the default 30 mm each module is only about 0.3 mm, 2 to 3 dots of a 203 dpi thermal printer, which is marginal
+  for a scanner. At 45 mm a module is 0.45 to 0.5 mm (about 4 dots), and the code with its quiet zone (about 49 mm)
+  still fits the 58 mm roll (52 mm of line) as well as the 80 mm one.
 
 ### Barcode (Code 128)
 
