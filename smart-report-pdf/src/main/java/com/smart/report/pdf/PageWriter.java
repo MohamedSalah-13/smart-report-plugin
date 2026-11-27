@@ -96,6 +96,11 @@ final class PageWriter {
      * ولرأس جدول وصف بعده) ممكن يحجز أكتر من اللي رسمه، والورقة الحرارية لازم تكفّي الحجز ده كمان.
      */
     private float lowestReserved = Float.MAX_VALUE;
+    /**
+     * مجموعة خانات التوقيع اتنقلت لصفحة جديدة دلوقتي: أول جزء فيها بيبدأ من أعلى الصفحة من غير المسافة
+     * اللي قبله، زي أي جزء بيتنقل لوحده.
+     */
+    private boolean groupMoved;
 
     /** @param page الورقة اللي الصفحات بتترسم عليها؛ في الورق الحراري ارتفاعها بيتحدد من المحتوى */
     PageWriter(PDDocument pdf, PdfDocument document, FontSet fonts, Paper page) {
@@ -128,8 +133,16 @@ final class PageWriter {
         }
         newPage();
         try {
-            for (PdfDocument.Block block : document.blocks()) {
-                draw(block);
+            List<PdfDocument.Block> blocks = document.blocks();
+            // الورق الحراري صفحة واحدة بطول المحتوى: مفيش آخر صفحة يتنقل منها حاجة.
+            Map<Integer, Integer> kept = paper.roll() ? Map.of() : signatureGroups(blocks);
+            for (int i = 0; i < blocks.size(); i++) {
+                Integer last = kept.get(i);
+                if (last != null) {
+                    keepTogether(blocks.subList(i, last + 1));
+                }
+                draw(blocks.get(i));
+                groupMoved = false;
             }
             footer();
         } finally {
@@ -230,9 +243,61 @@ final class PageWriter {
         }
     }
 
+    /**
+     * الأجزاء اللي بتتشال مع خانات التوقيع: الخانات، والملخص اللي قبلها على طول، وأي نص أو مسافة بينهم (زي
+     * التفقيط تحت الإجمالي). المفتاح أول جزء في المجموعة والقيمة مكان الخانات. خانات بعد جدول أو أي جزء
+     * تاني على طول ما لهاش مجموعة، والمسافة في أول المجموعة مش منها.
+     */
+    private static Map<Integer, Integer> signatureGroups(List<PdfDocument.Block> blocks) {
+        Map<Integer, Integer> groups = new HashMap<>();
+        for (int last = 0; last < blocks.size(); last++) {
+            if (!(blocks.get(last) instanceof PdfDocument.SignaturesBlock)) {
+                continue;
+            }
+            int first = last;
+            while (first > 0 && (blocks.get(first - 1) instanceof PdfDocument.TextBlock
+                    || blocks.get(first - 1) instanceof PdfDocument.SpaceBlock)) {
+                first--;
+            }
+            if (first > 0 && blocks.get(first - 1) instanceof PdfDocument.SummaryBlock) {
+                first--;
+            }
+            while (first < last && blocks.get(first) instanceof PdfDocument.SpaceBlock) {
+                first++;
+            }
+            if (first < last) {
+                groups.put(first, last);
+            }
+        }
+        return groups;
+    }
+
+    /**
+     * صفحة جديدة قبل المجموعة لو ما كفّاهاش الباقي وتكفيها صفحة جديدة: خانات التوقيع ما تنزلش لوحدها في
+     * صفحة من غير الأرقام اللي بيتوقّع عليها. المجموعة الأطول من صفحة بتترسم زي ما كانت.
+     */
+    private void keepTogether(List<PdfDocument.Block> group) throws IOException, ReportException {
+        float height = 0;
+        for (PdfDocument.Block block : group) {
+            height += switch (block) {
+                case PdfDocument.SummaryBlock summary -> BLOCK_GAP + summaryHeight(summary.lines());
+                case PdfDocument.TextBlock text -> textHeight(text.text());
+                case PdfDocument.SpaceBlock space -> space.points();
+                case PdfDocument.SignaturesBlock signatures -> signatures.labels().isEmpty() ? 0
+                        : BLOCK_GAP * 2 + signaturesHeight(signatureLabels(signatures.labels())) + 2;
+                default -> 0;
+            };
+        }
+        if (height <= freshRoom()) {
+            int before = pages;
+            need(height);
+            groupMoved = pages > before;
+        }
+    }
+
     /** مسافة رأسية، إلا في أعلى الورقة نفسها (تحت الترويسة المسافة بتفضل، زي ما كانت في أول صفحة). */
     private void gap(float points) {
-        if (y < top - 0.5f) {
+        if (y < top - 0.5f && !groupMoved) {
             y -= points;
         }
     }
@@ -342,6 +407,15 @@ final class PageWriter {
             offset += charCounts[i];
         }
         return offset;
+    }
+
+    /** ارتفاع فقرة {@link PdfDocument.TextBlock} زي ما {@link #paragraph} هيرسمها. */
+    private float textHeight(String text) throws IOException, ReportException {
+        if (text == null || text.isBlank()) {
+            return 0;
+        }
+        float size = style.bodySize();
+        return wrap(text, false, size, width).size() * size * LEADING;
     }
 
     /** فقرة على عرض الصفحة، بتكمل على الصفحة الجاية سطرًا سطرًا. */
@@ -526,15 +600,9 @@ final class PageWriter {
         float size = style.bodySize();
         float leading = size * LEADING;
         float cell = width / count;
-        float inset = Math.min(12f, cell * 0.1f);
-        List<List<Line>> wrapped = new ArrayList<>(count);
-        int tallest = 1;
-        for (String label : labels) {
-            List<Line> lines = wrap(label, true, size, cell - 2 * inset);
-            tallest = Math.max(tallest, lines.size());
-            wrapped.add(lines);
-        }
-        float height = tallest * leading + SIGNATURE_SPACE;
+        float inset = signatureInset(cell);
+        List<List<Line>> wrapped = signatureLabels(labels);
+        float height = signaturesHeight(wrapped);
         gap(BLOCK_GAP * 2);
         need(height + 2);
         for (int i = 0; i < count; i++) {
@@ -547,6 +615,31 @@ final class PageWriter {
             rule(boxLeft + inset, boxLeft + cell - inset, y - height, style.textColor(), 0.6f);
         }
         y -= height + 2;
+    }
+
+    /** المسافة بين خط التوقيع وحافتي خانته. */
+    private static float signatureInset(float cell) {
+        return Math.min(12f, cell * 0.1f);
+    }
+
+    /** عنوان كل خانة مكسورًا على عرضها. */
+    private List<List<Line>> signatureLabels(List<String> labels) throws IOException, ReportException {
+        float cell = width / labels.size();
+        float inset = signatureInset(cell);
+        List<List<Line>> wrapped = new ArrayList<>(labels.size());
+        for (String label : labels) {
+            wrapped.add(wrap(label, true, style.bodySize(), cell - 2 * inset));
+        }
+        return wrapped;
+    }
+
+    /** ارتفاع الخانات من غير المسافة اللي قبلها: أطول عنوان ومكان التوقيع تحته. */
+    private float signaturesHeight(List<List<Line>> wrapped) {
+        int tallest = 1;
+        for (List<Line> lines : wrapped) {
+            tallest = Math.max(tallest, lines.size());
+        }
+        return tallest * style.bodySize() * LEADING + SIGNATURE_SPACE;
     }
 
     /**
@@ -675,6 +768,26 @@ final class PageWriter {
 
     /** الملخص: جدول بلا رأس من عمودين، وسطر الإجمالي فيه بخط أكبر. */
     private void summary(List<PdfDocument.SummaryLine> lines) throws IOException, ReportException {
+        PdfTable table = summaryTable(lines);
+        gap(BLOCK_GAP);
+        // الملخص قصير: لو ما كفّاهوش الباقي بيتنقل كله للصفحة الجاية بدل ما يتقسم.
+        float estimate = summaryEstimate(lines.size());
+        if (estimate < freshRoom()) {
+            need(estimate);
+        }
+        table(table);
+    }
+
+    private float summaryEstimate(int lines) {
+        return lines * (style.bodySize() * LEADING + 2 * PAD_Y) + 4;
+    }
+
+    /** ارتفاع الملخص من غير المسافة اللي قبله: صفوفه زي ما هتترسم، أو تقديره لو أكبر. */
+    private float summaryHeight(List<PdfDocument.SummaryLine> lines) throws IOException, ReportException {
+        return Math.max(summaryEstimate(lines.size()), rowsHeight(summaryTable(lines)));
+    }
+
+    private PdfTable summaryTable(List<PdfDocument.SummaryLine> lines) throws IOException, ReportException {
         // عمود القيمة بعرض أطول قيمة فيه، فالرقم ما يلتفش على سطرين — بين 30% و55% من العرض.
         float widestValue = 0;
         for (PdfDocument.SummaryLine line : lines) {
@@ -693,13 +806,7 @@ final class PageWriter {
                 table.row(line.label(), line.value());
             }
         }
-        gap(BLOCK_GAP);
-        // الملخص قصير: لو ما كفّاهوش الباقي بيتنقل كله للصفحة الجاية بدل ما يتقسم.
-        float estimate = lines.size() * (style.bodySize() * LEADING + 2 * PAD_Y) + 4;
-        if (estimate < freshRoom()) {
-            need(estimate);
-        }
-        table(table);
+        return table;
     }
 
     // ===================== الجدول =====================
@@ -713,23 +820,8 @@ final class PageWriter {
         float bodySize = style.bodySize();
         float totalSize = bodySize + table.totalSizeBoost();
         float headerSize = style.headerSize();
-
-        String[] headers = new String[count];
-        float[] weights = new float[count];
-        for (int i = 0; i < count; i++) {
-            headers[i] = columns.get(i).header();
-            weights[i] = columns.get(i).weight();
-        }
-
-        // أضيق عرض لكل عمود: أطول كلمة فيه بالخط والحجم اللي هتترسم بيهم.
-        float[] narrowest = new float[count];
-        if (table.headerShown()) {
-            widen(narrowest, headers, true, headerSize);
-        }
-        for (PdfTable.Row row : table.rows()) {
-            widen(narrowest, row.cells(), row.total(), row.total() ? totalSize : bodySize);
-        }
-        float[] widths = ColumnFit.fit(weights, narrowest, width);
+        String[] headers = headers(table);
+        float[] widths = columnWidths(table);
 
         // مكان كل عمود منطقي على الورقة: الأول عند بداية السطر.
         float[] x = new float[count];
@@ -767,6 +859,44 @@ final class PageWriter {
             need(repeated.height());
             paint(repeated, grid, RowKind.HEADER, false);
         }
+    }
+
+    private static String[] headers(PdfTable table) {
+        return table.columns().stream().map(PdfTable.Column::header).toArray(String[]::new);
+    }
+
+    /** عرض كل عمود: أطول كلمة فيه بالخط والحجم اللي هتترسم بيهم حد أدنى، والباقي بالأوزان. */
+    private float[] columnWidths(PdfTable table) throws IOException, ReportException {
+        List<PdfTable.Column> columns = table.columns();
+        float bodySize = style.bodySize();
+        float totalSize = bodySize + table.totalSizeBoost();
+        float[] weights = new float[columns.size()];
+        for (int i = 0; i < weights.length; i++) {
+            weights[i] = columns.get(i).weight();
+        }
+        float[] narrowest = new float[columns.size()];
+        if (table.headerShown()) {
+            widen(narrowest, headers(table), true, style.headerSize());
+        }
+        for (PdfTable.Row row : table.rows()) {
+            widen(narrowest, row.cells(), row.total(), row.total() ? totalSize : bodySize);
+        }
+        return ColumnFit.fit(weights, narrowest, width);
+    }
+
+    /** ارتفاع صفوف الجدول لو اترسمت كلها في صفحة واحدة، من غير رأسه. */
+    private float rowsHeight(PdfTable table) throws IOException, ReportException {
+        if (table.columns().isEmpty()) {
+            return 0;
+        }
+        float[] widths = columnWidths(table);
+        float bodySize = style.bodySize();
+        float totalSize = bodySize + table.totalSizeBoost();
+        float height = 0;
+        for (PdfTable.Row row : table.rows()) {
+            height += layout(row.cells(), widths, row.total(), row.total() ? totalSize : bodySize).height();
+        }
+        return height;
     }
 
     /** أعمدة جدول على الورقة: مكان كل عمود منطقي وعرضه. */
