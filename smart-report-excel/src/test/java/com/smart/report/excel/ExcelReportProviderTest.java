@@ -8,6 +8,9 @@ import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.util.PaneInformation;
+import org.apache.poi.xssf.usermodel.XSSFName;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 
@@ -18,8 +21,10 @@ import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ExcelReportProviderTest {
@@ -160,6 +165,103 @@ class ExcelReportProviderTest {
             assertEquals("row-" + (rows - 1), sheet.getRow(rows).getCell(1).getStringCellValue());
             assertEquals(rows - 1, (int) sheet.getRow(rows).getCell(0).getNumericCellValue());
         }
+    }
+
+    private static <T> XSSFWorkbook open(ReportRequest<T> request) throws Exception {
+        return new XSSFWorkbook(new ByteArrayInputStream(ReportService.generate(ReportType.EXCEL, request)));
+    }
+
+    /** عرض كل عمود بوحدات Excel (1/256 من عرض الحرف). */
+    private static <T> int[] columnWidths(ReportRequest<T> request) throws Exception {
+        try (XSSFWorkbook workbook = open(request)) {
+            Sheet sheet = workbook.getSheetAt(0);
+            int[] widths = new int[request.columns().size()];
+            for (int i = 0; i < widths.length; i++) {
+                widths[i] = sheet.getColumnWidth(i);
+            }
+            return widths;
+        }
+    }
+
+    private static ReportRequest<Line> lines(String title, List<Line> data) {
+        return ReportRequest.<Line>builder()
+                .title(title)
+                .data(data)
+                .addColumn("index", "الرقم")
+                .addColumn("label", "البيان")
+                .build();
+    }
+
+    /** العنوان كان بيتقاس مع العمود الأول: 15,959 وحدة مع عنوان طويل بدل 1,153. */
+    @Test
+    void longTitleDoesNotWidenTheFirstColumn() throws Exception {
+        List<Line> data = List.of(new Line(1, "إيجار"), new Line(2, "كهرباء"));
+        String title = "كشف حساب المصروفات الشهرية التفصيلي لكل فروع الشركة عن شهر نوفمبر 2026";
+
+        assertArrayEquals(columnWidths(lines(null, data)), columnWidths(lines(title, data)));
+        try (XSSFWorkbook workbook = open(lines(title, data))) {
+            assertEquals(title, workbook.getSheetAt(0).getRow(0).getCell(0).getStringCellValue());
+        }
+    }
+
+    private record Frozen(int rows, int columns, String filter, String filterName) {}
+
+    private static <T> Frozen frozenAndFiltered(ReportRequest<T> request) throws Exception {
+        try (XSSFWorkbook workbook = open(request)) {
+            XSSFSheet sheet = workbook.getSheetAt(0);
+            PaneInformation pane = sheet.getPaneInformation();
+            assertNotNull(pane, "مفيش أي جزء ثابت في الورقة");
+            assertTrue(pane.isFreezePane());
+            List<XSSFName> names = workbook.getNames("_xlnm._FilterDatabase");
+            assertEquals(1, names.size(), "Excel بيحتاج الاسم ده عشان يعرف نطاق الفلتر");
+            return new Frozen(pane.getHorizontalSplitPosition(), pane.getVerticalSplitPosition(),
+                    sheet.getCTWorksheet().getAutoFilter().getRef(), names.get(0).getRefersToFormula());
+        }
+    }
+
+    /** الرأس بيفضل ظاهر وعليه فلتر من أول الأعمدة لآخرها ومن الرأس لآخر صف. */
+    @Test
+    void headerRowIsFrozenAndFiltered() throws Exception {
+        List<Line> data = List.of(new Line(1, "إيجار"), new Line(2, "كهرباء"));
+
+        assertEquals(new Frozen(1, 0, "A1:B3", "Report!$A$1:$B$3"), frozenAndFiltered(lines(null, data)));
+        // العنوان والسطر الفاضي فوق الرأس بيفضلوا ظاهرين معاه؛ واسم الورقة فيه علامة تنصيص
+        assertEquals(new Frozen(3, 0, "A3:B5", "'Ahmed''s مصروفات'!$A$3:$B$5"),
+                frozenAndFiltered(lines("Ahmed's مصروفات", data)));
+        assertEquals(new Frozen(1, 0, "A1:B1", "Report!$A$1:$B$1"), frozenAndFiltered(lines(null, List.of())),
+                "من غير بيانات الفلتر على الرأس بس");
+    }
+
+    /** النص العربي الطويل بياخد عرضه، والعرض ما بيعدّيش أقصى عرض في Excel (255 حرف). */
+    @Test
+    void columnsFitLongArabicValues() throws Exception {
+        String longText = "صرف مكافأة نهاية الخدمة للموظف حسب قرار مجلس الإدارة رقم ١٢";
+        int shortWidth = columnWidths(lines(null, List.of(new Line(1, "إيجار"))))[1];
+        int longWidth = columnWidths(lines(null, List.of(new Line(1, "إيجار"), new Line(2, longText))))[1];
+
+        assertTrue(longWidth > shortWidth, longWidth + " مش أعرض من " + shortWidth);
+        double characters = longWidth / 256.0;
+        assertTrue(characters >= longText.length() * 0.5 && characters <= longText.length() * 1.5,
+                "عرض " + characters + " حرف لنص طوله " + longText.length());
+
+        String tooLong = "تفاصيل ".repeat(80);
+        assertEquals(255 * 256, columnWidths(lines(null, List.of(new Line(1, tooLong))))[1]);
+    }
+
+    /**
+     * النصوص بتتقاس في أول {@link ExcelReportProvider#WIDTH_SAMPLE_ROWS} صف بس: قياس كل خلية كان
+     * بيبطّأ التقرير الكبير حوالي 5 مرات.
+     */
+    @Test
+    void textPastTheSampleDoesNotWidenTheColumn() throws Exception {
+        List<Line> data = new java.util.ArrayList<>();
+        for (int i = 0; i < ExcelReportProvider.WIDTH_SAMPLE_ROWS; i++) {
+            data.add(new Line(i, "إيجار"));
+        }
+        int sampled = columnWidths(lines(null, data))[1];
+        data.add(new Line(0, "صرف مكافأة نهاية الخدمة للموظف حسب قرار مجلس الإدارة"));
+
+        assertEquals(sampled, columnWidths(lines(null, data))[1]);
     }
 
     /** أكتر من طاقة الورقة كان بيرمي IllegalArgumentException من جوّه POI. */

@@ -9,6 +9,8 @@ import com.smart.report.util.BeanPropertyReader;
 import com.smart.report.util.TextDirection;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.Font;
@@ -16,6 +18,8 @@ import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.ss.util.SheetUtil;
 import org.apache.poi.xssf.streaming.SXSSFSheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 
@@ -28,11 +32,14 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * يولّد تقرير Excel (.xlsx) عام (عنوان + رأس أعمدة منسّق + صفوف بيانات) بدون الحاجة لأي قالب،
@@ -40,6 +47,9 @@ import java.util.Map;
  *
  * <p>الأرقام والمنطقيات والتواريخ بتتكتب بأنواعها الأصلية في Excel (مش كنصوص)، والتواريخ بياخدوا
  * تنسيق تاريخ فعلي عشان يظهروا كتواريخ بدل الرقم التسلسلي الخام.</p>
+ *
+ * <p>عرض كل عمود على قد رأسه ومحتواه (شوف {@link ColumnWidths})، ورأس الأعمدة ثابت فوق وعليه
+ * أزرار الفلتر، فالورقة تتفرز وتتفلتر من غير أي تجهيز.</p>
  *
  * <p><b>الاتجاه:</b> الورقة من اليمين لليسار (أول عمود على اليمين) لو العنوان أو أي رأس عمود فيه
  * عربي — نفس قاعدة تقرير الـ PDF العام — إلا لو {@link #RIGHT_TO_LEFT} اتحدد في {@code parameters}.</p>
@@ -59,6 +69,21 @@ public final class ExcelReportProvider implements ReportProvider {
 
     /** أقصى عدد صفوف في ورقة xlsx واحدة. */
     private static final int MAX_ROWS = 1_048_576;
+
+    /** عدد صفوف البيانات اللي النصوص فيها بتتقاس لعرض العمود (مع رأس الأعمدة). */
+    static final int WIDTH_SAMPLE_ROWS = 500;
+
+    /** أقصى عرض لعمود في Excel: 255 حرف، بوحدات 1/256 من عرض الحرف. */
+    private static final int MAX_COLUMN_WIDTH = 255 * 256;
+
+    /** مكان زرار الفلتر في خلية الرأس، بعرض الحروف (حوالي 17 بكسل في Calibri 11). */
+    private static final double FILTER_BUTTON_WIDTH = 2.5;
+
+    /**
+     * أعرض تاريخ ممكن: أطول اسم شهر (سبتمبر) وأطول اسم يوم (الأربعاء) ويوم وساعة برقمين، فأي تاريخ
+     * في العمود ييجي على قده وما يطلعش {@code ####}.
+     */
+    private static final double WIDEST_DATE = DateUtil.getExcelDate(LocalDateTime.of(2026, 9, 30, 22, 59, 59));
 
     @Override
     public ReportType type() {
@@ -87,17 +112,18 @@ public final class ExcelReportProvider implements ReportProvider {
             SXSSFSheet sheet = workbook.createSheet(sheetName(request.title()));
             boolean rightToLeft = TextDirection.rightToLeft(request, RIGHT_TO_LEFT);
             sheet.setRightToLeft(rightToLeft);
-            // بيتابع عرض الأعمدة والصفوف بتتكتب، فـ autoSizeColumn تفضل شغالة من غير
-            // ما نحتفظ بكل الصفوف في الذاكرة
-            sheet.trackAllColumnsForAutoSizing();
             Styles styles = createStyles(workbook);
             ColumnStyles[] columnStyles = new ColumnStyles[columns.size()];
             for (int i = 0; i < columns.size(); i++) {
                 columnStyles[i] = new ColumnStyles(workbook, columns.get(i), rightToLeft);
             }
 
+            ColumnWidths widths = new ColumnWidths(workbook, columns.size());
+
             int rowIndex = 0;
             if (headerRows == 3) {
+                // العنوان في خلية لوحده من غير دمج، وما بيتقاسش مع الأعمدة: بيكمّل في الخلايا الفاضية
+                // جنبه، والخلية المدموجة كانت هتقصّه لو الجدول أضيق منه
                 Row titleRow = sheet.createRow(rowIndex++);
                 Cell titleCell = titleRow.createCell(0);
                 titleCell.setCellValue(request.title());
@@ -105,28 +131,35 @@ public final class ExcelReportProvider implements ReportProvider {
                 rowIndex++; // سطر فاصل
             }
 
+            int headerRowIndex = rowIndex;
             Row headerRow = sheet.createRow(rowIndex++);
             for (int i = 0; i < columns.size(); i++) {
                 Cell cell = headerRow.createCell(i);
                 cell.setCellValue(columns.get(i).header());
                 cell.setCellStyle(styles.header());
+                widths.header(cell, i);
             }
 
+            int dataRow = 0;
             for (Object item : request.data()) {
                 Row row = sheet.createRow(rowIndex++);
+                boolean sampled = dataRow++ < WIDTH_SAMPLE_ROWS;
                 for (int i = 0; i < columns.size(); i++) {
                     Object value = BeanPropertyReader.read(item, columns.get(i).fieldName());
+                    Cell cell = row.createCell(i);
                     try {
-                        writeCell(row.createCell(i), value, columnStyles[i]);
+                        writeCell(cell, value, columnStyles[i]);
                     } catch (IllegalArgumentException e) {
                         throw new ReportException("Column '" + columns.get(i).fieldName() + "': " + e.getMessage(), e);
                     }
+                    widths.cell(cell, i, sampled);
                 }
             }
 
-            for (int i = 0; i < columns.size(); i++) {
-                sheet.autoSizeColumn(i);
-            }
+            widths.apply(sheet);
+            // رأس الأعمدة بيفضل ظاهر والورقة بتتنزل، وعليه أزرار الفلتر: الورقة تتفرز وتتفلتر على طول
+            sheet.createFreezePane(0, headerRowIndex + 1);
+            sheet.setAutoFilter(new CellRangeAddress(headerRowIndex, rowIndex - 1, 0, columns.size() - 1));
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             workbook.write(out);
@@ -264,6 +297,108 @@ public final class ExcelReportProvider implements ReportProvider {
             }
             made.put(key, created);
             return created;
+        }
+    }
+
+    /**
+     * عرض الأعمدة بنفس قياس {@code autoSizeColumn} (خط الخلية والنص زي ما هيظهر بنمطه، عربي أو أرقام
+     * أو تواريخ)، بس من غير ما كل خلية في الورقة تتقاس: {@code trackAllColumnsForAutoSizing} كان بيعمل
+     * كده فكان التقرير الكبير أبطأ حوالي 5 مرات.
+     *
+     * <ul>
+     *     <li><b>رأس الأعمدة</b> بيتقاس ومعاه مكان زرار الفلتر.</li>
+     *     <li><b>النصوص</b> من أول {@link #WIDTH_SAMPLE_ROWS} صف بس؛ النص الأطول بعدها بيتقص عند حافة
+     *         العمود وبيبان كامل في الخلية نفسها.</li>
+     *     <li><b>الأرقام</b> في كل الصفوف، بس الرقم بيتقاس لما نصه بنمطه يبقى أطول من اللي اتقاس قبله،
+     *         عشان الرقم الأعرض ما يطلعش {@code ####} (شوف {@link #number}).</li>
+     *     <li><b>التواريخ</b> مرة لكل نمط في العمود، بأعرض تاريخ ممكن ({@link #WIDEST_DATE}).</li>
+     * </ul>
+     *
+     * <p>العنوان مش منهم، والعرض ما بيعدّيش أقصى عرض في Excel (255 حرف).</p>
+     */
+    private static final class ColumnWidths {
+
+        private final double[] widths;
+        /** طول نص أطول رقم اتقاس في كل عمود (زي ما بيظهر بنمطه). */
+        private final int[] longestNumber;
+        /** أنماط التواريخ اللي اتقاست في كل عمود، برقم الـ style. */
+        private final List<Set<Short>> datesMeasured;
+        /** رقم الـ style ← هل صيغته تاريخ؟ (الخلية من غير style بيرجع لها كائن جديد كل مرة، فالمفتاح رقمه.) */
+        private final Map<Short, Boolean> dateStyles = new HashMap<>();
+        private final float charWidth;
+        private final DataFormatter formatter = new DataFormatter();
+
+        ColumnWidths(Workbook workbook, int columns) {
+            widths = new double[columns];
+            longestNumber = new int[columns];
+            datesMeasured = new ArrayList<>(columns);
+            for (int i = 0; i < columns; i++) {
+                datesMeasured.add(new HashSet<>());
+            }
+            charWidth = SheetUtil.getDefaultCharWidthAsFloat(workbook);
+        }
+
+        void header(Cell cell, int column) {
+            measure(cell, column, FILTER_BUTTON_WIDTH);
+        }
+
+        void cell(Cell cell, int column, boolean sampled) {
+            switch (cell.getCellType()) {
+                case STRING, BOOLEAN -> {
+                    if (sampled) {
+                        measure(cell, column, 0);
+                    }
+                }
+                case NUMERIC -> {
+                    CellStyle style = cell.getCellStyle();
+                    if (isDate(style)) {
+                        if (datesMeasured.get(column).add(style.getIndex())) {
+                            double value = cell.getNumericCellValue();
+                            cell.setCellValue(WIDEST_DATE);
+                            measure(cell, column, 0);
+                            cell.setCellValue(value);
+                        }
+                    } else {
+                        number(cell, column, sampled);
+                    }
+                }
+                default -> {
+                }
+            }
+        }
+
+        /**
+         * الرقم بيتنسّق زي ما هيظهر (من غير قياس خط، فده أرخص بكتير) وبيتقاس بس لو نصه أطول من أطول رقم
+         * اتقاس في عموده. حجم الرقم لوحده ما بيكفيش: بنمط {@code 0.########} الـ 1 والـ 1.12345678 في
+         * نفس الخانات الصحيحة والتاني أعرض بكتير. النص اللي في نفس الطول فرقه بالكتير رقم مكان فاصلة أو علامة، والـ {@code 0} اللي القياس
+         * بيزوّده على النص بيغطيه.
+         */
+        private void number(Cell cell, int column, boolean sampled) {
+            int length = formatter.formatCellValue(cell).length();
+            if (sampled || length > longestNumber[column]) {
+                measure(cell, column, 0);
+                longestNumber[column] = Math.max(longestNumber[column], length);
+            }
+        }
+
+        private boolean isDate(CellStyle style) {
+            return dateStyles.computeIfAbsent(style.getIndex(),
+                    index -> DateUtil.isADateFormat(style.getDataFormat(), style.getDataFormatString()));
+        }
+
+        private void measure(Cell cell, int column, double extra) {
+            double width = SheetUtil.getCellWidth(cell, charWidth, formatter, false, List.of());
+            if (width > 0) {
+                widths[column] = Math.max(widths[column], width + extra);
+            }
+        }
+
+        void apply(Sheet sheet) {
+            for (int i = 0; i < widths.length; i++) {
+                if (widths[i] > 0) {
+                    sheet.setColumnWidth(i, (int) Math.min(MAX_COLUMN_WIDTH, Math.round(widths[i] * 256)));
+                }
+            }
         }
     }
 
