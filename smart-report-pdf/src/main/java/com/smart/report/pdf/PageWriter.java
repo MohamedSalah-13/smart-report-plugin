@@ -91,6 +91,8 @@ final class PageWriter {
     private float freshTop;
     /** الترويسة بتترسم دلوقتي: مفيش فتح صفحات من جوّاها. */
     private boolean inLetterhead;
+    /** مفيش حاجة اترسمت في الصفحة الحالية تحت الترويسة: فاصل الصفحات هنا ما بيفتحش صفحة فاضية. */
+    private boolean pageEmpty;
     /**
      * أوطى نقطة اتحجزت في الصفحة الحالية: الجزء اللي بيحجز مكانه قبل ما يترسم (عنوان القسم بيحجز لنفسه
      * ولرأس جدول وصف بعده) ممكن يحجز أكتر من اللي رسمه، والورقة الحرارية لازم تكفّي الحجز ده كمان.
@@ -139,7 +141,7 @@ final class PageWriter {
         }
         newPage();
         try {
-            List<PdfDocument.Block> blocks = document.blocks();
+            List<PdfDocument.Block> blocks = withoutTrailingBreaks(document.blocks());
             // الورق الحراري صفحة واحدة بطول المحتوى: مفيش آخر صفحة يتنقل منها حاجة.
             Map<Integer, Integer> kept = paper.roll() ? Map.of() : signatureGroups(blocks);
             for (int i = 0; i < blocks.size(); i++) {
@@ -199,10 +201,43 @@ final class PageWriter {
             case PdfDocument.SignaturesBlock signatures -> signatures(signatures.labels());
             case PdfDocument.QrBlock qr -> qrCode(qr);
             case PdfDocument.BarcodeBlock barcode -> barcode(barcode);
+            case PdfDocument.PageBreakBlock ignored -> pageBreak();
         }
     }
 
     // ===================== الصفحات =====================
+
+    /**
+     * فاصل الصفحات ({@link PdfDocument#pageBreak()}): صفحة جديدة، إلا لو الصفحة الحالية لسه مفيهاش حاجة
+     * تحت الترويسة. الورقة الحرارية صفحة واحدة بطول المحتوى، فالفاصل هناك ما بيعملش حاجة.
+     */
+    private void pageBreak() throws IOException, ReportException {
+        if (!paper.roll() && !pageEmpty) {
+            newPage();
+        }
+    }
+
+    /**
+     * الأجزاء من غير الفواصل اللي مفيش بعدها غير مسافات وفواصل: المستند اللي بيتبني في حلقة بفاصل بعد كل
+     * قسم ما يخلّصش بصفحة فاضية، أو فيها التذييل لوحده.
+     */
+    private static List<PdfDocument.Block> withoutTrailingBreaks(List<PdfDocument.Block> blocks) {
+        int end = blocks.size();
+        while (end > 0 && (blocks.get(end - 1) instanceof PdfDocument.PageBreakBlock
+                || blocks.get(end - 1) instanceof PdfDocument.SpaceBlock)) {
+            end--;
+        }
+        if (end == blocks.size()) {
+            return blocks;
+        }
+        List<PdfDocument.Block> kept = new ArrayList<>(blocks.subList(0, end));
+        for (PdfDocument.Block block : blocks.subList(end, blocks.size())) {
+            if (!(block instanceof PdfDocument.PageBreakBlock)) {
+                kept.add(block);
+            }
+        }
+        return kept;
+    }
 
     /**
      * صفحة جديدة، والترويسة في أعلاها لو دي أول صفحة أو لو المستند طالبها في كل صفحة. بعدها
@@ -227,6 +262,7 @@ final class PageWriter {
             }
         }
         pageTop = y;
+        pageEmpty = true;
         if (pages == 1) {
             freshTop = document.letterheadOnEveryPage() ? pageTop : top;
         }
@@ -1113,11 +1149,14 @@ final class PageWriter {
         stream.stroke();
     }
 
+    /** أي علامة على الورقة (حرف، خط، خلفية، رمز) بتختار لونها الأول، فهنا الصفحة بتبطّل تبقى فاضية. */
     private void setFill(int rgb) throws IOException {
+        pageEmpty = false;
         stream.setNonStrokingColor(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f);
     }
 
     private void setStroke(int rgb) throws IOException {
+        pageEmpty = false;
         stream.setStrokingColor(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f);
     }
 }

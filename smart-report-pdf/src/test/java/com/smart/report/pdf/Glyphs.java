@@ -103,6 +103,51 @@ final class Glyphs {
         return lines;
     }
 
+    /** حروف أوطى سطر في الصفحة من الشمال لليمين: سطر رقم الصفحة لو مفيش تذييل صفحات. */
+    List<Glyph> bottomLine(int page) {
+        List<Float> lines = lineYs(page);
+        if (lines.isEmpty()) {
+            return List.of();
+        }
+        float line = lines.get(lines.size() - 1);
+        return glyphs.stream()
+                .filter(glyph -> glyph.page() == page && glyph.y() >= line - 0.01f && glyph.y() - line <= 0.5f)
+                .sorted(java.util.Comparator.comparingDouble(Glyph::x))
+                .toList();
+    }
+
+    /**
+     * رقم الصفحة وعدد الصفحات المكتوبين في أوطى سطر، من مكانهم على الورقة: في الصفحة الإنجليزية الرقم على
+     * الشمال («Page 2 of 3»)، وفي العربية على اليمين («صفحة 2 من 3» بتتقري من اليمين).
+     */
+    int[] pageNumber(int page, boolean rightToLeft) {
+        List<String> numbers = new ArrayList<>();
+        Glyph previous = null;
+        for (Glyph glyph : bottomLine(page)) {
+            if (glyph.text().isEmpty() || !glyph.text().chars().allMatch(Character::isDigit)) {
+                previous = null;
+                continue;
+            }
+            if (previous != null && glyph.x() - previous.right() < 0.5f) {
+                numbers.set(numbers.size() - 1, numbers.get(numbers.size() - 1) + glyph.text());
+            } else {
+                numbers.add(glyph.text());
+            }
+            previous = glyph;
+        }
+        if (numbers.size() != 2) {
+            throw new AssertionError("Page " + page + " has no \"n of count\" line at its bottom: " + numbers);
+        }
+        int left = Integer.parseInt(numbers.get(0));
+        int right = Integer.parseInt(numbers.get(1));
+        return rightToLeft ? new int[] {right, left} : new int[] {left, right};
+    }
+
+    /** كل الحروف المرسومة في الصفحة، بترتيب رسمها. */
+    List<Glyph> onPage(int page) {
+        return glyphs.stream().filter(glyph -> glyph.page() == page).toList();
+    }
+
     int pages() {
         return glyphs.stream().mapToInt(Glyph::page).max().orElse(0);
     }
