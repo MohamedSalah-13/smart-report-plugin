@@ -76,8 +76,15 @@ public final class PdfDocument {
     record QrBlock(QrSymbol symbol, float size, Align align) implements Block {
     }
 
+    /** @param height طول الخطوط بالنقطة، من غير السطر المكتوب تحتها */
+    record BarcodeBlock(BarcodeSymbol symbol, float height, Align align) implements Block {
+    }
+
     /** ضلع رمز QR لو ما اتحدّدش: 30 مم، بيتقرا بسهولة من الموبايل ويكفي في عرض لفة 58 مم. */
     static final float DEFAULT_QR_MM = 30f;
+
+    /** طول خطوط الباركود لو ما اتحدّدش: 12 مم، بيتقرا بقارئ اليد من غير ما ياخد مكان كتير في الإيصال. */
+    static final float DEFAULT_BARCODE_MM = 12f;
 
     private static final float POINTS_PER_MM = 72f / 25.4f;
 
@@ -197,6 +204,47 @@ public final class PdfDocument {
             throw new IllegalArgumentException("The QR code size must be a positive number of millimetres.");
         }
         return add(new QrBlock(QrSymbol.encode(text), sizeMm * POINTS_PER_MM, align == null ? Align.CENTER : align));
+    }
+
+    /**
+     * باركود Code 128 في منتصف السطر، خطوطه بطول 12 مم وتحتها النص نفسه مكتوب — رقم شحنة، بوليصة،
+     * فاتورة، أو كود صنف.
+     *
+     * @throws IllegalArgumentException لو النص فاضي أو فيه حرف غير الإنجليزي والأرقام والعلامات
+     * @see #barcode(String, float, Align)
+     */
+    public PdfDocument barcode(String text) {
+        return barcode(text, DEFAULT_BARCODE_MM, Align.CENTER);
+    }
+
+    /** باركود Code 128 خطوطه بطول 12 مم، عند بداية السطر أو في منتصفه أو آخره حسب اتجاه المستند. */
+    public PdfDocument barcode(String text, Align align) {
+        return barcode(text, DEFAULT_BARCODE_MM, align);
+    }
+
+    /**
+     * باركود Code 128 مرسوم خطوطًا متجهة (مش صورة)، وتحته النص مكتوب من الشمال لليمين حتى في المستند
+     * العربي، عشان اللي بيقراه بعينه يقراه زي ما هو. أضيق خط 0.33 مم، وحواليه من الجنبين منطقة فاضية
+     * بعرض 10 خطوط؛ لو ده أعرض من السطر (لفة 58 مم مثلًا) الخطوط بتضيق لحد ما يكفي. الباركود وسطره ما
+     * بيتقسموش على صفحتين.
+     *
+     * <p>Code 128 بيشيل الإنجليزي والأرقام والعلامات بس، والرقم الطويل بيعرّض الباركود: النص اللي يحتاج
+     * خطوطًا أضيق من 0.25 مم عشان يكفي في السطر (أكتر من حوالي 15 حرف على لفة 58 مم) بيفشل وقت كتابة
+     * المستند بـ {@link com.smart.report.ReportException} بدل ما يطلع باركود ما بيتقريش.</p>
+     *
+     * @param text     النص اللي الباركود بيشيله
+     * @param heightMm طول الخطوط بالمليمتر، من غير السطر المكتوب تحتها
+     * @param align    {@link Align#START} عند بداية السطر (يمين في المستند العربي)، {@link Align#CENTER}، أو
+     *                 {@link Align#END}
+     * @throws IllegalArgumentException لو النص فاضي أو فيه حرف غير الإنجليزي والأرقام والعلامات (حرف عربي
+     *                                  مثلًا)، أو الطول مش موجب
+     */
+    public PdfDocument barcode(String text, float heightMm, Align align) {
+        if (!(heightMm > 0) || Float.isInfinite(heightMm)) {
+            throw new IllegalArgumentException("The barcode height must be a positive number of millimetres.");
+        }
+        return add(new BarcodeBlock(BarcodeSymbol.encode(text), heightMm * POINTS_PER_MM,
+                align == null ? Align.CENTER : align));
     }
 
     /** شعار الجهة (PNG أو JPEG) بجانب الترويسة، في الجهة اللي الصفحة بتبدأ منها. */

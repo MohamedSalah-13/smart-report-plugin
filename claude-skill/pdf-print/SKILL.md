@@ -1,6 +1,6 @@
 ---
 name: pdf-print
-description: Adds PDF output and printing to a Java program with the shared smart-report library (com.github.MohamedSalah-13.smart-report-plugin on JitPack) instead of new print code - an Arabic-ready document on A4, A5 or an 80/58 mm thermal roll with letterhead, tables with totals, a summary, the amount in words (تفقيط), signature boxes, a QR code (and the Saudi ZATCA invoice QR), page numbers, a JavaFX preview, saving and printing. Use when the user wants to print or produce a PDF from Java - an invoice, a statement, a receipt, a report, a list - including "print", "PDF", "preview before printing", "receipt printer", "طباعة", "اطبع الكشف", "فاتورة PDF", "إيصال", "طابعة حرارية", "التفقيط", "رمز QR", "فاتورة ضريبية مبسطة", "معاينة قبل الطباعة", "زي الطباعة اللى فى naqlat" - and when a printed Arabic page comes out wrong (table reversed, text cut with "...", a minus sign or date on the wrong side, letters not joined), a long page is shrunk onto one sheet, or a program still prints a JavaFX node or uses iText.
+description: Adds PDF output and printing to a Java program with the shared smart-report library (com.github.MohamedSalah-13.smart-report-plugin on JitPack) instead of new print code - an Arabic-ready document on A4, A5 or an 80/58 mm thermal roll with letterhead, tables with totals, a summary, the amount in words (تفقيط), signature boxes, a QR code (and the Saudi ZATCA invoice QR), a barcode, page numbers, a JavaFX preview, saving and printing. Use when the user wants to print or produce a PDF from Java - an invoice, a statement, a receipt, a report, a list - including "print", "PDF", "receipt printer", "طباعة", "اطبع الكشف", "فاتورة PDF", "إيصال", "طابعة حرارية", "التفقيط", "رمز QR", "باركود", "فاتورة ضريبية مبسطة", "معاينة قبل الطباعة", "زي الطباعة اللى فى naqlat" - and when a printed Arabic page comes out wrong (table reversed, text cut with "...", a minus sign or date on the wrong side, letters not joined), a long page is shrunk onto one sheet, or a program still prints a JavaFX node or uses iText.
 ---
 
 # PDF print
@@ -51,8 +51,9 @@ Use the newest tag of the library:
 `gh api repos/MohamedSalah-13/smart-report-plugin/tags --jq '.[0].name'`. What needs which version: the
 preview window (`smart-report-fx`) `v2.1.0`; column formats in the generic report `v2.2.0`; `AmountInWords`
 `v2.3.0`; thermal rolls, the letterhead on every page, `pageFooter` and `signatures` `v2.4.0`; `qrCode`,
-`ZatcaQr` and the readable receipt preview `v2.5.0`. A program on an older tag that needs one of these moves to
-the newest tag.
+`ZatcaQr` and the readable receipt preview `v2.5.0`; `barcode` the release after `v2.5.0`. A program on an older
+tag that needs one of these moves to the newest tag; if the newest tag is still `v2.5.0`, the barcode is not
+released yet - say so to the user instead of drawing one by hand.
 
 ```xml
 <repositories>
@@ -154,6 +155,11 @@ What each part is:
   vector squares with its empty border, never split across pages, and shrinks if the line is too narrow. Arabic
   text is fine. Use it for a link, an invoice number, or the ZATCA code below - not an image made with another
   library and passed to `logo`.
+- `barcode(text)` - a Code 128 barcode for a shipment, waybill, invoice or item number that a hand scanner reads:
+  bars 12 mm tall, centred, with the code written under them; `barcode(text, heightMm, align)` sets the height
+  and the place. English letters, digits and signs only (Arabic is rejected). The narrowest bar is 0.33 mm and
+  narrows to 0.25 mm to fit; a code too long for the line even then makes `toBytes`/`save` throw a
+  `ReportException` - keep codes short on a 58 mm roll (about 15 characters; digits pack two to a pattern).
 - **The Saudi simplified tax invoice QR** (ZATCA e-invoicing, phase 1) - when the program issues invoices in
   Saudi Arabia, the receipt or invoice ends with this code:
 
@@ -344,6 +350,7 @@ has not been on a real printer yet; the old one usually had.
   - `Paper.parse("80mm")` / `"58mm"` reads a saved setting; `Paper.roll("76mm", 76)` is another width.
   - A receipt can end with `.qrCode(...)` (the ZATCA code in Saudi Arabia, or a link): the default 30 mm fits
     the 58 mm roll, a larger size shrinks to the roll's width, and the paper is cut just under the code.
+    `.barcode(...)` works the same way for a shipment or waybill number.
   - Test that it is one page, about 226.8 points wide (80 mm), with the last line and the total on it. Its
     height follows the number of lines, so assert a bound, not an exact height.
 
@@ -375,6 +382,6 @@ has not been on a real printer yet; the old one usually had.
 - Do not send anything to a printer to "test" it. Draw the page to a picture instead, and leave the real
   printer to the user.
 - Do not tell the user the page is correct from the extracted text alone. Look at the rendered picture.
-- Do not make a QR image with another library (or ZXing's `javase`) to put on the page, and do not hand-build
+- Do not make a QR or barcode image with another library (or ZXing's `javase`) to put on the page, and do not hand-build
   the ZATCA TLV: `qrCode` and `ZatcaQr` already do it, and a length counted in characters instead of bytes
   breaks every Arabic seller name.
