@@ -164,15 +164,18 @@ document.title("كشف حساب عربية")
 ```
 
 - A break never leaves a blank page. On a page with nothing on it yet below the letterhead (at the very top of the
-  document, or right after another break) it does nothing, and a break followed only by spaces or other breaks
-  (the last one in a loop that adds a section and a break) opens no page for the footer alone.
+  document, or right after another break) it does nothing. The page a break opens is kept only if something is
+  drawn on it, so a break followed only by parts that draw nothing (spaces, empty text such as notes that were left
+  blank, other breaks, or the end of the document in a loop that adds a section and a break) leaves no page, not
+  even one for the footer alone.
 - The new page is like any page the content opens: the letterhead is on top of it with
   `letterheadOnEveryPage(true)`, and the page numbers carry on ("Page 2 of 3").
 - After a table that ran over several pages, the break comes after its last row and totals, and the table header
   is not repeated on the new page: the table has ended. To start each group of rows on its own page, make a table
   per group with a break between them.
-- On a thermal roll a receipt is one page as long as its content, so `pageBreak()` **does nothing** there: the
-  same code builds the document for A4 or a roll. To cut several receipts, print them as a `PdfBatch`.
+- On a thermal roll a receipt is one page as long as its content, so `pageBreak()` **does nothing** there and the
+  receipt is exactly as it is without it: the same code builds the document for A4 or a roll. To cut several
+  receipts, print them as a `PdfBatch`.
 - Sections that each need their own letterhead and their own page numbers (a statement per driver in one file)
   are separate documents in a `PdfBatch`, not breaks.
 
@@ -328,6 +331,8 @@ byte[] pdf = batch.toBytes();                     // or bytes
   way round (A4 with A4 landscape is fine, the landscape pages are turned onto the sheet), or the same roll width.
   A4 with A5, a sheet with a roll, or the 80 mm roll with the 58 mm one fails with a `ReportException` when the
   batch is written: make one batch per paper.
+- A document that cannot be built fails the batch with an error that names its place ("Document 3 of 40 in the
+  batch ..."), with the original error as its cause.
 - On a roll each document is its own receipt, a page as long as its content, so a printer that cuts at the end of
   each page cuts between them.
 - The batch holds the documents themselves, not copies: a change to one after `PdfBatch.of` shows in what is

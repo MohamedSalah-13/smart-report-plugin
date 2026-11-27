@@ -93,6 +93,8 @@ final class PageWriter {
     private boolean inLetterhead;
     /** مفيش حاجة اترسمت في الصفحة الحالية تحت الترويسة: فاصل الصفحات هنا ما بيفتحش صفحة فاضية. */
     private boolean pageEmpty;
+    /** الصفحة اللي آخر فاصل سابها، عشان لو الصفحة اللي فتحها فضلت فاضية لحد آخر جزء نرجع لها. */
+    private BeforeBreak beforeBreak;
     /**
      * أوطى نقطة اتحجزت في الصفحة الحالية: الجزء اللي بيحجز مكانه قبل ما يترسم (عنوان القسم بيحجز لنفسه
      * ولرأس جدول وصف بعده) ممكن يحجز أكتر من اللي رسمه، والورقة الحرارية لازم تكفّي الحجز ده كمان.
@@ -141,7 +143,7 @@ final class PageWriter {
         }
         newPage();
         try {
-            List<PdfDocument.Block> blocks = withoutTrailingBreaks(document.blocks());
+            List<PdfDocument.Block> blocks = document.blocks();
             // الورق الحراري صفحة واحدة بطول المحتوى: مفيش آخر صفحة يتنقل منها حاجة.
             Map<Integer, Integer> kept = paper.roll() ? Map.of() : signatureGroups(blocks);
             for (int i = 0; i < blocks.size(); i++) {
@@ -154,6 +156,7 @@ final class PageWriter {
                 groupMoved = false;
                 lastLineReserve = 0;
             }
+            dropEmptyBreakPage();
             footer();
         } finally {
             stream.close();
@@ -207,36 +210,43 @@ final class PageWriter {
 
     // ===================== الصفحات =====================
 
-    /**
-     * فاصل الصفحات ({@link PdfDocument#pageBreak()}): صفحة جديدة، إلا لو الصفحة الحالية لسه مفيهاش حاجة
-     * تحت الترويسة. الورقة الحرارية صفحة واحدة بطول المحتوى، فالفاصل هناك ما بيعملش حاجة.
-     */
-    private void pageBreak() throws IOException, ReportException {
-        if (!paper.roll() && !pageEmpty) {
-            newPage();
-        }
+    /** مكان الكتابة في الصفحة اللي فاصل سابها. */
+    private record BeforeBreak(PDPage page, int pages, float y, float pageTop, float lowestReserved) {
     }
 
     /**
-     * الأجزاء من غير الفواصل اللي مفيش بعدها غير مسافات وفواصل: المستند اللي بيتبني في حلقة بفاصل بعد كل
-     * قسم ما يخلّصش بصفحة فاضية، أو فيها التذييل لوحده.
+     * فاصل الصفحات ({@link PdfDocument#pageBreak()}): صفحة جديدة، إلا لو الصفحة الحالية لسه مفيهاش حاجة
+     * تحت الترويسة. الصفحة الجديدة بتفضل بس لو اترسم فيها حاجة ({@link #dropEmptyBreakPage()}). الورقة الحرارية
+     * صفحة واحدة بطول المحتوى، و{@link PdfDocument} أصلًا ما بيضيفش فاصل على اللفة.
      */
-    private static List<PdfDocument.Block> withoutTrailingBreaks(List<PdfDocument.Block> blocks) {
-        int end = blocks.size();
-        while (end > 0 && (blocks.get(end - 1) instanceof PdfDocument.PageBreakBlock
-                || blocks.get(end - 1) instanceof PdfDocument.SpaceBlock)) {
-            end--;
+    private void pageBreak() throws IOException, ReportException {
+        if (paper.roll() || pageEmpty) {
+            return;
         }
-        if (end == blocks.size()) {
-            return blocks;
+        beforeBreak = new BeforeBreak(pdf.getPage(pages - 1), pages, y, pageTop, lowestReserved);
+        newPage();
+    }
+
+    /**
+     * الصفحة اللي فتحها آخر فاصل وما اترسمش فيها حاجة لحد آخر جزء بتتشال، والتذييل بيكمل في الصفحة اللي
+     * قبلها زي ما لو الفاصل ما كانش موجود. كده الفاصل اللي مفيش بعده غير أجزاء ما بترسمش (مسافة، نص فاضي،
+     * عنوان {@code null}، فاصل تاني) ما بيسيبش صفحة فاضية ولا صفحة فيها التذييل لوحده. الحكم من الرسم نفسه
+     * ({@link #pageEmpty})، مش من نوع الجزء، فأي جزء جديد ما بيرسمش داخل في القاعدة من غير ما حد يفتكره.
+     */
+    private void dropEmptyBreakPage() throws IOException {
+        BeforeBreak left = beforeBreak;
+        if (left == null || !pageEmpty || pages != left.pages() + 1) {
+            return;
         }
-        List<PdfDocument.Block> kept = new ArrayList<>(blocks.subList(0, end));
-        for (PdfDocument.Block block : blocks.subList(end, blocks.size())) {
-            if (!(block instanceof PdfDocument.PageBreakBlock)) {
-                kept.add(block);
-            }
-        }
-        return kept;
+        stream.close();
+        pdf.removePage(pages - 1);
+        pages--;
+        stream = new PDPageContentStream(pdf, left.page(), PDPageContentStream.AppendMode.APPEND, true, true);
+        y = left.y();
+        pageTop = left.pageTop();
+        lowestReserved = left.lowestReserved();
+        pageEmpty = false;
+        beforeBreak = null;
     }
 
     /**

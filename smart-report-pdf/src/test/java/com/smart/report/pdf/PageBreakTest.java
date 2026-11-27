@@ -5,6 +5,10 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.function.Consumer;
+
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -90,6 +94,59 @@ class PageBreakTest {
         assertTrue(glyphs.first("body3", 3).y() < glyphs.first("Thank", 3).y());
     }
 
+    /**
+     * فاصل مفيش بعده غير أجزاء ما بترسمش حاجة (نص فاضي، عنوان null، بيان فاضي، جدول بلا أعمدة...): الصفحة اللي
+     * فتحها بتتشال، والتذييل في مكانه في الصفحة الأولى، والترقيم «1 من 1». الحكم من الرسم نفسه، فكل الحالات دي
+     * بتعدّي من غير ما الكود يعرفها بالاسم.
+     */
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void aBreakFollowedOnlyByPartsThatDrawNothingLeavesNoPage(boolean rightToLeft) throws Exception {
+        float footer = Glyphs.of(document(rightToLeft, Paper.A5).title("Statement").text("body")
+                .pageNumbers(PageNumbers.ALWAYS).footer("Thank you").toBytes()).first("Thank").y();
+        Map<String, Consumer<PdfDocument>> nothing = new LinkedHashMap<>();
+        nothing.put("empty text", d -> d.text(""));
+        nothing.put("null text", d -> d.text(null));
+        nothing.put("null heading", d -> d.heading(null));
+        nothing.put("blank heading", d -> d.heading("   "));
+        nothing.put("empty title", d -> d.title(""));
+        nothing.put("empty subtitle", d -> d.subtitle(""));
+        nothing.put("empty field", d -> d.field("", ""));
+        nothing.put("table with no columns", d -> d.table(PdfTable.create()));
+        nothing.put("space, empty text and another break", d -> d.space(40).text("").pageBreak().heading(null));
+        for (Map.Entry<String, Consumer<PdfDocument>> part : nothing.entrySet()) {
+            for (boolean everyPage : new boolean[] {false, true}) {
+                PdfDocument document = document(rightToLeft, Paper.A5).letterhead("Safa Haulage")
+                        .letterheadOnEveryPage(everyPage).title("Statement").text("body")
+                        .pageNumbers(PageNumbers.ALWAYS).footer("Thank you").pageBreak();
+                part.getValue().accept(document);
+                Glyphs glyphs = Glyphs.of(document.toBytes());
+                String which = part.getKey() + (everyPage ? ", letterhead on every page" : "");
+
+                assertEquals(1, glyphs.pages(), which);
+                assertArrayEquals(new int[] {1, 1}, glyphs.pageNumber(1, rightToLeft), which);
+                assertTrue(glyphs.drawn("Thank", 1), which);
+            }
+        }
+        // من غير ترويسة: التذييل في نفس مكانه بالظبط زي ما لو الفاصل والأجزاء الفاضية ما كانوش موجودين.
+        PdfDocument plain = document(rightToLeft, Paper.A5).title("Statement").text("body")
+                .pageNumbers(PageNumbers.ALWAYS).footer("Thank you").pageBreak();
+        nothing.values().forEach(part -> part.accept(plain));
+        assertEquals(footer, Glyphs.of(plain.toBytes()).first("Thank", 1).y(), 0.01f);
+    }
+
+    /** أجزاء فاضية بعد الفاصل وبعدها جزء بيترسم: الجزء ده في الصفحة الجديدة، مفيش صفحة زيادة. */
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void partsThatDrawNothingAfterABreakDoNotAddAPage(boolean rightToLeft) throws Exception {
+        Glyphs glyphs = Glyphs.of(document(rightToLeft, Paper.A5).title("Statement").text("body").pageBreak()
+                .text("").heading(null).pageBreak().text("Annex").toBytes());
+
+        assertEquals(2, glyphs.pages());
+        assertTrue(glyphs.drawn("Annex", 2));
+        assertArrayEquals(new int[] {2, 2}, glyphs.pageNumber(2, rightToLeft));
+    }
+
     /** الصفحة الجديدة زي أي صفحة: الترويسة في أعلاها لو المستند طالبها في كل صفحة، والجزء تحتها. */
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
@@ -126,15 +183,20 @@ class PageBreakTest {
         assertFalse(glyphs.drawn("Day", last + 1), "الجدول خلص: رأسه مش في صفحة الملحق");
     }
 
-    /** الإيصال على اللفة صفحة واحدة بطول المحتوى: الفاصل ما بيعملش حاجة، والإيصال زي ما هو من غيره. */
+    /**
+     * الإيصال على اللفة صفحة واحدة بطول المحتوى: الفاصل ما بيعملش حاجة، والإيصال زي ما هو من غيره — حتى
+     * البيانات وسطور الملخص اللي الفاصل بينها بتفضل صف واحد وصندوق واحد.
+     */
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void aBreakOnARollDoesNothing(boolean wide) throws Exception {
         Paper roll = wide ? Paper.ROLL_80 : Paper.ROLL_58;
-        byte[] broken = document(true, roll).letterhead("Corner Shop").title("Receipt").text("first")
-                .pageBreak().text("second").pageBreak().summaryTotal("Total", "123.00").toBytes();
-        byte[] plain = document(true, roll).letterhead("Corner Shop").title("Receipt").text("first")
-                .text("second").summaryTotal("Total", "123.00").toBytes();
+        byte[] broken = document(true, roll).letterhead("Corner Shop").title("Receipt")
+                .field("No", "42").pageBreak().field("Day", "27").text("first").pageBreak().text("second")
+                .summary("Items", "3").pageBreak().summaryTotal("Total", "123.00").pageBreak().toBytes();
+        byte[] plain = document(true, roll).letterhead("Corner Shop").title("Receipt")
+                .field("No", "42").field("Day", "27").text("first").text("second")
+                .summary("Items", "3").summaryTotal("Total", "123.00").toBytes();
 
         assertEquals(1, pages(broken), "الإيصال صفحة واحدة");
         Glyphs withBreaks = Glyphs.of(broken);

@@ -18,6 +18,7 @@ import java.util.Locale;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -134,6 +135,24 @@ class PdfBatchTest {
         assertFalse(PdfBatch.sameSheet(Paper.A4, Paper.A5));
         assertFalse(PdfBatch.sameSheet(Paper.ROLL_80, Paper.ROLL_58));
         assertFalse(PdfBatch.sameSheet(Paper.ROLL_80, Paper.ofMillimetres("80 long", 80, 200)));
+    }
+
+    /** مستند ما اتبناش في دفعة كبيرة: الخطأ بيقول رقمه في الدفعة، وبيشيل الخطأ الأصلي ونوعه. */
+    @Test
+    void aDocumentThatFailsIsNamedByItsPlaceInTheBatch() {
+        PdfDocument badLogo = PdfDocument.ltr(Paper.A5).logo(new byte[] {1, 2, 3}).letterhead("Gamma").title("Bad");
+        ReportException failed = assertThrows(ReportException.class, () -> PdfBatch.of(
+                statement(false, Paper.A5, "Alpha", 3), statement(false, Paper.A5, "Beta", 3), badLogo).toBytes());
+        assertTrue(failed.getMessage().startsWith("Document 3 of 3 in the batch could not be built: "),
+                failed.getMessage());
+        assertInstanceOf(ReportException.class, failed.getCause());
+        assertTrue(failed.getMessage().endsWith(failed.getCause().getMessage()), "الرسالة الأصلية جوّاها");
+
+        PdfDocument noRoom = PdfDocument.ltr(Paper.A5).style(PdfStyle.forPaper(Paper.A5).withMargin(200f)).title("x");
+        IllegalArgumentException margins = assertThrows(IllegalArgumentException.class,
+                () -> PdfBatch.of(noRoom, statement(false, Paper.A5, "Beta", 3)).toBytes());
+        assertTrue(margins.getMessage().startsWith("Document 1 of 2 in the batch: The margins"), margins.getMessage());
+        assertInstanceOf(IllegalArgumentException.class, margins.getCause());
     }
 
     @Test

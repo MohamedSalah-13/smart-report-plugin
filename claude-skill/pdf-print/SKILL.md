@@ -151,8 +151,8 @@ What each part is:
   that group cannot move, the last line of the text before the boxes goes with them.
 - `pageBreak()` - the next part starts on a new page (from the release after `v2.8.0`): an annex after a
   statement, a section per truck in one report. It never leaves a blank page: at the top of a page (nothing
-  drawn yet below the letterhead) it does nothing, and a break with nothing after it is dropped, so a loop may
-  add a section and a break each time. The new page has the letterhead only with `letterheadOnEveryPage(true)`,
+  drawn yet below the letterhead) it does nothing, and the page it opens is kept only if something is drawn on
+  it, so a loop may add a section and a break each time, and a break before notes that turn out empty is fine. The new page has the letterhead only with `letterheadOnEveryPage(true)`,
   and the page numbers carry on. On a thermal roll it does nothing (a receipt is one page). Several customers'
   or drivers' statements are **not** one document with breaks - their page numbers would run on from one to
   the next - but a `PdfBatch` (see "Variants").

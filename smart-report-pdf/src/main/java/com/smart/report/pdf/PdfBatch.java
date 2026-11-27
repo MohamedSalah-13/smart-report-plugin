@@ -92,7 +92,8 @@ public final class PdfBatch {
     /**
      * يكتب الدفعة في {@code out} ولا يقفله.
      *
-     * @throws ReportException لو المستندات مش على نفس الورقة، أو مستند منهم ما اتبناش
+     * @throws ReportException لو المستندات مش على نفس الورقة، أو مستند منهم ما اتبناش (الرسالة فيها رقمه في
+     *                         الدفعة، والخطأ الأصلي سببها)
      */
     public void writeTo(OutputStream out) throws ReportException {
         Objects.requireNonNull(out, "out");
@@ -102,8 +103,8 @@ public final class PdfBatch {
         List<PDDocument> parts = new ArrayList<>(documents.size());
         try (PDDocument merged = new PDDocument()) {
             PDFMergerUtility merger = new PDFMergerUtility();
-            for (PdfDocument document : documents) {
-                PDDocument part = Loader.loadPDF(document.toBytes());
+            for (int i = 0; i < documents.size(); i++) {
+                PDDocument part = Loader.loadPDF(build(i));
                 parts.add(part);
                 merger.appendDocument(merged, part);
             }
@@ -124,6 +125,22 @@ public final class PdfBatch {
                     // مستند في الذاكرة: مفيش ملف يفضل مفتوح.
                 }
             }
+        }
+    }
+
+    /**
+     * المستند رقم {@code index} كبايتات. الخطأ بيقول رقمه في الدفعة (من 1) وبيشيل الخطأ الأصلي: في دفعة 40 كشف،
+     * «الشعار مش صورة» من غير رقم ما بيقولش أنهي كشف. نفس النوع بيفضل — {@link ReportException} أو
+     * {@link IllegalArgumentException} (هوامش ما بتسيبش مكان) — زي ما المستند لوحده بيرميه.
+     */
+    private byte[] build(int index) throws ReportException {
+        String which = "Document " + (index + 1) + " of " + documents.size() + " in the batch";
+        try {
+            return documents.get(index).toBytes();
+        } catch (ReportException e) {
+            throw new ReportException(which + " could not be built: " + e.getMessage(), e);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(which + ": " + e.getMessage(), e);
         }
     }
 
