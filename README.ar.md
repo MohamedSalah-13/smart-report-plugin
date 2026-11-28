@@ -17,6 +17,10 @@
 
 ## ما الجديد
 
+### 2.11.1
+
+- **إصلاح:** باركود EAN-13 صار يتسع لملصق عرضه 40 مم مع `printerDpi(203)`. التفاصيل في [EAN-13 وملصقات الأصناف](#ean-13-وملصقات-الأصناف-ean13-وpdflabels).
+
 ### 2.11.0
 
 - **جديد:** إعداد طباعة لكل نوع مستند مع شاشة إعدادات جاهزة، ونداء واحد يطبع أو يعاين أو يحفظ كما يقول الإعداد. التفاصيل في [إعداد الطباعة لكل نوع مستند](#إعداد-الطباعة-لكل-نوع-مستند-printsettings).
@@ -77,7 +81,7 @@
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.11.0</version>
+    <version>v2.11.1</version>
 </dependency>
 ```
 

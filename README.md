@@ -15,6 +15,10 @@ A Java library for reports and printing, added to any project as a dependency:
 
 ## What's New
 
+### 2.11.1
+
+- **Fixed:** an EAN-13 barcode fits a 40 mm label with `printerDpi(203)`. See [EAN-13 and item labels](#ean-13-and-item-labels-ean13-pdflabels).
+
 ### 2.11.0
 
 - **New:** print settings per kind of document, with a ready settings pane, and one call that prints, previews or saves as they say. See [Print settings per kind of document](#print-settings-per-kind-of-document-printsettings).
@@ -73,7 +77,7 @@ The library is served by [JitPack](https://jitpack.io) straight from the reposit
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.11.0</version>
+    <version>v2.11.1</version>
 </dependency>
 ```
 

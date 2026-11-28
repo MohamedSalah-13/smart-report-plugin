@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.1] - 2026-11-28
+
+### Fixed
+- An EAN-13 barcode now fits a 40 mm label with `printerDpi(203)`. The narrowest bar may go down to two printer
+  dots (0.25 mm), as label printers print it; before, it was rounded up to three dots and the label failed with
+  "needs 42.4 mm". Without `printerDpi` nothing changes. (#77)
+
 ## [2.11.0] - 2026-11-28
 
 ### Added

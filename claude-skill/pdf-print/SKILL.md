@@ -84,13 +84,13 @@ moves to the newest tag.
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.11.0</version>
+    <version>v2.11.1</version>
 </dependency>
 <!-- Only for a JavaFX program that wants the preview window. JavaFX itself is the program's own. -->
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-fx</artifactId>
-    <version>v2.11.0</version>
+    <version>v2.11.1</version>
 </dependency>
 ```
 
