@@ -260,4 +260,42 @@ class PdfReportProviderTest {
         Glyphs glyphs = Glyphs.of(pdf);
         assertTrue(glyphs.first("AAA").x() > glyphs.first("BBB").x(), "الاتجاه المطلوب من اليمين");
     }
+
+    private static ReportRequest.Builder<Employee> columns(int count) {
+        ReportRequest.Builder<Employee> builder = ReportRequest.<Employee>builder()
+                .title("Wide").data(List.of(new Employee("AAA", "BBB", "CCC")));
+        for (int i = 0; i < count; i++) {
+            builder.addColumn(List.of("name", "department", "notes").get(i % 3), "C" + i);
+        }
+        return builder;
+    }
+
+    private static boolean landscape(ReportRequest<Employee> request) throws Exception {
+        try (PDDocument document = Loader.loadPDF(ReportService.generate(ReportType.PDF, request))) {
+            return document.getPage(0).getMediaBox().getWidth() > document.getPage(0).getMediaBox().getHeight();
+        }
+    }
+
+    /** تقرير 10 أعمدة بيطلع بالعرض مع الخيار، وبالطول من غيره أو تحت العدد. */
+    @Test
+    void manyColumnsTurnThePageSideways() throws Exception {
+        assertTrue(landscape(columns(10).parameter(PdfReportProvider.LANDSCAPE_FROM_COLUMNS, 8).build()));
+        assertTrue(landscape(columns(10).parameter(PdfReportProvider.LANDSCAPE_FROM_COLUMNS, "10").build()));
+        assertFalse(landscape(columns(10).build()));
+        assertFalse(landscape(columns(7).parameter(PdfReportProvider.LANDSCAPE_FROM_COLUMNS, 8).build()));
+        assertTrue(landscape(columns(10).parameter(PdfReportProvider.PAPER, "A5")
+                .parameter(PdfReportProvider.LANDSCAPE_FROM_COLUMNS, 8).build()));
+        assertFalse(landscape(columns(10).parameter(PdfReportProvider.PAPER, Paper.ROLL_80)
+                .parameter(PdfReportProvider.LANDSCAPE_FROM_COLUMNS, 8).build()), "اللفة ما بتتقلبش");
+    }
+
+    @Test
+    void anInvalidColumnCountIsRefused() {
+        for (Object bad : List.of(0, "many", 2.5)) {
+            com.smart.report.ReportException thrown = org.junit.jupiter.api.Assertions.assertThrows(
+                    com.smart.report.ReportException.class, () -> ReportService.generate(ReportType.PDF,
+                            columns(3).parameter(PdfReportProvider.LANDSCAPE_FROM_COLUMNS, bad).build()));
+            assertTrue(thrown.getMessage().contains(PdfReportProvider.LANDSCAPE_FROM_COLUMNS), thrown.getMessage());
+        }
+    }
 }

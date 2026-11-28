@@ -379,7 +379,7 @@ import com.smart.report.fx.PdfPreview;
 PdfPreview.of(paper -> StatementPdf.document(statement, companyName, paper))
         .papers(Paper.A4, Paper.A5)       // one paper = no paper choice in the window
         .title("كشف حساب عربية 1751")
-        .fileName("كشف 1751")              // the name suggested by "Save PDF"
+        .fileName("كشف 1751")              // the name suggested by "Save PDF"; / : * ? and the like become -
         .rightToLeft(true)                 // an Arabic window; false = English
         .remember("statement")             // the last printer and paper, per kind of document
         .stylesheet(appStylesheetUrl)      // optional: your program's CSS
@@ -547,6 +547,7 @@ runs right to left). The PDF report is on portrait A4. To change that:
 
 ```java
 .parameter(PdfReportProvider.PAPER, "A5-landscape")        // or a Paper object
+.parameter(PdfReportProvider.LANDSCAPE_FROM_COLUMNS, 8)   // from 8 columns the paper turns sideways (v2.11.0)
 .parameter(PdfReportProvider.RIGHT_TO_LEFT, true)
 .parameter(ExcelReportProvider.RIGHT_TO_LEFT, true)       // the direction of the Excel sheet
 ```
