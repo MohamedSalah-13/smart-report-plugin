@@ -17,6 +17,7 @@ import com.smart.report.pdf.PrintOptions;
 import com.smart.report.util.DocumentCode;
 import javafx.application.Platform;
 import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -74,6 +75,8 @@ public final class HardwareCheck {
     private String thermal;
     private Paper roll = Paper.ROLL_80;
     private int dpi = 203;
+    /** Started by check H; shut down when the session ends so the program can exit. */
+    private boolean javaFxStarted;
 
     HardwareCheck(InputStream input, PrintStream out, Path folder, boolean dryRun) {
         this.in = new Scanner(input, StandardCharsets.UTF_8);
@@ -146,7 +149,11 @@ public final class HardwareCheck {
                 runCheck(choice.charAt(0), names[choice.charAt(0) - 'A']);
             }
         }
-        return writeReport();
+        Path report = writeReport();
+        if (javaFxStarted) {
+            Platform.exit();
+        }
+        return report;
     }
 
     private void setup() {
@@ -405,16 +412,21 @@ public final class HardwareCheck {
         }
         out.println("  The preview window opens. Type 2-3 in Pages, tick Both sides, choose the office printer,");
         out.println("  press Print, then close the window.");
-        try {
-            Platform.startup(() -> { });
-        } catch (IllegalStateException alreadyStarted) {
-            // started by an earlier run
+        if (!javaFxStarted) {
+            try {
+                Platform.startup(() -> { });
+            } catch (IllegalStateException alreadyStarted) {
+                // started elsewhere in this JVM
+            }
+            // Kept alive between repeated runs of this check; run() shuts it down at the end.
+            Platform.setImplicitExit(false);
+            javaFxStarted = true;
         }
-        Platform.setImplicitExit(false);
         CountDownLatch closed = new CountDownLatch(1);
         Platform.runLater(() -> {
             Stage stage = PdfPreview.of(fourPages()).rightToLeft(false).title("Pages check").show(null);
-            stage.setOnHidden(event -> closed.countDown());
+            // An added handler, not setOnHidden: the window's own handler releases its pages and threads.
+            stage.addEventHandler(WindowEvent.WINDOW_HIDDEN, event -> closed.countDown());
         });
         closed.await();
         verdict(check, "Did one sheet come out, with PAGE 2 on the front and PAGE 3 on the back?");
