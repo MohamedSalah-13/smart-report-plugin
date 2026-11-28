@@ -97,7 +97,7 @@ final class PageWriter {
         if (width < 60 || top - bottom < 60) {
             throw new IllegalArgumentException("The margins leave no room on the page for its content.");
         }
-        this.text = new Typesetter(fonts, rtl);
+        this.text = new Typesetter(fonts, rtl, document.arabicIndicDigits());
         this.canvas = new Canvas(pdf);
         this.letterhead = new Letterhead(document, text, style, left, right, width);
     }

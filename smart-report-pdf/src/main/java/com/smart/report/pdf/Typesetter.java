@@ -31,9 +31,35 @@ final class Typesetter {
     /** عرض الكلمة مرسومة، بالوجه والحجم والكلمة: التقرير بيكرر كلماته في كل صف. */
     private final Map<String, Float> wordWidths = new HashMap<>();
 
+    /** الأرقام بتترسم ٠١٢٣ بدل 0123 ({@link PdfDocument#arabicIndicDigits}). */
+    private final boolean arabicDigits;
+
     Typesetter(FontSet fonts, boolean rtl) {
+        this(fonts, rtl, false);
+    }
+
+    Typesetter(FontSet fonts, boolean rtl, boolean arabicDigits) {
         this.fonts = fonts;
         this.rtl = rtl;
+        this.arabicDigits = arabicDigits;
+    }
+
+    /**
+     * الأرقام اللاتينية بأرقام عربية، بعد ترتيب العرض: عزل الأرقام وترتيبها بيشتغل على الأرقام اللاتينية زي ما هو،
+     * والرقم العربي بيتقري من الشمال لليمين زيه، فكل رقم بيفضل مكانه وبس شكله بيتغير.
+     */
+    static String arabicIndic(String visual) {
+        StringBuilder out = null;
+        for (int i = 0; i < visual.length(); i++) {
+            char c = visual.charAt(i);
+            if (c >= '0' && c <= '9') {
+                if (out == null) {
+                    out = new StringBuilder(visual);
+                }
+                out.setCharAt(i, (char) ('\u0660' + (c - '0')));
+            }
+        }
+        return out == null ? visual : out.toString();
     }
 
     /** محارف التحكم (tab وغيره) لمسافات؛ السطر الجديد بيفضل، لأنه كسر سطر مقصود. */
@@ -64,6 +90,9 @@ final class Typesetter {
     Line line(String logical, String paragraph, String source, boolean bold, float size)
             throws IOException, ReportException {
         String visual = fonts.unicode() ? ArabicTextShaper.forDisplay(logical, paragraph, rtl) : logical;
+        if (arabicDigits && fonts.unicode()) {
+            visual = arabicIndic(visual);
+        }
         List<FontSet.Run> runs = fonts.runs(visual, bold, source == null ? logical : source);
         return new Line(runs, FontSet.width(runs, size));
     }

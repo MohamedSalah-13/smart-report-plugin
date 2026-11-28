@@ -76,6 +76,11 @@ public final class PdfReportProvider implements ReportProvider {
      * ({@link PdfTable#negativeInRed}): كشف حساب برصيد دائن مثلًا.
      */
     public static final String NEGATIVE_IN_RED = "smart.report.pdf.negativeInRed";
+    /**
+     * مفتاح في {@code ReportRequest.parameters()}: {@code Boolean.TRUE} = كل الأرقام بالأرقام العربية ({@code ١٢٣})،
+     * زي {@link PdfDocument#arabicIndicDigits}.
+     */
+    public static final String ARABIC_INDIC_DIGITS = "smart.report.pdf.arabicIndicDigits";
 
     @Override
     public ReportType type() {
@@ -97,7 +102,8 @@ public final class PdfReportProvider implements ReportProvider {
         boolean rightToLeft = TextDirection.rightToLeft(request, RIGHT_TO_LEFT);
         PdfDocument document = rightToLeft ? PdfDocument.rtl(paper) : PdfDocument.ltr(paper);
         document.font(font(request.parameters().get(FONT)))
-                .failOnMissingGlyphs(isTrue(request.parameters().get(FAIL_ON_MISSING_GLYPHS)));
+                .failOnMissingGlyphs(isTrue(request.parameters().get(FAIL_ON_MISSING_GLYPHS)))
+                .arabicIndicDigits(isTrue(request.parameters().get(ARABIC_INDIC_DIGITS)));
         if (request.title() != null && !request.title().isBlank()) {
             document.title(singleLine(request.title()));
         }

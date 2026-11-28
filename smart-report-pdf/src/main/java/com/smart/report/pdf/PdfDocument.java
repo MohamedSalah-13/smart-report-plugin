@@ -122,6 +122,7 @@ public final class PdfDocument {
     private String watermark = "";
     private int watermarkColor = Watermark.DEFAULT_COLOR;
     private int printerDpi;
+    private boolean arabicIndicDigits;
 
     private PdfDocument(Paper paper, boolean rightToLeft) {
         this.paper = Objects.requireNonNull(paper, "paper");
@@ -160,6 +161,17 @@ public final class PdfDocument {
      */
     public PdfDocument failOnMissingGlyphs(boolean value) {
         this.failOnMissingGlyphs = value;
+        return this;
+    }
+
+    /**
+     * كل رقم في المستند بيترسم بالأرقام العربية ({@code ١٢٣}) بدل {@code 123}: النص، والجداول، والملخص، والترويسة،
+     * وأرقام الصفحات. الرقم بيفضل مكانه في السطر زي ما هو (الأرقام العربية بتتقري من الشمال لليمين زي اللاتينية)،
+     * والفاصلة والنقطة زي ما اتكتبوا. اللي جوّه رمز QR والباركود والكود المكتوب تحت الباركود بيفضلوا لاتيني: الماسح
+     * والقارئ محتاجينهم كده. مقفول من غير ما يتحدد.
+     */
+    public PdfDocument arabicIndicDigits(boolean value) {
+        this.arabicIndicDigits = value;
         return this;
     }
 
@@ -584,6 +596,10 @@ public final class PdfDocument {
 
     String watermarkText() {
         return watermark;
+    }
+
+    boolean arabicIndicDigits() {
+        return arabicIndicDigits;
     }
 
     int printerDpi() {
