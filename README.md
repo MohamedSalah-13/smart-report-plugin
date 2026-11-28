@@ -15,6 +15,11 @@ A Java library for reports and printing, added to any project as a dependency:
 
 ## What's New
 
+### 2.9.1
+
+- **Fixed:** a generic Excel report whose title starts or ends with an apostrophe, such as `'Q1' sales`, no longer fails. See [Generic PDF or Excel](#generic-pdf-or-excel-no-template).
+- **Changed:** the PDF page layout was rewritten internally so that every part follows the same page rules; documents come out exactly as before.
+
 ### 2.9.0
 
 - **New:** `pageBreak()` starts the next part on a new page, and never leaves a blank one. See [Page breaks](#page-breaks-pagebreak).
@@ -22,12 +27,6 @@ A Java library for reports and printing, added to any project as a dependency:
 - **New:** a font for one document (`PdfDocument.font`), and `failOnMissingGlyphs(true)` to stop with an error instead of printing `?`. See [Font](#font).
 - **Fixed:** `²`, `³`, `½` and `±` no longer print as `?` on a computer without Arial or DejaVu, and invisible characters such as the one after `©` print nothing. See [Font](#font).
 - **Changed:** copies of a document with several pages print as whole sets.
-
-### 2.8.0
-
-- **New:** a totals row under the table of the generic PDF and Excel report: add `withTotal()` to the columns to sum. See [Totals](#totals).
-- **Fixed:** Arabic in a Jasper text box a little shorter than its line is no longer lost: its first line is drawn. A text that still prints nothing is logged as a warning naming the report and the field. See [Arabic in the PDF](#arabic-in-the-pdf).
-- **Upgrade note:** a record pattern that takes `ColumnDefinition` apart needs a sixth variable, `total`.
 
 Details of each release are in [CHANGELOG.md](CHANGELOG.md).
 
@@ -58,7 +57,7 @@ The library is served by [JitPack](https://jitpack.io) straight from the reposit
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.9.0</version>
+    <version>v2.9.1</version>
 </dependency>
 ```
 
