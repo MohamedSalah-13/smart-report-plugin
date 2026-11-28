@@ -9,27 +9,29 @@ import static com.smart.report.pdf.Typesetter.BASELINE;
 import static com.smart.report.pdf.Typesetter.LEADING;
 
 /**
- * العلامة المائية ({@link PdfDocument#watermark(String, int)}): كلمة كبيرة بلون فاتح في كل صفحة، تحت المحتوى.
+ * العلامة المائية ({@link PdfDocument#watermark(String, int)}): كلمة كبيرة شفافة في كل صفحة، فوق المحتوى.
  *
  * <ul>
- *     <li>بتترسم أول حاجة في الصفحة ({@link PageWriter}، أول ما الصفحة تتفتح)، فكل اللي بعدها فوقها وما بتغطيش
- *         نص. ومش محتوى: ما بتعلّمش الصفحة ({@link Canvas#marked()})، فالصفحة اللي فيها العلامة بس فاضية.</li>
+ *     <li>بتترسم في آخر الصفحة ({@link PageWriter}، بعد المحتوى وقبل رقم الصفحة وتذييلها)، فوق كل حاجة، ومنها
+ *         الخلفيات (رأس الجدول، الإجمالي، صندوق الملخص) اللي كانت هتغطيها لو اترسمت تحتها. شفافة
+ *         ({@link #ALPHA})، فالنص والخلفيات اللي تحتها بيفضلوا مقروءين. ومش محتوى: ما بتعلّمش الصفحة
+ *         ({@link Canvas#marked()}) ومحطوطة {@code /Artifact}، فالقارئ اللي بيحترمها بيسيبها في النسخ والبحث.</li>
  *     <li>على الورق العادي مايلة على قطر الصفحة في نصها. على اللفة الحرارية الصفحة ضيقة وطويلة وقطرها قريب
  *         من الرأسي، فالعلامة بالعرض ومتكررة على طول الإيصال: نسخة لكل حوالي مرة ونص عرض اللفة، والإيصال
  *         القصير نسخة واحدة في نصه.</li>
  *     <li>الحجم على قد الكلمة والورقة: الكلمة كلها (بارتفاع سطرها) جوه هوامش الصفحة، ومن غير ما تكبر عن
  *         {@link #MAX_SHARE} من أقصر ضلع.</li>
- *     <li>اللون {@link #TINT} من اللون المطلوب والباقي أبيض، من غير شفافية: على الورق الأبيض زي اللون
- *         الشفاف بالظبط، وبيتطبع زي ما هو على أي طابعة، ومن غير حبر يُذكر في {@link PdfStyle#inkSaver()}.</li>
+ *     <li>اللون المطلوب نفسه بشفافية {@link #ALPHA}: على الورق الأبيض رمادي أو لون فاتح، ومن غير حبر يُذكر في
+ *         {@link PdfStyle#inkSaver()}.</li>
  * </ul>
  */
 final class Watermark {
 
-    /** اللون لو ما اتحدّدش: أسود، يعني رمادي فاتح بعد {@link #TINT}. */
+    /** اللون لو ما اتحدّدش: أسود، يعني رمادي فاتح بشفافية {@link #ALPHA}. */
     static final int DEFAULT_COLOR = 0x000000;
 
-    /** نصيب اللون المطلوب في لون العلامة، والباقي أبيض. */
-    static final float TINT = 0.15f;
+    /** عتامة العلامة: 15% من لونها فوق اللي تحتها، فالأسود على الورق الأبيض رمادي فاتح ({@code 0xD9D9D9}). */
+    static final float ALPHA = 0.15f;
 
     /** أكبر حجم للخط نسبةً لأقصر ضلع في الورقة: «COPY» على A4 حوالي 130 نقطة. */
     static final float MAX_SHARE = 0.22f;
@@ -85,27 +87,15 @@ final class Watermark {
         if (!(size > 0)) {
             return null;
         }
-        return new Watermark(text.line(word, word, false, size), size, tint(color), angle,
+        return new Watermark(text.line(word, word, false, size), size, color, angle,
                 paper.width(), paper.height());
-    }
-
-    /** {@link #TINT} من {@code rgb} والباقي أبيض. */
-    static int tint(int rgb) {
-        int red = mix((rgb >> 16) & 0xFF);
-        int green = mix((rgb >> 8) & 0xFF);
-        int blue = mix(rgb & 0xFF);
-        return red << 16 | green << 8 | blue;
-    }
-
-    private static int mix(int channel) {
-        return Math.round(255 - (255 - channel) * TINT);
     }
 
     float size() {
         return size;
     }
 
-    /** يرسم العلامة على الصفحة اللي لسه متفتحة، قبل أي حاجة فيها. */
+    /** يرسم العلامة على الصفحة بعد محتواها، فوق كل اللي اترسم فيها. */
     void draw(Canvas canvas) throws IOException {
         if (angle != 0) {
             drawAt(canvas, width / 2, height / 2);
@@ -126,6 +116,6 @@ final class Watermark {
         double sin = Math.sin(angle);
         float startX = (float) (x + along * cos - across * sin);
         float startY = (float) (y + along * sin + across * cos);
-        canvas.stamp(line, size, color, Matrix.getRotateInstance(angle, startX, startY));
+        canvas.stamp(line, size, color, ALPHA, Matrix.getRotateInstance(angle, startX, startY));
     }
 }

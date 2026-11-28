@@ -158,11 +158,12 @@ What each part is:
   and the page numbers carry on. On a thermal roll it does nothing (a receipt is one page). Several customers'
   or drivers' statements are **not** one document with breaks - their page numbers would run on from one to
   the next - but a `PdfBatch` (see "Variants").
-- `watermark("صورة")` - a large light word behind the content of every page (from `v2.10.0`): «صورة» on a
+- `watermark("صورة")` - a large light word over the content of every page (from `v2.10.0`): «صورة» on a
   copy of an invoice, «مسودة» or `DRAFT` before it is final, «ملغاة», «مدفوع», `COPY`. Use it where the old
   program printed such a word or stamp, or kept a second "copy" print. `watermark(text, 0xC00000)` takes a
-  colour, drawn at 15% so it stays light. It is diagonal on paper and horizontal, repeated down the receipt, on a
-  roll; it shrinks to fit, never hides text, and a page with only the watermark is still empty. `null` or blank
+  colour, drawn at 15% opacity so it stays light. It lies over everything, fills included, and the text under it
+  stays readable. It is diagonal on paper and horizontal, repeated down the receipt, on a roll; it shrinks to
+  fit, and a page with only the watermark is still empty. `null` or blank
   means none, so `document.watermark(isCopy ? "صورة" : null)` is fine.
 - The amount in words, when the old paper had it ("فقط ... لا غير"):
   `document.text(AmountInWords.arabic(invoice.net(), AmountInWords.Currency.EGP))` (from

@@ -126,7 +126,7 @@ class PrintToStreamTest {
         assertEverySheet(pdf, sent, Paper.A4.width(), Paper.A4.height());
     }
 
-    /** العلامة المائية أول حاجة في كل صفحة، والمستند بيوصل الطابعة بكل صفحاته زي من غيرها. */
+    /** العلامة المائية شفافة فوق كل صفحة، والمستند بيوصل الطابعة (PostScript) بكل صفحاته زي من غيرها. */
     @Test
     void aWatermarkedDocumentIsSentWithEveryPage() throws Exception {
         PdfTable table = PdfTable.create().column("Day", 1).column("Amount", 1);

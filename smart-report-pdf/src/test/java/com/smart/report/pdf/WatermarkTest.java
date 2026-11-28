@@ -4,8 +4,11 @@ import com.smart.report.text.ArabicTextShaper;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.contentstream.operator.Operator;
 import org.apache.pdfbox.pdfparser.PDFStreamParser;
+import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.text.TextPosition;
 import org.apache.pdfbox.util.Matrix;
@@ -19,6 +22,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static com.smart.report.pdf.Typesetter.BASELINE;
@@ -28,8 +32,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * العلامة المائية ({@link PdfDocument#watermark(String, int)}) مقروءة من الـ PDF نفسه: حروفها في كل صفحة، أول حاجة
- * في الصفحة، متشكّلة، جوه الهوامش، ومن غير ما تحرّك حرف واحد من المحتوى ولا تسيب صفحة فاضية.
+ * العلامة المائية ({@link PdfDocument#watermark(String, int)}) مقروءة من الـ PDF نفسه: حروفها في كل صفحة، فوق
+ * المحتوى وشفافة، متشكّلة، جوه الهوامش، ومن غير ما تحرّك حرف واحد من المحتوى ولا تسيب صفحة فاضية.
  */
 class WatermarkTest {
 
@@ -83,28 +87,46 @@ class WatermarkTest {
         return ArabicTextShaper.forDisplay(word, word, rightToLeft).replace(" ", "");
     }
 
+    /** نسخ العلامة في الصفحة: حروف كل نسخة، ومكانها في حروف الصفحة بترتيب الرسم ({@code from} لحد قبل {@code to}). */
+    private record Stamp(List<List<Mark>> copies, int from, int to) {
+    }
+
     /**
-     * أول حروف الصفحة لحد ما تكمّل {@code copies} نسخ من العلامة؛ الاختبار بيفشل لو أول الصفحة مش العلامة. بترجع
-     * حروف النسخ دي، وكل نسخة لوحدها.
+     * أول مكان في الصفحة فيه {@code copies} نسخ ورا بعض من العلامة؛ الاختبار بيفشل لو مش موجودة. المسافات بين
+     * الحروف ما بتتحسبش (المسافة ممكن ما تطلعش حرف).
      */
-    private static List<List<Mark>> leadingCopies(List<Mark> page, String visual, int copies) {
-        List<List<Mark>> found = new ArrayList<>();
-        int k = 0;
-        for (int copy = 0; copy < copies; copy++) {
-            List<Mark> one = new ArrayList<>();
-            StringBuilder text = new StringBuilder();
-            while (text.length() < visual.length() && k < page.size()) {
-                Mark mark = page.get(k++);
-                if (mark.text().isBlank()) {
-                    continue;
+    private static Stamp stamp(List<Mark> page, String visual, int copies) {
+        for (int from = 0; from < page.size(); from++) {
+            List<List<Mark>> found = new ArrayList<>();
+            int k = from;
+            for (int copy = 0; copy < copies; copy++) {
+                List<Mark> one = new ArrayList<>();
+                StringBuilder text = new StringBuilder();
+                while (text.length() < visual.length() && k < page.size()) {
+                    Mark mark = page.get(k++);
+                    if (mark.text().isBlank()) {
+                        continue;
+                    }
+                    text.append(mark.text());
+                    one.add(mark);
                 }
-                text.append(mark.text());
-                one.add(mark);
+                if (!visual.contentEquals(text)) {
+                    break;
+                }
+                found.add(one);
             }
-            assertEquals(visual, text.toString(), "copy " + (copy + 1) + " of the watermark opens the page");
-            found.add(one);
+            if (found.size() == copies) {
+                return new Stamp(found, from, k);
+            }
         }
-        return found;
+        throw new AssertionError(copies + " copies of \"" + visual + "\" are not drawn on the page");
+    }
+
+    /** حروف الصفحة من غير العلامة. */
+    private static List<Mark> without(List<Mark> page, Stamp stamp) {
+        List<Mark> rest = new ArrayList<>(page.subList(0, stamp.from()));
+        rest.addAll(page.subList(stamp.to(), page.size()));
+        return rest.stream().filter(mark -> !mark.text().isBlank()).toList();
     }
 
     private static int copiesOnRoll(PDRectangle page) {
@@ -140,7 +162,7 @@ class WatermarkTest {
     }
 
     /**
-     * على كل ورقة وبكل كلمة: العلامة أول حاجة في الصفحة، متشكّلة، كل حرف فيها بارتفاع سطره جوه الهوامش، في نص
+     * على كل ورقة وبكل كلمة: العلامة آخر حاجة في الصفحة (فوق كل حاجة)، متشكّلة، كل حرف فيها بارتفاع سطره جوه الهوامش، في نص
      * الصفحة، على القطر في الورق وبالعرض على اللفة — والمحتوى بعدها في مكانه بالظبط زي من غيرها.
      */
     @ParameterizedTest(name = "{0} {1}")
@@ -158,7 +180,9 @@ class WatermarkTest {
         int copies = paper.roll() ? copiesOnRoll(box) : 1;
         String visual = visual(word, true);
         List<Mark> page = onPage(marks, 1);
-        List<List<Mark>> found = leadingCopies(page, visual, copies);
+        Stamp stamp = stamp(page, visual, copies);
+        List<List<Mark>> found = stamp.copies();
+        assertEquals(page.size(), stamp.to(), "the watermark is drawn last, over everything on the page");
 
         double expectedAngle = paper.roll() ? 0 : Math.atan2(box.getHeight(), box.getWidth());
         float size = found.getFirst().getFirst().size();
@@ -191,14 +215,8 @@ class WatermarkTest {
             assertEquals(expectedY, centreY, 1, "vertical centre");
         }
 
-        // اللي بعد العلامة هو المستند من غيرها، حرف حرف في نفس المكان.
-        Mark lastStamp = found.getLast().getLast();
-        int afterStamp = 0;
-        while (page.get(afterStamp) != lastStamp) {
-            afterStamp++;
-        }
-        List<Mark> body = page.subList(afterStamp + 1, page.size()).stream()
-                .filter(mark -> !mark.text().isBlank()).toList();
+        // اللي قبل العلامة هو المستند من غيرها، حرف حرف في نفس المكان.
+        List<Mark> body = without(page, stamp);
         List<Mark> alone = onPage(marks(plain), 1).stream().filter(mark -> !mark.text().isBlank()).toList();
         assertEquals(alone.size(), body.size(), "the body has the same glyphs");
         for (int i = 0; i < alone.size(); i++) {
@@ -222,7 +240,8 @@ class WatermarkTest {
     }
 
     private static float sizeOf(Paper paper, String word) throws Exception {
-        return marks(invoice(paper, true).watermark(word).toBytes()).getFirst().size();
+        List<Mark> page = onPage(marks(invoice(paper, true).watermark(word).toBytes()), 1);
+        return stamp(page, visual(word, true), 1).copies().getFirst().getFirst().size();
     }
 
     /** العربي متشكّل (أشكال الحروف الموصولة) ومن اليمين لليسار: أول حرف مرسوم آخر حرف في الكلمة. */
@@ -231,7 +250,7 @@ class WatermarkTest {
         for (boolean rightToLeft : new boolean[] {true, false}) {
             List<Mark> page = onPage(marks(invoice(Paper.A4, rightToLeft).watermark("مسودة").toBytes()), 1);
             String visual = visual("مسودة", rightToLeft);
-            List<Mark> stamp = leadingCopies(page, visual, 1).getFirst();
+            List<Mark> stamp = stamp(page, visual, 1).copies().getFirst();
             assertTrue(visual.chars().allMatch(c -> c >= 0xFE70 && c <= 0xFEFF), "presentation forms: " + visual);
             assertEquals("ﺓ", stamp.getFirst().text(), "the last letter, alone, is drawn first (leftmost)");
             assertEquals("ﻣ", stamp.getLast().text(), "the first letter, initial, is drawn last (rightmost)");
@@ -247,28 +266,51 @@ class WatermarkTest {
         }
     }
 
-    /** في كل صفحة من مستند طويل، أول حاجة في الصفحة، وأول أمر في محتواها. */
+    /**
+     * في كل صفحة من مستند طويل: العلامة فوق المحتوى (بعدها رقم الصفحة بس)، بشفافية 15% من {@code ExtGState}،
+     * ومحطوطة {@code /Artifact}، ومن غير ما تزوّد صفحة.
+     */
     @Test
-    void everyPageOpensWithTheWatermark() throws Exception {
-        byte[] pdf = longStatement(Paper.A5).letterheadOnEveryPage(false).watermark("صورة").toBytes();
+    void everyPageHasTheWatermarkOverItsContent() throws Exception {
+        byte[] pdf = longStatement(Paper.A5).watermark("صورة").toBytes();
         List<Mark> marks = marks(pdf);
+        float margin = PdfStyle.forPaper(Paper.A5).margin();
         int pages;
         try (PDDocument document = Loader.loadPDF(pdf)) {
             pages = document.getNumberOfPages();
             assertTrue(pages >= 3, "a long statement: " + pages);
             for (int i = 0; i < pages; i++) {
-                List<Object> tokens = new PDFStreamParser(document.getPage(i)).parse();
-                Operator first = (Operator) tokens.stream().filter(Operator.class::isInstance).findFirst().orElseThrow();
-                assertEquals("q", first.getName(), "page " + (i + 1) + " starts with the watermark's own state");
-                assertTrue(tokens.stream().anyMatch(t -> t instanceof Operator op && "BT".equals(op.getName())));
+                PDPage page = document.getPage(i);
+                List<Object> tokens = new PDFStreamParser(page).parse();
+                int gs = operator(tokens, "gs", 0);
+                PDExtendedGraphicsState state = page.getResources().getExtGState((COSName) tokens.get(gs - 1));
+                assertEquals(Watermark.ALPHA, state.getNonStrokingAlphaConstant(), 1e-6f, "the watermark's opacity");
+                int artifact = operator(tokens, "BMC", gs);
+                assertEquals(COSName.ARTIFACT, tokens.get(artifact - 1));
+                assertTrue(operator(tokens, "BT", artifact) > artifact, "its text is marked as an artifact");
             }
         }
         for (int page = 1; page <= pages; page++) {
-            leadingCopies(onPage(marks, page), visual("صورة", true), 1);
+            List<Mark> onPage = onPage(marks, page);
+            Stamp stamp = stamp(onPage, visual("صورة", true), 1);
+            assertTrue(stamp.from() > 0, "the page's content comes first");
+            for (Mark after : onPage.subList(stamp.to(), onPage.size())) {
+                assertTrue(after.at(0, 0).y < margin, "only the page number after the watermark: " + after.text());
+            }
         }
         try (PDDocument document = Loader.loadPDF(longStatement(Paper.A5).toBytes())) {
             assertEquals(pages, document.getNumberOfPages(), "the watermark adds no page");
         }
+    }
+
+    /** مكان أول أمر {@code name} من {@code from}، أو الاختبار بيفشل. */
+    private static int operator(List<Object> tokens, String name, int from) {
+        for (int i = from; i < tokens.size(); i++) {
+            if (tokens.get(i) instanceof Operator op && name.equals(op.getName())) {
+                return i;
+            }
+        }
+        throw new AssertionError("no " + name + " operator after token " + from);
     }
 
     /** على اللفة الطويلة نسخ بطول الإيصال، والقصيرة نسخة واحدة. */
@@ -286,7 +328,7 @@ class WatermarkTest {
         }
         int copies = copiesOnRoll(box);
         assertTrue(copies >= 3, "copies on a long receipt: " + copies);
-        leadingCopies(onPage(marks(pdf), 1), "COPY", copies);
+        stamp(onPage(marks(pdf), 1), "COPY", copies);
         // نفس طول الإيصال من غير العلامة: العلامة ما بتطوّلش اللفة.
         try (PDDocument document = Loader.loadPDF(PdfDocument.ltr(Paper.ROLL_80).title("Receipt").table(items)
                 .toBytes())) {
@@ -330,9 +372,9 @@ class WatermarkTest {
         byte[] pdf = PdfBatch.of(invoice(Paper.A5, false).watermark("COPY"), invoice(Paper.A5, false),
                 invoice(Paper.A5, true).watermark("مدفوع", 0x008000)).toBytes();
         List<Mark> marks = marks(pdf);
-        leadingCopies(onPage(marks, 1), "COPY", 1);
+        stamp(onPage(marks, 1), "COPY", 1);
         assertEquals("Corner", firstWord(onPage(marks, 2)), "the second document has no watermark");
-        leadingCopies(onPage(marks, 3), visual("مدفوع", true), 1);
+        stamp(onPage(marks, 3), visual("مدفوع", true), 1);
         assertFalse(onPage(marks, 2).stream().anyMatch(mark -> mark.size() > 30), "nothing large on page 2");
     }
 
@@ -348,15 +390,11 @@ class WatermarkTest {
     }
 
     /**
-     * الرسم اللي المعاينة والطابعة بيستخدموه ({@link PdfPages}) بيطلّع العلامة رمادي فاتح ورا النص: لونها 15% من
-     * اللون المطلوب، والنص الأسود فوقها لسه أسود.
+     * الرسم اللي المعاينة والطابعة بيستخدموه ({@link PdfPages}) بيطلّع العلامة فاتحة على الورق الأبيض: 15% من
+     * اللون، يعني رمادي {@code 0xD9D9D9} للأسود ووردي للأحمر.
      */
     @Test
-    void thePreviewRendersALightWatermarkBehindTheText() throws Exception {
-        assertEquals(0xD9D9D9, Watermark.tint(0x000000));
-        assertEquals(0xFFD9D9, Watermark.tint(0xFF0000));
-        assertEquals(0xFFFFFF, Watermark.tint(0xFFFFFF));
-
+    void thePreviewRendersALightWatermark() throws Exception {
         BufferedImage stamped = page(PdfDocument.ltr(Paper.A4).title("Invoice").watermark("DRAFT").toBytes());
         BufferedImage plain = page(PdfDocument.ltr(Paper.A4).title("Invoice").toBytes());
         assertTrue(count(stamped, 0xD9D9D9) > 2000, "light grey watermark pixels: " + count(stamped, 0xD9D9D9));
@@ -364,12 +402,91 @@ class WatermarkTest {
         assertEquals(count(plain, 0x000000), count(stamped, 0x000000), "the title is drawn the same, in black");
 
         BufferedImage red = page(PdfDocument.ltr(Paper.A4).watermark("VOID", 0xC00000).toBytes());
-        assertTrue(count(red, Watermark.tint(0xC00000)) > 2000, "light red");
+        int lightRed = blend(0xFFFFFF, 0xC00000);
+        assertTrue(count(red, lightRed) > 2000, "light red: " + count(red, lightRed));
+    }
+
+    /**
+     * الخلفيات (رأس الجدول، الإجمالي، صندوق الملخص) ما بتغطيش العلامة: فاتورة ملغاة على A5 (صغيرة، الملخص في نص
+     * الصفحة، وطويلة، الصفوف تحت العلامة)، والعلامة بتصبغ البكسلات الرمادية اللي تحتها بالأحمر، والنص الأسود تحتها
+     * لسه غامق.
+     */
+    @ParameterizedTest(name = "{0} rows")
+    @org.junit.jupiter.params.provider.ValueSource(ints = {8, 22})
+    void theWatermarkShowsOverFilledAreasAndKeepsTextReadable(int rows) throws Exception {
+        PdfTable table = PdfTable.create().column("الصنف", 3).column("الكمية", 1).column("القيمة", 2, Align.END);
+        for (int i = 1; i <= rows; i++) {
+            table.row("صنف " + i, "1", "50.00");
+        }
+        table.totals("الإجمالي", String.valueOf(rows), "400.00");
+        Supplier<PdfDocument> invoice = () -> PdfDocument.rtl(Paper.A5).title("فاتورة")
+                .field("رقم", "0042").field("التاريخ", "2026-11-28")
+                .table(table).summaryTotal("الإجمالي", "450.00 ج.م");
+        BufferedImage plain = page(invoice.get().toBytes(), 3f);
+        BufferedImage stamped = page(invoice.get().watermark("ملغاة", 0xC00000).toBytes(), 3f);
+
+        int tinted = 0;
+        int dark = 0;
+        int darkStillDark = 0;
+        for (int y = 0; y < plain.getHeight(); y++) {
+            for (int x = 0; x < plain.getWidth(); x++) {
+                int before = plain.getRGB(x, y) & 0xFFFFFF;
+                int after = stamped.getRGB(x, y) & 0xFFFFFF;
+                if (before == after) {
+                    continue;
+                }
+                int r = (before >> 16) & 0xFF;
+                int g = (before >> 8) & 0xFF;
+                int b = before & 0xFF;
+                if (r > 200 && r < 245 && Math.abs(r - g) < 12 && Math.abs(g - b) < 12) {
+                    // خلفية رمادية فاتحة تحت العلامة كلها (مش حرف بيلمس البكسل بطرفه): 15% أحمر فوق الرمادي.
+                    if (near(after, blend(before, 0xC00000))) {
+                        tinted++;
+                    }
+                } else if (r < 80 && g < 80 && b < 80) {
+                    dark++;
+                    if (((after >> 8) & 0xFF) < 100) {
+                        darkStillDark++;
+                    }
+                }
+            }
+        }
+        assertEquals(dark, darkStillDark, "text under the watermark stays dark");
+        if (rows == 8) {
+            // الإجمالي وصندوق الملخص في نص الصفحة، تحت أول حرف في العلامة.
+            assertTrue(tinted > 4000, "filled pixels tinted red by the watermark: " + tinted);
+        } else {
+            // الصفوف الكتير بتعدّي تحت العلامة: فيه نص تحتها فعلًا.
+            assertTrue(dark > 20, "text under the watermark: " + dark);
+        }
+    }
+
+    /** {@code color} بعتامة {@link Watermark#ALPHA} فوق {@code under}. */
+    private static int blend(int under, int color) {
+        int rgb = 0;
+        for (int shift = 16; shift >= 0; shift -= 8) {
+            float channel = ((under >> shift) & 0xFF) * (1 - Watermark.ALPHA) + ((color >> shift) & 0xFF) * Watermark.ALPHA;
+            rgb |= Math.round(channel) << shift;
+        }
+        return rgb;
+    }
+
+    private static boolean near(int pixel, int rgb) {
+        for (int shift = 16; shift >= 0; shift -= 8) {
+            if (Math.abs(((pixel >> shift) & 0xFF) - ((rgb >> shift) & 0xFF)) > 2) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static BufferedImage page(byte[] pdf) throws Exception {
+        return page(pdf, 1f);
+    }
+
+    private static BufferedImage page(byte[] pdf, float scale) throws Exception {
         try (PdfPages pages = PdfPages.open(pdf)) {
-            return pages.render(0, 1f);
+            return pages.render(0, scale);
         }
     }
 
@@ -382,10 +499,7 @@ class WatermarkTest {
         int found = 0;
         for (int y = top; y < image.getHeight(); y++) {
             for (int x = 0; x < image.getWidth(); x++) {
-                int pixel = image.getRGB(x, y);
-                if (Math.abs(((pixel >> 16) & 0xFF) - ((rgb >> 16) & 0xFF)) <= 2
-                        && Math.abs(((pixel >> 8) & 0xFF) - ((rgb >> 8) & 0xFF)) <= 2
-                        && Math.abs((pixel & 0xFF) - (rgb & 0xFF)) <= 2) {
+                if (near(image.getRGB(x, y), rgb)) {
                     found++;
                 }
             }
