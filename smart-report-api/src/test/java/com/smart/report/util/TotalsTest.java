@@ -125,6 +125,10 @@ class TotalsTest {
         ReportRequest<Object> custom = ReportRequest.builder().groupBy("customer").subtotalLabel("مجموع ").build();
         assertEquals("مجموع أحمد", Totals.subtotalLabel(custom, "أحمد", false), "كلام البرنامج بيغلب الافتراضي");
         assertEquals("Ahmed", Totals.subtotalLabel(ReportRequest.builder().subtotalLabel("").build(), "Ahmed", false));
+
+        assertEquals("إجمالى: ", Totals.subtotalPrefix(plain, true), "الكلام لوحده، للـ Excel");
+        assertEquals("Total: ", Totals.subtotalPrefix(plain, false));
+        assertEquals("مجموع ", Totals.subtotalPrefix(custom, true));
     }
 
     /** المجموعة الجديدة بتبدأ لما القيمة تتغير؛ الأرقام العشرية بقيمتها، و{@code null} مجموعة زي أي قيمة. */

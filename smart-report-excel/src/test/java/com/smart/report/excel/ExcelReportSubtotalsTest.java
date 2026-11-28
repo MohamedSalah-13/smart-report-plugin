@@ -63,17 +63,18 @@ class ExcelReportSubtotalsTest {
     }
 
     /**
-     * تحت كل مجموعة صف بكلمتها ومعادلة {@code SUBTOTAL(9, ...)} على صفوفها بس، ومعاها قيمتها؛ والإجمالي الكلي
-     * {@code SUBTOTAL} على كل الصفوف (الفرعية جوّاها) فما بيعدّش الإجماليات الفرعية مرتين.
+     * تحت كل مجموعة صف فيه قيمتها في عمودها ومعادلة {@code SUBTOTAL(9, ...)} على صفوفها بس، ومعاها قيمتها؛
+     * والإجمالي الكلي {@code SUBTOTAL} على كل الصفوف (الفرعية جوّاها) فما بيعدّش الإجماليات الفرعية مرتين.
      */
     @Test
     void subtotalsAreSubtotalFormulasWithTheirCachedValues() throws Exception {
         try (XSSFWorkbook workbook = open(request(null, LINES, CUSTOMER, AMOUNT, QTY).groupBy("customer"))) {
             XSSFSheet sheet = workbook.getSheetAt(0);
             // الرأس 0، أحمد 1-2 وإجماليه 3، سارة 4 وإجماليها 5، علي 6-7 وإجماليه 8، سطر فاضي 9، الإجمالي 10
-            assertEquals("Total: Ahmed", text(sheet.getRow(3).getCell(0)));
-            assertEquals("Total: Sara", text(sheet.getRow(5).getCell(0)));
-            assertEquals("Total: Ali", text(sheet.getRow(8).getCell(0)));
+            // عمود المجموعة هو العمود الوحيد اللي مش متجمّع: فيه القيمة، والصف من غير كلام.
+            assertEquals("Ahmed", text(sheet.getRow(3).getCell(0)));
+            assertEquals("Sara", text(sheet.getRow(5).getCell(0)));
+            assertEquals("Ali", text(sheet.getRow(8).getCell(0)));
             assertNull(sheet.getRow(9), "سطر فاضي قبل الإجمالي الكلي");
             assertEquals(10, sheet.getLastRowNum());
 
@@ -107,17 +108,19 @@ class ExcelReportSubtotalsTest {
     }
 
     /**
-     * رأس الأعمدة ثابت وعليه الفلتر لحد آخر إجمالي فرعي (الإجماليات الفرعية بين الصفوف)، والإجمالي الكلي برّه
-     * الفلتر بعد السطر الفاضي.
+     * رأس الأعمدة ثابت، والفلتر بيوصل للسطر الفاضي بعد آخر إجمالي فرعي (الإجماليات الفرعية بين الصفوف): Excel
+     * بيعتبر آخر صف في النطاق فيه {@code SUBTOTAL} صف إجمالي وما بيخبيهوش، فإجمالي آخر مجموعة كان بيفضل ظاهر
+     * لو اخترت عميل تاني. (اتجرّب في Excel نفسه: الفلتر على عميل بيسيب صفوفه وإجماليه والإجمالي الكلي بمجموعه.)
      */
     @Test
     void headerStaysFrozenAndFilteredDownToTheLastSubtotal() throws Exception {
         try (XSSFWorkbook workbook = open(request("Statement", LINES, CUSTOMER, AMOUNT).groupBy("customer"))) {
             XSSFSheet sheet = workbook.getSheetAt(0);
             // العنوان 0، سطر 1، الرأس 2، البيانات والإجماليات الفرعية 3-10، سطر فاضي 11، الإجمالي 12
-            assertEquals("A3:B11", sheet.getCTWorksheet().getAutoFilter().getRef());
+            assertEquals("A3:B12", sheet.getCTWorksheet().getAutoFilter().getRef());
+            assertNull(sheet.getRow(11), "آخر صف في الفلتر فاضي");
             assertEquals(3, sheet.getPaneInformation().getHorizontalSplitPosition());
-            assertEquals("Total: Ali", text(sheet.getRow(10).getCell(0)));
+            assertEquals("Ali", text(sheet.getRow(10).getCell(0)));
             assertEquals("SUBTOTAL(9,B4:B11)", sheet.getRow(12).getCell(1).getCellFormula());
         }
     }
@@ -140,7 +143,7 @@ class ExcelReportSubtotalsTest {
         }
     }
 
-    /** القيمة الفاضية مجموعة زي أي قيمة، وكلمتها علامة؛ صفين فاضيين ورا بعض مجموعة واحدة. */
+    /** القيمة الفاضية مجموعة زي أي قيمة، وخليتها في صف الإجمالي فاضية زي صفوفها؛ صفين فاضيين ورا بعض مجموعة واحدة. */
     @Test
     void anEmptyGroupValueIsAGroupOfItsOwn() throws Exception {
         try (XSSFWorkbook workbook = open(request(null, List.of(
@@ -148,15 +151,15 @@ class ExcelReportSubtotalsTest {
                 CUSTOMER, AMOUNT).groupBy("customer"))) {
             XSSFSheet sheet = workbook.getSheetAt(0);
             // الرأس 0، أحمد 1 + 2، الفاضيين 3-4 + 5، سارة 6 + 7
-            assertEquals("Total: —", text(sheet.getRow(5).getCell(0)));
+            assertEquals(CellType.BLANK, sheet.getRow(5).getCell(0).getCellType(), "الفلتر على «(فارغ)» بيسيبه");
             assertFormula(sheet.getRow(5).getCell(1), "SUBTOTAL(9,B4:B5)", 11);
-            assertEquals("Total: Sara", text(sheet.getRow(7).getCell(0)));
+            assertEquals("Sara", text(sheet.getRow(7).getCell(0)));
         }
     }
 
     /**
-     * التقرير العربي: الورقة من اليمين، والكلمة الافتراضية «إجمالى: …» وقيمة المجموعة زي ما بتظهر في عمودها
-     * (بنمطه)؛ والخاصية مش لازم تكون عمود.
+     * التقرير العربي: الورقة من اليمين؛ قيمة المجموعة في عمودها بنوعها ونمطها (التاريخ تاريخ)؛ والخاصية اللي
+     * مش عمود بتاخد الكلمة كاملة «مجموع أحمد» مكان كلمة الإجمالي.
      */
     @Test
     void arabicLabelsAndTheGroupValueAsShownInItsColumn() throws Exception {
@@ -169,8 +172,14 @@ class ExcelReportSubtotalsTest {
             XSSFSheet sheet = workbook.getSheetAt(0);
             assertTrue(sheet.isRightToLeft());
             // العنوان 0، سطر 1، الرأس 2، يوم 5 في 3-4 وإجماليه 5، يوم 6 في 6 وإجماليه 7
-            assertEquals("إجمالى: 05/01/2026", text(sheet.getRow(5).getCell(0)));
-            assertEquals("إجمالى: 06/01/2026", text(sheet.getRow(7).getCell(0)));
+            Cell data = sheet.getRow(4).getCell(0);
+            Cell subtotal = sheet.getRow(5).getCell(0);
+            assertEquals(CellType.NUMERIC, subtotal.getCellType(), "تاريخ زي صفوفه، مش نص");
+            assertEquals(data.getNumericCellValue(), subtotal.getNumericCellValue(), 0.0);
+            assertEquals("05/01/2026", text(subtotal));
+            assertEquals(data.getCellStyle().getDataFormatString(), subtotal.getCellStyle().getDataFormatString());
+            assertTrue(workbook.getFontAt(subtotal.getCellStyle().getFontIndex()).getBold());
+            assertEquals("06/01/2026", text(sheet.getRow(7).getCell(0)));
             assertEquals("الإجمالى", text(sheet.getRow(9).getCell(0)));
         }
 
@@ -180,6 +189,39 @@ class ExcelReportSubtotalsTest {
             XSSFSheet sheet = workbook.getSheetAt(0);
             assertEquals("مجموع أحمد", text(sheet.getRow(5).getCell(1)), "الكلمة تحت أول عمود مش متجمّع");
             assertFormula(sheet.getRow(5).getCell(0), "SUBTOTAL(9,A4:A5)", 15);
+        }
+    }
+
+    /**
+     * الفلتر على قيمة من عمود المجموعة (عميل واحد) بيسيب إجماليه ظاهر: خلية المجموعة في صف الإجمالي فيها نفس
+     * قيمة صفوفه بنفس نوعها. الكلام («Total»، «إجمالى») تحت أول عمود تاني مش متجمّع، حتى لو قبل عمود المجموعة.
+     */
+    @Test
+    void filteringOnTheGroupColumnKeepsTheSubtotal() throws Exception {
+        ColumnDefinition qtyText = ColumnDefinition.of("qty", "Qty");
+        try (XSSFWorkbook workbook = open(request(null, LINES, CUSTOMER, qtyText, AMOUNT).groupBy("customer"))) {
+            XSSFSheet sheet = workbook.getSheetAt(0);
+            for (int[] group : new int[][] {{1, 3}, {4, 5}, {6, 8}}) {
+                Cell data = sheet.getRow(group[0]).getCell(0);
+                Cell subtotal = sheet.getRow(group[1]).getCell(0);
+                assertEquals(data.getCellType(), subtotal.getCellType());
+                assertEquals(text(data), text(subtotal), "نفس القيمة اللي الفلتر بيختارها");
+                assertEquals("Total", text(sheet.getRow(group[1]).getCell(1)), "الكلام في العمود التاني");
+            }
+            assertEquals("SUBTOTAL(9,C2:C3)", sheet.getRow(3).getCell(2).getCellFormula());
+        }
+
+        // عمود المجموعة تاني: الكلام تحت الأول، والقيمة تحت عمودها.
+        try (XSSFWorkbook workbook = open(request("كشف", LINES, qtyText, CUSTOMER, AMOUNT).groupBy("customer"))) {
+            XSSFSheet sheet = workbook.getSheetAt(0);
+            assertEquals("إجمالى", text(sheet.getRow(5).getCell(0)));
+            assertEquals("Ahmed", text(sheet.getRow(5).getCell(1)));
+        }
+
+        // كلام البرنامج من غير «:» في الآخر.
+        try (XSSFWorkbook workbook = open(request(null, LINES, CUSTOMER, qtyText, AMOUNT).groupBy("customer")
+                .subtotalLabel("Customer total: "))) {
+            assertEquals("Customer total", text(workbook.getSheetAt(0).getRow(3).getCell(1)));
         }
     }
 

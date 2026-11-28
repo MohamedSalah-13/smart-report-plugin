@@ -94,9 +94,18 @@ public final class Totals {
      * @param groupValue قيمة المجموعة نص بتنسيق التقرير؛ {@code null} أو فاضي = مفيش قيمة
      */
     public static String subtotalLabel(ReportRequest<?> request, String groupValue, boolean rightToLeft) {
-        String prefix = request.subtotalLabel() != null ? request.subtotalLabel()
+        return subtotalPrefix(request, rightToLeft)
+                + (groupValue == null || groupValue.isBlank() ? NO_GROUP_VALUE : groupValue);
+    }
+
+    /**
+     * الكلام اللي قبل قيمة المجموعة لوحده: اللي البرنامج حدده ({@link ReportRequest.Builder#subtotalLabel}) لو موجود،
+     * وإلا {@link #ARABIC_SUBTOTAL_LABEL} أو {@link #ENGLISH_SUBTOTAL_LABEL} حسب الاتجاه — للتقرير اللي بيكتب القيمة في
+     * خلية لوحدها (الـ Excel).
+     */
+    public static String subtotalPrefix(ReportRequest<?> request, boolean rightToLeft) {
+        return request.subtotalLabel() != null ? request.subtotalLabel()
                 : rightToLeft ? ARABIC_SUBTOTAL_LABEL : ENGLISH_SUBTOTAL_LABEL;
-        return prefix + (groupValue == null || groupValue.isBlank() ? NO_GROUP_VALUE : groupValue);
     }
 
     /**

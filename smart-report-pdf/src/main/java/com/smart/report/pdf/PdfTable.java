@@ -19,8 +19,11 @@ public final class PdfTable {
     record Column(String header, float weight, Align align) {
     }
 
-    /** @param withPrevious الصف بيتنقل مع اللي قبله لصفحة جديدة: الإجمالي الفرعي مع آخر صف في مجموعته */
-    record Row(String[] cells, boolean total, boolean withPrevious) {
+    /**
+     * @param withPrevious الصف بيتنقل مع اللي قبله لصفحة جديدة: الإجمالي الفرعي مع آخر صف في مجموعته
+     * @param grand        الإجمالي الكلي تحت إجماليات فرعية، بشكل يفرّقه عنها
+     */
+    record Row(String[] cells, boolean total, boolean withPrevious, boolean grand) {
     }
 
     private final List<Column> columns = new ArrayList<>();
@@ -62,7 +65,7 @@ public final class PdfTable {
 
     /** صف بيانات: خلية لكل عمود بالترتيب. الصف الأقصر بيتكمّل بخلايا فاضية، و{@code null} خلية فاضية. */
     public PdfTable row(String... cells) {
-        rows.add(new Row(fitted(cells), false, false));
+        rows.add(new Row(fitted(cells), false, false, false));
         return this;
     }
 
@@ -76,7 +79,7 @@ public final class PdfTable {
 
     /** صف إجمالي: بخط عريض على خلفية مميّزة، وخلاياه تحت أعمدتها بالظبط. */
     public PdfTable totals(String... cells) {
-        rows.add(new Row(fitted(cells), true, false));
+        rows.add(new Row(fitted(cells), true, false, false));
         return this;
     }
 
@@ -88,7 +91,16 @@ public final class PdfTable {
         if (rows.isEmpty()) {
             throw new IllegalStateException("A subtotal goes under the rows it adds up.");
         }
-        rows.add(new Row(fitted(cells), true, true));
+        rows.add(new Row(fitted(cells), true, true, false));
+        return this;
+    }
+
+    /**
+     * الإجمالي الكلي لجدول فيه إجماليات فرعية ({@link #subtotal}): نفس شكل {@link #totals} وفوقه خط سميك وتحته
+     * خطين زي إجمالي الدفاتر، فما يتلخبطش مع آخر إجمالي فرعي اللي فوقه على طول.
+     */
+    PdfTable grandTotal(String... cells) {
+        rows.add(new Row(fitted(cells), true, false, true));
         return this;
     }
 

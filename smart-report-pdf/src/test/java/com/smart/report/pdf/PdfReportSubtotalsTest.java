@@ -262,6 +262,66 @@ class PdfReportSubtotalsTest {
         return String.format("row%03d", row);
     }
 
+    /**
+     * الإجمالي الكلي تحت آخر إجمالي فرعي على طول وبنفس خلفيته، فبيتفرق عنه بخط سميك فوقه وخطين تحته زي إجمالي
+     * الدفاتر؛ الإجماليات الفرعية من غير الخطوط دي، والتقرير من غير مجموعات ما اتغيرش.
+     */
+    @Test
+    void theGrandTotalLooksDifferentFromTheSubtotals() throws Exception {
+        byte[] grouped = pdf(request("Statement", LINES,
+                ColumnDefinition.of("customer", "Customer"), ColumnDefinition.of("item", "Item"), AMOUNT, QTY)
+                .groupBy("customer").subtotalLabel("Sub-"));
+        List<float[]> rules = rules(grouped);
+        List<float[]> heavy = rules.stream().filter(rule -> rule[1] == 1.2f).toList();
+        List<float[]> thin = rules.stream().filter(rule -> rule[1] == 0.6f).toList();
+        assertEquals(1, heavy.size(), "خط سميك واحد: فوق الإجمالي الكلي بس");
+        assertEquals(2, thin.size(), "وخطين تحته");
+
+        float height;
+        try (PDDocument document = Loader.loadPDF(grouped)) {
+            height = document.getPage(0).getMediaBox().getHeight();
+        }
+        Glyphs glyphs = Glyphs.of(grouped);
+        float subtotal = height - glyphs.first("Sub-Sara").y();
+        float total = height - glyphs.first("Total").y();
+        assertTrue(heavy.get(0)[0] < subtotal && heavy.get(0)[0] > total, "السميك بين آخر إجمالي فرعي والكلي");
+        for (float[] rule : thin) {
+            assertTrue(rule[0] < total, "الخطين تحت الإجمالي الكلي");
+        }
+        assertEquals(1.8f, Math.abs(thin.get(0)[0] - thin.get(1)[0]), 0.01f, "خطين منفصلين");
+
+        byte[] plain = pdf(request("Statement", LINES,
+                ColumnDefinition.of("customer", "Customer"), ColumnDefinition.of("item", "Item"), AMOUNT, QTY));
+        assertTrue(rules(plain).stream().noneMatch(rule -> rule[1] == 1.2f || rule[1] == 0.6f),
+                "من غير مجموعات الإجمالي زي ما كان");
+    }
+
+    /** كل خط أفقي مرسوم ({@code x y m x y l S}): مكانه من تحت الصفحة وسُمكه. */
+    private static List<float[]> rules(byte[] pdf) {
+        List<float[]> rules = new ArrayList<>();
+        float width = 1;
+        float[] start = null;
+        for (String line : LayoutSnapshot.full(pdf).split("\n")) {
+            String[] op = line.trim().split(" ");
+            if (op.length < 2 || !op[0].equals("op")) {
+                continue;
+            }
+            switch (op[op.length - 1]) {
+                case "w" -> width = Float.parseFloat(op[1]);
+                case "m" -> start = new float[] {Float.parseFloat(op[1]), Float.parseFloat(op[2])};
+                case "l" -> {
+                    if (start != null && Math.abs(Float.parseFloat(op[2]) - start[1]) < 0.01f) {
+                        rules.add(new float[] {start[1], width});
+                    }
+                    start = null;
+                }
+                default -> {
+                }
+            }
+        }
+        return rules;
+    }
+
     @Test
     void groupsWithoutATotalledColumnFail() {
         ReportException thrown = assertThrows(ReportException.class, () -> pdf(request("Statement", LINES,

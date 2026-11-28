@@ -596,14 +596,21 @@ There is no header row above each group: the group's column already shows the va
 names it, so a header row would only repeat it. Make the group's column the first column, and the label sits under it.
 
 In the PDF a subtotal row looks like the totals row, and it never starts a page on its own: when it does not fit under
-the last row of its group, that row moves to the next page with it, under the repeated header.
+the last row of its group, that row moves to the next page with it, under the repeated header. The grand total of a
+grouped report gets a heavy rule above it and a double rule below, so it does not read as one more subtotal.
 
 In Excel a subtotal is a bold row with a line above and below, holding `=SUBTOTAL(9, ...)` over the rows of its group,
 with its computed value. The grand total is then `=SUBTOTAL(9, ...)` over all the rows: `SUBTOTAL` skips the subtotals
-inside its range, so nothing is counted twice, and it adds up only the rows the header's filter leaves visible. The
-frozen header's filter reaches down to the last subtotal, since the subtotals sit between the data rows; filtering or
-sorting moves or hides them like any other row, as with Excel's own Subtotal command. Each subtotal row counts towards
-the sheet's row limit.
+inside its range, so nothing is counted twice. When the group's property is a column, the subtotal row holds the
+group's value itself in that column, with the same type and format as its rows, and the words (`Total`, `إجمالى`) go
+under the next column that is not totalled; when it is not a column, the whole label goes where the grand total's
+does. Each subtotal row counts towards the sheet's row limit.
+
+Grouped sheets and the header's filter: the subtotals sit between the data rows, so the filter covers them too.
+Filtering the group's column on one customer keeps that customer's rows and subtotal, and the grand total adds up only
+what the filter leaves visible. Filtering another column keeps a subtotal only if its own cell matches, but every
+visible subtotal still adds up only the visible rows of its group. Sorting a grouped sheet mixes the subtotal rows into
+the data and breaks their ranges, as with Excel's own Subtotal command: undo the sort, or filter instead.
 
 ## JasperReports (a visually designed template)
 

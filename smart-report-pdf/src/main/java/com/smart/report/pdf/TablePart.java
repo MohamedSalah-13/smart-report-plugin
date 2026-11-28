@@ -28,8 +28,12 @@ final class TablePart implements Part {
     /** بيتشال من عرض الخلية فوق حشوتها: حدّاها ونقطة احتياط. */
     private static final float SLACK = 1f;
     private static final float GRID_WIDTH = 0.5f;
+    /** خطّي الإجمالي الكلي تحت إجماليات فرعية: سُمك كل خط والمسافة بينهم. */
+    private static final float GRAND_RULE = 0.6f;
+    private static final float GRAND_GAP = 1.8f;
 
-    private enum RowKind { HEADER, NORMAL, TOTAL }
+    /** {@code GRAND}: الإجمالي الكلي تحت إجماليات فرعية ({@link PdfTable#grandTotal}). */
+    private enum RowKind { HEADER, NORMAL, TOTAL, GRAND }
 
     /** صف جدول اتقاس: سطور كل خلية وارتفاع الصف. */
     private record RowLayout(List<List<Typesetter.Line>> cells, float height, float size, boolean split) {
@@ -192,7 +196,8 @@ final class TablePart implements Part {
                 if (!row.total()) {
                     index++;
                 }
-                return new Row(layout(row.cells(), row.total(), size), row.total() ? RowKind.TOTAL : RowKind.NORMAL,
+                RowKind kind = row.grand() ? RowKind.GRAND : row.total() ? RowKind.TOTAL : RowKind.NORMAL;
+                return new Row(layout(row.cells(), row.total(), size), kind,
                         striped);
             }
         };
@@ -373,7 +378,7 @@ final class TablePart implements Part {
 
             int fill = switch (kind) {
                 case HEADER -> style.headerFill();
-                case TOTAL -> style.totalsFill();
+                case TOTAL, GRAND -> style.totalsFill();
                 case NORMAL -> striped ? style.stripeFill() : PdfStyle.WHITE;
             };
             if (fill != PdfStyle.WHITE) {
@@ -384,7 +389,7 @@ final class TablePart implements Part {
 
             int color = switch (kind) {
                 case HEADER -> style.headerText();
-                case TOTAL -> style.totalsText();
+                case TOTAL, GRAND -> style.totalsText();
                 case NORMAL -> style.textColor();
             };
             for (int i = 0; i < row.cells().size(); i++) {
@@ -412,9 +417,18 @@ final class TablePart implements Part {
             // بلا تعبئة (توفير الحبر): الرأس بخط سميك تحته، والإجمالي بخطين فوقه وتحته.
             if (fill == PdfStyle.WHITE && kind != RowKind.NORMAL) {
                 canvas.rule(tableLeft, tableLeft + tableWidth, top - height, color, 1.2f);
-                if (kind == RowKind.TOTAL) {
+                if (kind == RowKind.TOTAL || kind == RowKind.GRAND) {
                     canvas.rule(tableLeft, tableLeft + tableWidth, top, color, 1.2f);
                 }
+            }
+            // الإجمالي الكلي تحت إجماليات فرعية بنفس شكلها: خط سميك فوقه وخطين تحته (بلا تعبئة الخطوط دي موجودة
+            // أصلًا، فبيتزوّد الخط التاني بس).
+            if (kind == RowKind.GRAND) {
+                if (fill != PdfStyle.WHITE) {
+                    canvas.rule(tableLeft, tableLeft + tableWidth, top, color, 1.2f);
+                    canvas.rule(tableLeft, tableLeft + tableWidth, top - height, color, GRAND_RULE);
+                }
+                canvas.rule(tableLeft, tableLeft + tableWidth, top - height + GRAND_GAP, color, GRAND_RULE);
             }
         }
     }

@@ -153,7 +153,13 @@ public final class PdfReportProvider implements ReportProvider {
             }
         }
         if (Totals.any(request)) {
-            table.totals(totals(request, sums, Totals.label(request, rightToLeft), text));
+            String[] cells = totals(request, sums, Totals.label(request, rightToLeft), text);
+            // تحت إجماليات فرعية الإجمالي الكلي بشكل مختلف؛ من غير مجموعات زي ما كان بالظبط.
+            if (groups.isEmpty()) {
+                table.totals(cells);
+            } else {
+                table.grandTotal(cells);
+            }
         }
         return document.table(table).toBytes();
     }
