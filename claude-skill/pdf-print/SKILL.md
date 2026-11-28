@@ -193,6 +193,10 @@ What each part is:
   and the place. English letters, digits and signs only (Arabic is rejected). The narrowest bar is 0.33 mm and
   narrows to 0.25 mm to fit; a code too long for the line even then makes `toBytes`/`save` throw a
   `ReportException` - keep codes short on a 58 mm roll (about 15 characters; digits pack two to a pattern).
+- **Cash drawer** (from `v2.11.0`): `PdfPrinter.openCashDrawer(receiptPrinter)` (ESC/POS `ESC p`, pin 2,
+  100 ms; or `(printer, DrawerPin.PIN_5, ms)`). Do not write `javax.print` raw-byte code for it. Copies on a roll
+  already go out one job each, so each is cut. `PdfPrinter.declaresPaper(printer, Paper.A5)` lets a settings
+  screen warn before the first print.
 - **On a thermal printer, give the document its resolution** (from `v2.11.0`): `.printerDpi(203)` (or 300...).
   Every bar and QR module then is a whole number of printer dots on the dot grid; without it a 0.33 mm bar is
   2.64 dots and the driver makes bars uneven. A symbol that cannot fit with at least 2 dots (and 0.25 mm for bars)

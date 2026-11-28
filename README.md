@@ -236,6 +236,20 @@ PdfDocument receipt = PdfDocument.rtl(Paper.ROLL_80)          // or Paper.ROLL_5
   uses its own roll.
 - `Paper.parse("80mm")` and the preview window know the rolls too. The preview opens a receipt at a readable size
   (as wide as the window allows, up to twice its size) instead of fitting the whole length into the window.
+- Several copies on a roll go out as one job each (v2.11.0), because a receipt printer cuts at the end of a job:
+  two copies in one job would come out as one uncut strip.
+
+The cash drawer and what a printer supports (v2.11.0):
+
+```java
+PdfPrinter.openCashDrawer(receiptPrinter);                                  // pin 2, a 100 ms pulse
+PdfPrinter.openCashDrawer(receiptPrinter, PdfPrinter.DrawerPin.PIN_5, 60);
+boolean ok = PdfPrinter.declaresPaper(officePrinter, Paper.A5);           // warn before the first print
+```
+
+- The drawer is opened with the ESC/POS `ESC p` command sent as raw bytes. If the printer's driver takes no raw
+  bytes (an office printer, a PDF printer), a `ReportException` says so instead of nothing happening.
+- `declaresPaper` is `true` for a roll (no size is asked for) and when the printer lists no sizes at all.
 
 ### QR code (and the Saudi tax invoice QR)
 
