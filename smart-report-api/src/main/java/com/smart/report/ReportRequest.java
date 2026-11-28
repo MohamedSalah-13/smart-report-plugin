@@ -23,6 +23,8 @@ public final class ReportRequest<T> {
     private final String template;
     private final JasperExportFormat exportFormat;
     private final String totalsLabel;
+    private final String groupBy;
+    private final String subtotalLabel;
 
     private ReportRequest(Builder<T> builder) {
         this.title = builder.title;
@@ -33,6 +35,8 @@ public final class ReportRequest<T> {
         this.template = builder.template;
         this.exportFormat = builder.exportFormat;
         this.totalsLabel = builder.totalsLabel;
+        this.groupBy = builder.groupBy;
+        this.subtotalLabel = builder.subtotalLabel;
     }
 
     /**
@@ -85,6 +89,22 @@ public final class ReportRequest<T> {
         return totalsLabel;
     }
 
+    /**
+     * الخاصية اللي صفوف التقرير العام (PDF وExcel) بتتقسم عليها مجموعات، بصف إجمالي فرعي تحت كل مجموعة؛
+     * {@code null} = من غير مجموعات (شوف {@link Builder#groupBy(String)}).
+     */
+    public String groupBy() {
+        return groupBy;
+    }
+
+    /**
+     * الكلام اللي قبل قيمة المجموعة في صف الإجمالي الفرعي، زي ما البرنامج حدده؛ {@code null} = الافتراضي حسب
+     * اتجاه التقرير (شوف {@link com.smart.report.util.Totals#subtotalLabel}).
+     */
+    public String subtotalLabel() {
+        return subtotalLabel;
+    }
+
     public static <T> Builder<T> builder() {
         return new Builder<>();
     }
@@ -97,6 +117,8 @@ public final class ReportRequest<T> {
         private String template;
         private JasperExportFormat exportFormat = JasperExportFormat.PDF;
         private String totalsLabel;
+        private String groupBy;
+        private String subtotalLabel;
 
         public Builder<T> title(String title) {
             this.title = title == null ? "" : title;
@@ -157,6 +179,32 @@ public final class ReportRequest<T> {
          */
         public Builder<T> totalsLabel(String label) {
             this.totalsLabel = label;
+            return this;
+        }
+
+        /**
+         * يقسم صفوف التقرير العام (PDF وExcel) مجموعات بخاصية، وتحت كل مجموعة صف إجمالي فرعي للأعمدة
+         * المتجمّعة ({@link ColumnDefinition#withTotal()})، والإجمالي الكلي في الآخر زي ما هو:
+         * {@code groupBy("customer")} لكشف حساب بالعميل مثلًا.
+         *
+         * <p>الصفوف ما بتترتبش: بتيجي بترتيب {@link #data}، والمجموعة الجديدة بتبدأ مكان ما القيمة بتتغير عن
+         * الصف اللي قبلها (الأرقام بقيمتها، فـ {@code 1.0} و{@code 1.00} مجموعة واحدة). رتّب البيانات بالخاصية
+         * دي الأول. الخاصية مش لازم تكون عمود في التقرير. التقرير اللي فيه مجموعات لازم يكون فيه عمود متجمّع
+         * واحد على الأقل، وتقارير Jasper ما بتستخدمش الخيار ده.</p>
+         *
+         * @param fieldName الخاصية، بتتقري زي أي عمود؛ {@code null} أو نص فاضي = من غير مجموعات
+         */
+        public Builder<T> groupBy(String fieldName) {
+            this.groupBy = fieldName == null || fieldName.isBlank() ? null : fieldName;
+            return this;
+        }
+
+        /**
+         * الكلام اللي قبل قيمة المجموعة في صف الإجمالي الفرعي ({@link #groupBy}): {@code "مجموع "} بيطلع
+         * «مجموع أحمد». {@code null} يرجّع الافتراضي حسب اتجاه التقرير («إجمالى: » أو «Total: »).
+         */
+        public Builder<T> subtotalLabel(String label) {
+            this.subtotalLabel = label;
             return this;
         }
 

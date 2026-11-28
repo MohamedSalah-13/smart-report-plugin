@@ -566,6 +566,46 @@ never changes it. So the Excel total can differ from the exact PDF total in the 
 decimals whose total stays under 15 digits, both show the same total. The filter covers the header and the data only, and the empty row keeps Excel
 from taking the totals row into a sort. The two extra rows count towards the sheet's limit of 1,048,576 rows.
 
+#### Subtotals by group
+
+From `v2.10.0`, `groupBy` names a property to group the rows by, for an account statement by customer or by month.
+Under each group comes a subtotal row of the `withTotal()` columns, labelled with the group's value, and the grand total
+stays at the end:
+
+```java
+ReportRequest<Entry> request = ReportRequest.<Entry>builder()
+        .title("كشف حساب العملاء")
+        .data(entries)                       // already sorted by customer
+        .addColumn("customer", "العميل")
+        .addColumn("date", "التاريخ")
+        .addColumn(ColumnDefinition.of("debit", "مدين").withFormat("#,##0.00").withTotal())
+        .addColumn(ColumnDefinition.of("credit", "دائن").withFormat("#,##0.00").withTotal())
+        .groupBy("customer")
+        .subtotalLabel("إجمالى العميل: ")   // optional: "إجمالى: " by default, "Total: " in a left-to-right report
+        .build();
+```
+
+The rows are not sorted: a new group starts wherever the value changes from the row before, so sort the data by that
+property first. For a statement by month, group by a property that holds the month (a `YearMonth`, for example). The
+property does not have to be a column; when it is, the label shows the value in that column's format. The label goes
+where the grand total's does, under the first column that is not totalled, followed by the group's value
+(«Total: Ahmed», «إجمالى: أحمد»); an empty value (`null`) is a group of its own, shown as «Total: —». Each subtotal
+keeps its column's format, like the grand total. A report with `groupBy` needs at least one `withTotal()` column, or
+it fails with a `ReportException`.
+
+There is no header row above each group: the group's column already shows the value on every row and the subtotal row
+names it, so a header row would only repeat it. Make the group's column the first column, and the label sits under it.
+
+In the PDF a subtotal row looks like the totals row, and it never starts a page on its own: when it does not fit under
+the last row of its group, that row moves to the next page with it, under the repeated header.
+
+In Excel a subtotal is a bold row with a line above and below, holding `=SUBTOTAL(9, ...)` over the rows of its group,
+with its computed value. The grand total is then `=SUBTOTAL(9, ...)` over all the rows: `SUBTOTAL` skips the subtotals
+inside its range, so nothing is counted twice, and it adds up only the rows the header's filter leaves visible. The
+frozen header's filter reaches down to the last subtotal, since the subtotals sit between the data rows; filtering or
+sorting moves or hides them like any other row, as with Excel's own Subtotal command. Each subtotal row counts towards
+the sheet's row limit.
+
 ## JasperReports (a visually designed template)
 
 ```java

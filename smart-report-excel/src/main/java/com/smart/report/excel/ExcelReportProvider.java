@@ -66,6 +66,10 @@ import java.util.Set;
  * {@code float}. القيمة اللي ما تتجمعش بترمي نفس خطأ الـ PDF ({@link Totals#check}). الكلمة ({@link Totals#label}) تحت أول عمود مش متجمّع. السطر الفاضي
  * بيفصل الإجمالي عن البيانات: Excel بيمد الفلتر والترتيب على الصفوف اللازقة في الجدول، فصف الإجمالي اللازق
  * كان ممكن يتفرز وسط البيانات. من غير بيانات، الإجمالي صفر (من غير معادلة: مفيش صفوف تتجمع).</p>
+ *
+ * <p><b>الإجمالي الفرعي:</b> مع {@link ReportRequest#groupBy()}، صف تحت كل مجموعة بمعادلة {@code SUBTOTAL(9, ...)} على
+ * صفوفها، والإجمالي الكلي {@code SUBTOTAL(9, ...)} برضه على كل الصفوف: بيسيب الإجماليات الفرعية اللي في نطاقه فما
+ * بيعدّهاش مرتين، وبيجمع الصفوف اللي الفلتر سايبها ظاهرة بس. الفلتر بيوصل لآخر إجمالي فرعي (بين صفوف البيانات).</p>
  */
 public final class ExcelReportProvider implements ReportProvider {
 
@@ -116,10 +120,19 @@ public final class ExcelReportProvider implements ReportProvider {
             throw new ReportException("At least one column is required to generate an Excel report.");
         }
 
+        Totals.checkGroups(request);
         int headerRows = request.title() != null && !request.title().isBlank() ? 3 : 1;
         boolean totals = Totals.any(request);
-        // صف الإجمالي وسطر فاضي قبله
-        long totalRows = (long) request.data().size() + headerRows + (totals ? 2 : 0);
+        // قيمة المجموعة لكل صف بتتقرا الأول: صفوف الإجمالي الفرعي داخلة في حد الورقة.
+        Object[] groupValues = groupValues(request);
+        int groups = 0;
+        for (int k = 0; groupValues != null && k < groupValues.length; k++) {
+            if (k == 0 || !Totals.sameGroup(groupValues[k - 1], groupValues[k])) {
+                groups++;
+            }
+        }
+        // صف الإجمالي وسطر فاضي قبله، وصف لكل مجموعة
+        long totalRows = (long) request.data().size() + headerRows + groups + (totals ? 2 : 0);
         if (totalRows > MAX_ROWS) {
             throw new ReportException("An .xlsx sheet holds at most " + MAX_ROWS + " rows, but this report needs "
                     + totalRows + ". Split the data across several reports.");
@@ -166,8 +179,22 @@ public final class ExcelReportProvider implements ReportProvider {
             // 0.10000000149011612، وBigDecimal أطول من خانات الـ double بيتقرّب — فالقيمة المحفوظة كانت هتتغير
             // أول ما Excel يعيد الحساب.
             double[] sums = new double[columns.size()];
+            double[] groupSums = new double[columns.size()];
+            int groupColumn = Totals.groupColumn(request);
+            DataFormatter groupFormatter = new DataFormatter();
+            int groupFirstRow = rowIndex;
+            Row previous = null;
             int dataRow = 0;
             for (Object item : request.data()) {
+                if (groupValues != null && dataRow > 0
+                        && !Totals.sameGroup(groupValues[dataRow - 1], groupValues[dataRow])) {
+                    writeSubtotal(sheet.createRow(rowIndex), request, groupSums, groupFirstRow, rowIndex - 1,
+                            groupText(groupValues[dataRow - 1], previous, groupColumn, groupFormatter),
+                            columnStyles, widths, rightToLeft);
+                    rowIndex++;
+                    groupFirstRow = rowIndex;
+                    groupSums = new double[columns.size()];
+                }
                 Row row = sheet.createRow(rowIndex++);
                 boolean sampled = dataRow < WIDTH_SAMPLE_ROWS;
                 for (int i = 0; i < columns.size(); i++) {
@@ -184,17 +211,27 @@ public final class ExcelReportProvider implements ReportProvider {
                     }
                     if (column.total() && cell.getCellType() == CellType.NUMERIC) {
                         sums[i] += cell.getNumericCellValue();
+                        groupSums[i] += cell.getNumericCellValue();
                     }
                     widths.cell(cell, i, sampled);
                 }
+                previous = row;
                 dataRow++;
+            }
+            if (groupValues != null && dataRow > 0) {
+                writeSubtotal(sheet.createRow(rowIndex), request, groupSums, groupFirstRow, rowIndex - 1,
+                        groupText(groupValues[dataRow - 1], previous, groupColumn, groupFormatter),
+                        columnStyles, widths, rightToLeft);
+                rowIndex++;
             }
             int lastDataRowIndex = rowIndex - 1;
 
             if (totals) {
                 rowIndex++; // سطر فاضي: الفلتر والترتيب ما يوصلوش للإجمالي
+                // مع المجموعات الإجمالي SUBTOTAL برضه: بيسيب صفوف الإجمالي الفرعي اللي في نطاقه، والصفوف اللي
+                // الفلتر مخبيها.
                 writeTotals(sheet.createRow(rowIndex++), request, sums, headerRowIndex + 1, lastDataRowIndex,
-                        columnStyles, widths, rightToLeft);
+                        groupValues != null, Totals.label(request, rightToLeft), false, columnStyles, widths);
             }
 
             widths.apply(sheet);
@@ -222,8 +259,8 @@ public final class ExcelReportProvider implements ReportProvider {
      * @param lastDataRow  آخر صف بيانات؛ أقل من {@code firstDataRow} لو مفيش بيانات
      */
     private static void writeTotals(Row row, ReportRequest<?> request, double[] sums, int firstDataRow,
-                                    int lastDataRow, ColumnStyles[] columnStyles, ColumnWidths widths,
-                                    boolean rightToLeft) {
+                                    int lastDataRow, boolean subtotalFunction, String label, boolean subtotal,
+                                    ColumnStyles[] columnStyles, ColumnWidths widths) {
         List<ColumnDefinition> columns = request.columns();
         int labelAt = Totals.labelColumn(request);
         for (int i = 0; i < columns.size(); i++) {
@@ -231,19 +268,54 @@ public final class ExcelReportProvider implements ReportProvider {
             if (columns.get(i).total()) {
                 if (lastDataRow >= firstDataRow) {
                     String column = CellReference.convertNumToColString(i);
-                    cell.setCellFormula("SUM(" + column + (firstDataRow + 1) + ":" + column + (lastDataRow + 1) + ")");
+                    String range = column + (firstDataRow + 1) + ":" + column + (lastDataRow + 1);
+                    cell.setCellFormula(subtotalFunction ? "SUBTOTAL(9," + range + ")" : "SUM(" + range + ")");
                 }
                 // على خلية فيها معادلة دي القيمة المحسوبة المحفوظة معاها؛ من غير معادلة، صفر عادي.
                 cell.setCellValue(sums[i]);
-                cell.setCellStyle(columnStyles[i].total(true));
+                cell.setCellStyle(columnStyles[i].total(true, subtotal));
             } else {
                 if (i == labelAt) {
-                    cell.setCellValue(Totals.label(request, rightToLeft));
+                    cell.setCellValue(label);
                 }
-                cell.setCellStyle(columnStyles[i].total(false));
+                cell.setCellStyle(columnStyles[i].total(false, subtotal));
             }
             widths.totals(cell, i);
         }
+    }
+
+    /**
+     * صف الإجمالي الفرعي تحت آخر صف في مجموعته: معادلة {@code SUBTOTAL(9, ...)} على صفوف المجموعة، فالإجمالي
+     * الكلي ({@code SUBTOTAL} برضه) ما بيعدّهاش مرتين؛ وقيمتها المحسوبة بنفس حساب Excel.
+     */
+    private static void writeSubtotal(Row row, ReportRequest<?> request, double[] sums, int firstRow, int lastRow,
+                                      String groupText, ColumnStyles[] columnStyles, ColumnWidths widths,
+                                      boolean rightToLeft) {
+        writeTotals(row, request, sums, firstRow, lastRow, true,
+                Totals.subtotalLabel(request, groupText, rightToLeft), true, columnStyles, widths);
+    }
+
+    /** قيمة {@link ReportRequest#groupBy()} لكل صف، أو {@code null} لو التقرير من غير مجموعات. */
+    private static Object[] groupValues(ReportRequest<?> request) {
+        if (request.groupBy() == null) {
+            return null;
+        }
+        Object[] values = new Object[request.data().size()];
+        for (int k = 0; k < values.length; k++) {
+            values[k] = BeanPropertyReader.read(request.data().get(k), request.groupBy());
+        }
+        return values;
+    }
+
+    /**
+     * قيمة المجموعة في كلمة صفها: زي ما Excel بيعرضها في عمودها (بنمطه) لو هي عمود في التقرير، من آخر صف في
+     * المجموعة؛ وإلا نصها.
+     */
+    private static String groupText(Object value, Row last, int groupColumn, DataFormatter formatter) {
+        if (groupColumn >= 0 && last != null) {
+            return formatter.formatCellValue(last.getCell(groupColumn));
+        }
+        return value == null ? "" : String.valueOf(value);
     }
 
     /**
@@ -363,11 +435,13 @@ public final class ExcelReportProvider implements ReportProvider {
 
         /**
          * خلية في صف الإجمالي: خط عريض، وخط رفيع فوقها وخطين تحتها زي إجمالي الدفاتر، والمجموع بنمط العمود.
+         * الإجمالي الفرعي بخط رفيع تحته بدل الخطين: الخطين للإجمالي الكلي بس.
          *
-         * @param number المجموع نفسه، مش الكلمة أو خلية فاضية
+         * @param number   المجموع نفسه، مش الكلمة أو خلية فاضية
+         * @param subtotal صف إجمالي فرعي تحت مجموعة
          */
-        CellStyle total(boolean number) {
-            String key = number ? "total|number" : "total|text";
+        CellStyle total(boolean number, boolean subtotal) {
+            String key = (subtotal ? "subtotal|" : "total|") + (number ? "number" : "text");
             CellStyle known = made.get(key);
             if (known != null) {
                 return known;
@@ -375,7 +449,7 @@ public final class ExcelReportProvider implements ReportProvider {
             CellStyle created = style(key, number && format != null ? ExcelFormats.number(format) : null);
             created.setFont(bold);
             created.setBorderTop(BorderStyle.THIN);
-            created.setBorderBottom(BorderStyle.DOUBLE);
+            created.setBorderBottom(subtotal ? BorderStyle.THIN : BorderStyle.DOUBLE);
             return created;
         }
 

@@ -34,6 +34,10 @@ import java.util.Locale;
  * ({@link java.math.BigDecimal})، والقيمة اللي مش رقم في عمود متجمّع بترمي {@link ReportException} باسم
  * العمود ورقم الصف (شوف {@link Totals}). من غير بيانات، الإجمالي صفر.</p>
  *
+ * <p><b>الإجمالي الفرعي:</b> مع {@link ReportRequest.Builder#groupBy}، صف إجمالي تحت كل مجموعة صفوف ورا بعض بنفس
+ * القيمة، بنفس شكل صف الإجمالي وكلمته {@link Totals#subtotalLabel}؛ والإجمالي الكلي في الآخر زي ما هو. الإجمالي الفرعي
+ * ما بينزلش لوحده في أول صفحة: آخر صف في مجموعته بيتنقل معاه.</p>
+ *
  * <p><b>الورق:</b> A4 طولي، إلا لو {@link #PAPER} اتحدد في {@code parameters} بكائن {@link Paper}
  * أو باسمه ({@code "A5"}، {@code "A4-landscape"}).</p>
  *
@@ -82,6 +86,7 @@ public final class PdfReportProvider implements ReportProvider {
             document.title(singleLine(request.title()));
         }
 
+        Totals.checkGroups(request);
         // القيم بتتقرا الأول: محاذاة العمود بتتحدد من نوع قيمه كلها.
         int count = columns.size();
         List<Object[]> rows = new ArrayList<>(request.data().size());
@@ -89,7 +94,15 @@ public final class PdfReportProvider implements ReportProvider {
         boolean[] other = new boolean[count];
         BigDecimal[] sums = new BigDecimal[count];
         Arrays.fill(sums, BigDecimal.ZERO);
+        List<Group> groups = new ArrayList<>();
         for (Object item : request.data()) {
+            if (request.groupBy() != null) {
+                Object value = BeanPropertyReader.read(item, request.groupBy());
+                if (groups.isEmpty() || !Totals.sameGroup(groups.get(groups.size() - 1).value(), value)) {
+                    groups.add(new Group(value, rows.size(), count));
+                }
+            }
+            Group group = groups.isEmpty() ? null : groups.get(groups.size() - 1);
             Object[] values = new Object[count];
             for (int i = 0; i < count; i++) {
                 ColumnDefinition column = columns.get(i);
@@ -101,6 +114,9 @@ public final class PdfReportProvider implements ReportProvider {
                 }
                 if (column.total()) {
                     sums[i] = Totals.add(sums[i], values[i], column, rows.size());
+                    if (group != null) {
+                        group.sums()[i] = group.sums()[i].add(Totals.amount(values[i]));
+                    }
                 }
             }
             rows.add(values);
@@ -115,7 +131,9 @@ public final class PdfReportProvider implements ReportProvider {
             table.column(singleLine(column.header()), column.weight(), align);
         }
         CellText text = new CellText(rightToLeft ? Locale.forLanguageTag("ar") : Locale.ENGLISH);
-        for (Object[] values : rows) {
+        int groupAt = 0;
+        for (int r = 0; r < rows.size(); r++) {
+            Object[] values = rows.get(r);
             String[] cells = new String[count];
             for (int i = 0; i < count; i++) {
                 ColumnDefinition column = columns.get(i);
@@ -126,15 +144,50 @@ public final class PdfReportProvider implements ReportProvider {
                 }
             }
             table.row(cells);
+            // آخر صف في مجموعته: إجماليها الفرعي تحته على طول.
+            int groupEnd = groupAt + 1 < groups.size() ? groups.get(groupAt + 1).first() : rows.size();
+            if (groupAt < groups.size() && r + 1 == groupEnd) {
+                Group group = groups.get(groupAt++);
+                table.subtotal(totals(request, group.sums(),
+                        Totals.subtotalLabel(request, groupText(request, group.value(), text), rightToLeft), text));
+            }
         }
         if (Totals.any(request)) {
-            table.totals(totals(request, sums, text, rightToLeft));
+            table.totals(totals(request, sums, Totals.label(request, rightToLeft), text));
         }
         return document.table(table).toBytes();
     }
 
-    /** خلايا صف الإجمالي: كل مجموع بنمط عموده، والكلمة تحت أول عمود مش متجمّع. */
-    private static String[] totals(ReportRequest<?> request, BigDecimal[] sums, CellText text, boolean rightToLeft)
+    /** مجموعة صفوف ورا بعض بنفس القيمة ({@link ReportRequest#groupBy()}): أول صف فيها ومجموع كل عمود. */
+    private record Group(Object value, int first, BigDecimal[] sums) {
+
+        Group(Object value, int first, int columns) {
+            this(value, first, filled(columns));
+        }
+
+        private static BigDecimal[] filled(int columns) {
+            BigDecimal[] sums = new BigDecimal[columns];
+            Arrays.fill(sums, BigDecimal.ZERO);
+            return sums;
+        }
+    }
+
+    /** قيمة المجموعة زي ما بتظهر في عمودها لو هي عمود في التقرير (بنمطه)، وإلا بالتنسيق الافتراضي. */
+    private static String groupText(ReportRequest<?> request, Object value, CellText text) throws ReportException {
+        int at = Totals.groupColumn(request);
+        if (at < 0) {
+            return singleLine(text.of(value));
+        }
+        ColumnDefinition column = request.columns().get(at);
+        try {
+            return singleLine(text.of(value, column.format()));
+        } catch (IllegalArgumentException e) {
+            throw new ReportException("Column '" + column.fieldName() + "': " + e.getMessage(), e);
+        }
+    }
+
+    /** خلايا صف إجمالي (كلي أو فرعي): كل مجموع بنمط عموده، والكلمة تحت أول عمود مش متجمّع. */
+    private static String[] totals(ReportRequest<?> request, BigDecimal[] sums, String label, CellText text)
             throws ReportException {
         List<ColumnDefinition> columns = request.columns();
         String[] cells = new String[columns.size()];
@@ -150,7 +203,7 @@ public final class PdfReportProvider implements ReportProvider {
         }
         int labelAt = Totals.labelColumn(request);
         if (labelAt >= 0) {
-            cells[labelAt] = singleLine(Totals.label(request, rightToLeft));
+            cells[labelAt] = singleLine(label);
         }
         return cells;
     }

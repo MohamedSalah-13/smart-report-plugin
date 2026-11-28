@@ -19,7 +19,8 @@ public final class PdfTable {
     record Column(String header, float weight, Align align) {
     }
 
-    record Row(String[] cells, boolean total) {
+    /** @param withPrevious الصف بيتنقل مع اللي قبله لصفحة جديدة: الإجمالي الفرعي مع آخر صف في مجموعته */
+    record Row(String[] cells, boolean total, boolean withPrevious) {
     }
 
     private final List<Column> columns = new ArrayList<>();
@@ -61,7 +62,7 @@ public final class PdfTable {
 
     /** صف بيانات: خلية لكل عمود بالترتيب. الصف الأقصر بيتكمّل بخلايا فاضية، و{@code null} خلية فاضية. */
     public PdfTable row(String... cells) {
-        rows.add(new Row(fitted(cells), false));
+        rows.add(new Row(fitted(cells), false, false));
         return this;
     }
 
@@ -75,7 +76,19 @@ public final class PdfTable {
 
     /** صف إجمالي: بخط عريض على خلفية مميّزة، وخلاياه تحت أعمدتها بالظبط. */
     public PdfTable totals(String... cells) {
-        rows.add(new Row(fitted(cells), true));
+        rows.add(new Row(fitted(cells), true, false));
+        return this;
+    }
+
+    /**
+     * صف إجمالي فرعي تحت مجموعة صفوف: نفس شكل {@link #totals}، بس ما بينزلش لوحده في أول صفحة جديدة — لو ما
+     * كفّاهوش الباقي، آخر صف قبله بيتنقل معاه.
+     */
+    PdfTable subtotal(String... cells) {
+        if (rows.isEmpty()) {
+            throw new IllegalStateException("A subtotal goes under the rows it adds up.");
+        }
+        rows.add(new Row(fitted(cells), true, true));
         return this;
     }
 
