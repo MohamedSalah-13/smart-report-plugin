@@ -323,6 +323,21 @@ document.barcode(waybillNumber, 15, Align.START);     // 15 mm, at the start of 
 - Code 128 holds English letters, digits and signs only: Arabic text, accented letters or tabs are rejected with an
   `IllegalArgumentException` when the barcode is added.
 
+### QR code or barcode as an image (`SymbolImage`)
+
+To show a code on a screen, or serve one from a web endpoint, without a PDF (v2.11.0):
+
+```java
+byte[] png = SymbolImage.qrPng(qrText, 8);                     // 8 pixels per module
+byte[] png = SymbolImage.barcodePng("INV-2026-0042", 3, 80);   // 3 pixels for the narrowest bar, 80 pixels tall
+BufferedImage image = SymbolImage.qr(qrText, 6);               // for SwingFXUtils.toFXImage, for example
+```
+
+- The same encoding as in the PDF (QR level M, Arabic as UTF-8; Code 128 for ASCII only), with the quiet zone
+  inside the image: 4 modules around a QR, 10 on each side of a barcode. The code is not written under the bars.
+- Black and white only, every module a whole number of pixels, no smoothing. To make it bigger, ask for more pixels
+  per module rather than scaling the image: a fractional scale makes the modules uneven.
+
 ### Style (`PdfStyle`)
 
 With nothing set, the style follows the paper (`PdfStyle.forPaper`): a smaller font and margins on A5. To change it:

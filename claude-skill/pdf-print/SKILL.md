@@ -187,6 +187,10 @@ What each part is:
   and the place. English letters, digits and signs only (Arabic is rejected). The narrowest bar is 0.33 mm and
   narrows to 0.25 mm to fit; a code too long for the line even then makes `toBytes`/`save` throw a
   `ReportException` - keep codes short on a 58 mm roll (about 15 characters; digits pack two to a pattern).
+- A QR code or barcode **as an image**, for a screen or a web endpoint (from `v2.11.0`):
+  `SymbolImage.qrPng(text, pixelsPerModule)`, `SymbolImage.barcodePng(text, pixelsPerModule, heightPixels)`, or
+  `SymbolImage.qr(...)` / `barcode(...)` for a `BufferedImage`. Quiet zone included, black and white, whole pixels
+  per module: do not write the ZXing-to-image loop by hand, and do not scale the image by a fraction.
 - **The Saudi simplified tax invoice QR** (ZATCA e-invoicing, phase 1) - when the program issues invoices in
   Saudi Arabia, the receipt or invoice ends with this code:
 
