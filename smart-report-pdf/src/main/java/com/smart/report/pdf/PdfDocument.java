@@ -65,7 +65,8 @@ public final class PdfDocument {
     record SummaryBlock(List<SummaryLine> lines) implements Block {
     }
 
-    record SummaryLine(String label, String value, boolean total) {
+    /** @param negativeInRed القيمة السالبة بالأحمر ({@link PdfTable#negativeInRed}) */
+    record SummaryLine(String label, String value, boolean total, boolean negativeInRed) {
     }
 
     record SignaturesBlock(List<String> labels) implements Block {
@@ -626,8 +627,18 @@ public final class PdfDocument {
         return summaryLine(label, value, true);
     }
 
+    /** سطر الإجمالي في الملخص، وقيمته بالأحمر لو سالبة: الرصيد الختامي في كشف الحساب. */
+    PdfDocument summaryTotalNegativeInRed(String label, String value) {
+        return summaryLine(label, value, true, true);
+    }
+
     private PdfDocument summaryLine(String label, String value, boolean total) {
-        SummaryLine line = new SummaryLine(label == null ? "" : label, value == null ? "" : value, total);
+        return summaryLine(label, value, total, false);
+    }
+
+    private PdfDocument summaryLine(String label, String value, boolean total, boolean negativeInRed) {
+        SummaryLine line = new SummaryLine(label == null ? "" : label, value == null ? "" : value, total,
+                negativeInRed);
         if (!blocks.isEmpty() && blocks.get(blocks.size() - 1) instanceof SummaryBlock summary) {
             summary.lines().add(line);
         } else {

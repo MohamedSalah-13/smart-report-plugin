@@ -108,6 +108,10 @@ final class TablePart implements Part {
                 table.row(line.label(), line.value());
             }
         }
+        if (lines.stream().anyMatch(PdfDocument.SummaryLine::negativeInRed)) {
+            table.cellStyle((row, column, text) -> column == 1 && lines.get(row).negativeInRed()
+                    && PdfTable.negative(text) ? CellStyle.color(CellStyle.RED) : CellStyle.PLAIN);
+        }
         float estimate = lines.size() * (style.bodySize() * LEADING + 2 * PAD_Y) + 4;
         TablePart rows = new TablePart(table, frame);
         return new Part() {

@@ -179,4 +179,23 @@ class ReadyDocumentsTest {
             assertTrue(voucher.contains(part), part + " in " + voucher);
         }
     }
+
+    /** الرصيد الختامي السالب بالأحمر زي أرصدة الجدول؛ والموجب بلونه العادي. */
+    @Test
+    void aNegativeClosingBalanceIsRed() throws Exception {
+        AccountStatement negative = AccountStatement.builder(false).title("Statement")
+                .line("2026-11-02", "Invoice", "10.00", "", "10.00").closing("Closing balance", "-750.25").build();
+        AccountStatement positive = AccountStatement.builder(false).title("Statement")
+                .line("2026-11-02", "Invoice", "10.00", "", "10.00").closing("Closing balance", "750.25").build();
+        try (PDDocument red = Loader.loadPDF(negative.toPdf(Paper.A4).toBytes());
+             PDDocument plain = Loader.loadPDF(positive.toPdf(Paper.A4).toBytes())) {
+            String redContent = new String(red.getPage(0).getContents().readAllBytes(),
+                    java.nio.charset.StandardCharsets.ISO_8859_1);
+            String plainContent = new String(plain.getPage(0).getContents().readAllBytes(),
+                    java.nio.charset.StandardCharsets.ISO_8859_1);
+            // CellStyle.RED = 0xC62828 = 0.77647 0.15686 0.15686
+            assertTrue(redContent.contains("0.77647 0.15686 0.15686 rg"), "the negative closing is red");
+            assertFalse(plainContent.contains("0.77647 0.15686 0.15686 rg"), "a positive closing is not");
+        }
+    }
 }

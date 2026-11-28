@@ -173,4 +173,20 @@ class ReportLookTest {
         assertThrows(IllegalArgumentException.class, () -> ReportLook.DEFAULT.withTotalsFontSize(100));
         assertThrows(NullPointerException.class, () -> ReportLook.DEFAULT.withColorSet(null));
     }
+
+    /** في المستند العربي «1 / 3» بيفضل الأول على الشمال، مش «3 / 1». */
+    @Test
+    void slashPageNumbersReadLeftToRightInArabic() throws Exception {
+        PdfTable table = PdfTable.create().column("اليوم").column("القيمة");
+        for (int i = 0; i < 200; i++) {
+            table.row("يوم", "5");
+        }
+        byte[] pdf = PdfDocument.rtl(Paper.A5).pageNumberStyle(PageNumberStyle.SLASH).table(table).toBytes();
+        int count = pages(pdf);
+        assertTrue(count >= 2 && count <= 9, "one-digit page count: " + count);
+        Glyphs glyphs = Glyphs.of(pdf);
+        // آخر سطر في الصفحة الأولى هو رقم الصفحة: «1 / N».
+        Glyphs.Glyph one = glyphs.first("1 / " + count, 1);
+        assertTrue(one.x() < glyphs.last("1 / " + count).x(), "1 drawn before the total, left to right");
+    }
 }

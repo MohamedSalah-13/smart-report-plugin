@@ -244,15 +244,20 @@ public final class PdfPrinter {
             return true;
         }
         Object values = printer.getSupportedAttributeValues(Media.class, null, null);
-        if (!(values instanceof Media[] media) || media.length == 0) {
+        if (!(values instanceof Media[] media)) {
             return true;
         }
+        // القائمة ممكن تبقى أدراج بس (MediaTray) من غير مقاسات: ساعتها ما نقدرش نعرف، زي ما تكون فاضية.
+        boolean sizesListed = false;
         for (Media one : media) {
-            if (wanted.equals(one)) {
-                return true;
+            if (one instanceof MediaSizeName) {
+                sizesListed = true;
+                if (wanted.equals(one)) {
+                    return true;
+                }
             }
         }
-        return false;
+        return !sizesListed;
     }
 
     private static PrintService find(String printerName) throws ReportException {

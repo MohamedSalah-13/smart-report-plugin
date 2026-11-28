@@ -470,7 +470,10 @@ final class PageWriter {
                     watermark.draw(canvas);
                 }
                 if (numbered) {
-                    String label = document.pageNumberStyleValue() == PageNumberStyle.SLASH ? number + " / " + count
+                    // «1 / 3» قطعة واحدة من الشمال لليمين (عزل LRI ... PDI): من غيره السطر العربي كان بيرصّ الرقمين
+                    // من اليمين ويطلع «3 / 1».
+                    String label = document.pageNumberStyleValue() == PageNumberStyle.SLASH
+                            ? "\u2066" + number + " / " + count + "\u2069"
                             : rtl ? "صفحة " + number + " من " + count : "Page " + number + " of " + count;
                     canvas.text(text.line(label, label, false, size), size, style.mutedColor(), left, width,
                             Canvas.Side.CENTER, numberBaseline);
