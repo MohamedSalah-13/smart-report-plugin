@@ -24,7 +24,8 @@ public final class PdfTable {
      * @param withPrevious الصف بيتنقل مع اللي قبله لصفحة جديدة: الإجمالي الفرعي مع آخر صف في مجموعته
      * @param grand        الإجمالي الكلي تحت إجماليات فرعية، بشكل يفرّقه عنها
      */
-    record Row(int index, String[] cells, boolean total, boolean withPrevious, boolean grand) {
+    /** @param joinNext الصف ده واللي بعده واحد: من غير خط بينهم، وبيتنقلوا مع بعض ({@link #rowJoinedToNext}) */
+    record Row(int index, String[] cells, boolean total, boolean withPrevious, boolean grand, boolean joinNext) {
     }
 
     /**
@@ -82,7 +83,7 @@ public final class PdfTable {
 
     /** صف بيانات: خلية لكل عمود بالترتيب. الصف الأقصر بيتكمّل بخلايا فاضية، و{@code null} خلية فاضية. */
     public PdfTable row(String... cells) {
-        rows.add(new Row(rows.size(), fitted(cells), false, false, false));
+        rows.add(new Row(rows.size(), fitted(cells), false, joined(), false, false));
         return this;
     }
 
@@ -96,7 +97,7 @@ public final class PdfTable {
 
     /** صف إجمالي: بخط عريض على خلفية مميّزة، وخلاياه تحت أعمدتها بالظبط. */
     public PdfTable totals(String... cells) {
-        rows.add(new Row(rows.size(), fitted(cells), true, false, false));
+        rows.add(new Row(rows.size(), fitted(cells), true, joined(), false, false));
         return this;
     }
 
@@ -108,7 +109,7 @@ public final class PdfTable {
         if (rows.isEmpty()) {
             throw new IllegalStateException("A subtotal goes under the rows it adds up.");
         }
-        rows.add(new Row(rows.size(), fitted(cells), true, true, false));
+        rows.add(new Row(rows.size(), fitted(cells), true, true, false, false));
         return this;
     }
 
@@ -117,7 +118,7 @@ public final class PdfTable {
      * خطين زي إجمالي الدفاتر، فما يتلخبطش مع آخر إجمالي فرعي اللي فوقه على طول.
      */
     PdfTable grandTotal(String... cells) {
-        rows.add(new Row(rows.size(), fitted(cells), true, false, true));
+        rows.add(new Row(rows.size(), fitted(cells), true, joined(), true, false));
         return this;
     }
 
@@ -167,6 +168,20 @@ public final class PdfTable {
             style = style.under(rule.style(row.index(), column, row.cells()[column]));
         }
         return style;
+    }
+
+    /**
+     * صف من غير خط تحته، والصف اللي بعده معاه دايمًا في نفس الصفحة: اسم الصنف في سطر لوحده في الإيصال، وتحته الكمية
+     * والسعر والإجمالي.
+     */
+    PdfTable rowJoinedToNext(String... cells) {
+        rows.add(new Row(rows.size(), fitted(cells), false, joined(), false, true));
+        return this;
+    }
+
+    /** الصف الجاي بيتنقل مع اللي قبله لو اللي قبله {@link #rowJoinedToNext}. */
+    private boolean joined() {
+        return !rows.isEmpty() && rows.get(rows.size() - 1).joinNext();
     }
 
     /** جدول بلا رأس — للملخصات (بيان وقيمته) مثلًا. */

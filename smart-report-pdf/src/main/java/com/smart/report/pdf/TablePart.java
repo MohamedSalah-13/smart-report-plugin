@@ -199,7 +199,7 @@ final class TablePart implements Part {
                 }
                 RowKind kind = row.grand() ? RowKind.GRAND : row.total() ? RowKind.TOTAL : RowKind.NORMAL;
                 return new Row(layout(row.cells(), row, row.total(), size), kind,
-                        striped);
+                        striped, !row.joinNext());
             }
         };
     }
@@ -355,11 +355,18 @@ final class TablePart implements Part {
         private final RowLayout row;
         private final RowKind kind;
         private final boolean striped;
+        /** خط تحت الصف (من غير شبكة)؛ لأ للصف المربوط باللي بعده. */
+        private final boolean ruleBelow;
 
         Row(RowLayout row, RowKind kind, boolean striped) {
+            this(row, kind, striped, true);
+        }
+
+        Row(RowLayout row, RowKind kind, boolean striped, boolean ruleBelow) {
             this.row = row;
             this.kind = kind;
             this.striped = striped;
+            this.ruleBelow = ruleBelow;
         }
 
         @Override
@@ -395,7 +402,7 @@ final class TablePart implements Part {
             }
             return new Row(new RowLayout(cells, tallest * row.size() * LEADING + 2 * PAD_Y, row.size(), true,
                     row.colors()), kind,
-                    striped);
+                    striped, ruleBelow);
         }
 
         @Override
@@ -446,7 +453,7 @@ final class TablePart implements Part {
                     canvas.rect(x[i], top - height, widths[i], height);
                 }
                 canvas.stroke();
-            } else {
+            } else if (ruleBelow) {
                 canvas.rule(tableLeft, tableLeft + tableWidth, top - height, style.ruleColor(), GRID_WIDTH);
             }
             // بلا تعبئة (توفير الحبر): الرأس بخط سميك تحته، والإجمالي بخطين فوقه وتحته.

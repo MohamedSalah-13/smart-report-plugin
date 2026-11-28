@@ -108,6 +108,42 @@ byte[] pdf = document.toBytes();             // or bytes
   A table header taller than a third of the page is drawn once instead of on every page.
 - Negative numbers, dates, percentages and phone numbers read as they were written inside an Arabic sentence.
 
+### Ready-made documents: invoice, receipt, statement, voucher
+
+Instead of composing each document from `PdfDocument` calls, fill a model with text that is already formatted and
+translated, and the library lays it out (v2.11.0):
+
+```java
+Invoice invoice = Invoice.builder(true)                     // true = Arabic
+        .letterhead("مؤسسة النور", "ت: 0100 000 0000")
+        .title("فاتورة بيع").number("1751").date("2026-11-28 10:30")
+        .field("العميل", "أحمد علي")
+        .line(InvoiceLine.of("مسمار 10 مم", "12", "2.50", "30.00").withCode("NL-10").withUnit("علبة"))
+        .total("الإجمالى", "30.00").total("الضريبة", "4.20").grandTotal("الصافى", "34.20")
+        .amountInWords(AmountInWords.arabic(net, AmountInWords.Currency.EGP))
+        .shopNote("البضاعة المباعة لا ترد بعد 14 يومًا")
+        .code(DocumentCode.DEFAULT.encode(1, 1751))
+        .build();
+
+invoice.toPdf(Paper.A4, InvoiceLayout.MODERN);      // ECONOMY (no fills), MODERN (coloured), DETAILED (full grid)
+invoice.toPdf(Paper.ROLL_80, InvoiceLayout.MODERN); // on a roll it is a receipt
+
+AccountStatement.builder(true) /* .field, .figure, .line(date, description, debit, credit, balance), .closing */
+        .build().toPdf(Paper.A4);
+Voucher.builder(true) /* .title("سند قبض"), .party, .amount, .amountInWords, .purpose, .signatures */
+        .build().toPdf(Paper.A5);
+```
+
+- One invoice prints either way: on a page in the chosen layout, or as a receipt on an 80 or 58 mm roll. On the
+  receipt each item's name has a line of its own (it wraps, it is never shrunk), with the quantity × price and the
+  line total under it; the two lines are never split.
+- `DETAILED` adds a line number and, when lines have one, the item code; a unit column appears in any layout when a
+  line has a unit. A long invoice breaks across pages with its table header repeated, and the shop's note sits at the
+  foot of every page.
+- The statement draws negative balances in red; on a roll each movement takes two lines.
+- Each returns a `PdfDocument`, so a watermark, a `ReportLook` or `pdfA3` can still be added before `toBytes()`.
+  Column headings follow the language and can be changed (`headers(...)`).
+
 ### Amount in words (`AmountInWords`)
 
 The total written out in Arabic, as on an invoice or a receipt:
