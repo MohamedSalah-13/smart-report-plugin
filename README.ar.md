@@ -560,6 +560,49 @@ PdfPreview.of(paper -> ReceiptPdf.document(sale, shop, paper))
   `failed.reason()` للسجل؛ ولو عايز المستخدم يختار طابعة تانية نادِ `show(ownerWindow)` من الفرع ده.
 - لتغيير الطابعة بعدين: افتح النافذة بـ `show(ownerWindow)` واطبع منها مرة.
 
+### إعداد الطباعة لكل نوع مستند (`PrintSettings`)
+
+البرنامج بيطبع أكتر من ورقة (إيصال بيع، كشف حساب، سند)، وكل واحدة ليها ورقها وطابعتها وطريقة خروجها ونسخها
+(v2.11.0). عرّف الأنواع مرة، والمكتبة بتحفظ الإعدادات وبتدّيك شاشة إعدادات جاهزة:
+
+<div dir="ltr">
+
+```java
+import com.smart.report.print.*;       // في smart-report-api
+
+PrintSettings settings = PrintSettings.of(
+        PrintSettingsStore.preferences(Preferences.userRoot().node("my-shop/print")),
+        List.of("normal", "thermal"),                                     // أدوار الطابعات اللي برنامجك بيسمّيها
+        DocumentKind.of("sale-receipt", "إيصال البيع",
+                PrintProfile.of("80mm", OutputMode.PRINT, PrinterTarget.role("thermal"), 1),
+                "80mm", "58mm", "A5"),                                     // الأوراق المسموحة
+        DocumentKind.of("statement", "كشف حساب",
+                PrintProfile.of("A4", OutputMode.PREVIEW, PrinterTarget.role("normal"), 1), "A4", "A5"));
+
+PrintProfile profile = settings.profile("sale-receipt");   // وقت الطباعة، مش مرة لعمر الشاشة
+Optional<String> printer = settings.printerName(profile);  // الدور بقى اسم طابعة؛ فاضي = الافتراضية
+
+settingsTab.setContent(PrintSettingsPane.of(settings)     // في smart-report-fx
+        .rightToLeft(true)
+        .roleLabel("thermal", "طابعة الإيصالات")
+        .build());
+```
+
+</div>
+
+- الإعداد هو الورقة (باسمها زي ما `Paper.parse` بيقراه)، وطريقة الإخراج (`PRINT` أو `PREVIEW` أو `SAVE_PDF` أو
+  `ASK`)، والطابعة، والنسخ. الطابعة دور، أو طابعة متعرّفة باسمها، أو الافتراضية. الدور بيتحول لاسم طابعة وقت
+  الطباعة، فتغيير الطابعة الحرارية مرة بينقل كل الأوراق اللي عليها.
+- اللي ما لوش معنى بيترفض وقت ما يتبني: ورقة النوع ما بياخدهاش، أو دور البرنامج ما عرّفوش، أو نسخ برّه 1 لـ 99.
+- المحفوظ سطر نص لكل نوع (`paper=A5;mode=preview;printer=role:normal;copies=1`)، بيتقرا بتسامح: قيمة كتبتها
+  نسخة تانية ما توقفش الطباعة أبدًا، وأي جزء ما يتقريش بياخد الافتراضي بتاع النوع.
+- `PrintSettingsStore` تلات دوال (get و put و remove): `preferences(node)`، أو `inMemory()` للاختبارات، أو نسختك
+  على جدول إعدادات برنامجك.
+- الشاشة فيها صف لكل نوع (الورق، والإخراج، والطابعة، والنسخ، وزر الافتراضي، وطباعة تجربة) وطابعة لكل دور. أي
+  تغيير بيتحفظ على طول. و`.sample("statement", paper -> ...)` بيطبع مستندك انت كورقة تجربة؛ من غيره ورقة التجربة
+  فيها النوع والورق والطابعة والوقت.
+- `PdfPreview.remember(key)` شغال زي ما هو.
+
 ### الخط
 
 المكتبة فيها خط **Noto Naskh Arabic** مضمَّن (عادي وعريض)، فالناتج واحد على كل جهاز من غير أي إعداد.

@@ -276,6 +276,13 @@ print.setOnAction(event -> {
 The window shows the pages as the printer will receive them, lets the person choose the printer, the paper
 and the copies, and has "طباعة" and "حفظ PDF". It does not block the program.
 
+**Several kinds of paper, each with its own settings** (from `v2.11.0`): do not write a settings table or a
+preferences class. Declare the kinds with `PrintSettings.of(store, roles, DocumentKind.of(key, label, defaults,
+papers...)...)` (`com.smart.report.print`, in `smart-report-api`), read `settings.profile(key)` **at print time**
+(never cache it in a screen), turn its printer into a name with `settings.printerName(profile)` (empty = the
+default printer), and put `PrintSettingsPane.of(settings).rightToLeft(true).build()` in the program's settings
+screen. Use printer roles (`"normal"`, `"thermal"`) rather than printer names in the defaults.
+
 The function given to `PdfPreview.of` runs **off the JavaFX thread**, once per paper the person chooses. Read
 everything it needs before the call, as above, and keep JavaFX nodes and lazy-loaded entities out of it -
 otherwise the preview fails only sometimes, which is the worst way to fail.
