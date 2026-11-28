@@ -139,6 +139,7 @@ final class PageWriter {
             PageWriter writer = new PageWriter(pdf, document, fonts, page);
             writer.write();
             if (out != null) {
+                PdfArchive.apply(pdf, document);
                 pdf.save(out);
             }
             return writer.usedHeight();

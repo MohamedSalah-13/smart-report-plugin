@@ -319,6 +319,25 @@ receipt.qrCode(qr, 45, Align.CENTER);    // a phase 2 code is denser: give it 45
   for a scanner. At 45 mm a module is 0.45 to 0.5 mm (about 4 dots), and the code with its quiet zone (about 49 mm)
   still fits the 58 mm roll (52 mm of line) as well as the 80 mm one.
 
+### An archivable invoice: PDF/A-3 with the e-invoice XML (`pdfA3`, `attach`)
+
+The QR on the page covers what the customer scans; the file kept for years should carry the signed XML of the
+e-invoice too (v2.11.0):
+
+```java
+PdfDocument invoice = PdfDocument.rtl(Paper.A4)
+        /* ... the invoice ... */
+        .attach("invoice.xml", signedXml, "application/xml")   // relationship Data by default
+        .pdfA3(true);                                            // PDF/A-3B
+```
+
+- `pdfA3(true)` writes PDF/A-3B, the archive format: an sRGB output intent and XMP metadata matching the document's
+  title and dates. The fonts are embedded already. Output from the library passes veraPDF, the reference validator,
+  with Arabic text, tables, QR codes, barcodes, transparent stamps and the watermark.
+- `attach(name, bytes, mimeType)` embeds a file. The reader shows it in its attachments list, and with PDF/A-3 it is
+  associated with the document. `attach(name, bytes, mimeType, Relationship.ALTERNATIVE)` sets another relationship
+  (`SOURCE`, `DATA`, `ALTERNATIVE`, `SUPPLEMENT`, `UNSPECIFIED`).
+
 ### Barcode (Code 128)
 
 For a shipment, waybill, invoice or item number, read by a hand scanner:

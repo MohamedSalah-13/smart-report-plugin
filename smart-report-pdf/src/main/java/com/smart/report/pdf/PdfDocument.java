@@ -123,6 +123,34 @@ public final class PdfDocument {
     private int watermarkColor = Watermark.DEFAULT_COLOR;
     private int printerDpi;
     private boolean arabicIndicDigits;
+    private final List<Attachment> attachments = new ArrayList<>();
+    private boolean pdfA3;
+
+    /** علاقة الملف المرفق بالمستند، زي ما PDF/A-3 بيسميها ({@code /AFRelationship}). */
+    public enum Relationship {
+        /** المصدر اللي المستند اتعمل منه. */
+        SOURCE("Source"),
+        /** بيانات المستند نفسه في صيغة تانية: XML الفاتورة الإلكترونية. */
+        DATA("Data"),
+        /** نسخة تانية بديلة من نفس المحتوى. */
+        ALTERNATIVE("Alternative"),
+        /** ملف مكمّل. */
+        SUPPLEMENT("Supplement"),
+        UNSPECIFIED("Unspecified");
+
+        private final String pdfName;
+
+        Relationship(String pdfName) {
+            this.pdfName = pdfName;
+        }
+
+        String pdfName() {
+            return pdfName;
+        }
+    }
+
+    record Attachment(String name, byte[] data, String mimeType, Relationship relationship) {
+    }
 
     private PdfDocument(Paper paper, boolean rightToLeft) {
         this.paper = Objects.requireNonNull(paper, "paper");
@@ -161,6 +189,51 @@ public final class PdfDocument {
      */
     public PdfDocument failOnMissingGlyphs(boolean value) {
         this.failOnMissingGlyphs = value;
+        return this;
+    }
+
+    /**
+     * ملف جوّه الـ PDF: XML الفاتورة الإلكترونية الموقّعة مثلًا، فالملف المؤرشف يشيل الاتنين. علاقته
+     * {@link Relationship#DATA}.
+     *
+     * @see #attach(String, byte[], String, Relationship)
+     */
+    public PdfDocument attach(String name, byte[] data, String mimeType) {
+        return attach(name, data, mimeType, Relationship.DATA);
+    }
+
+    /**
+     * ملف جوّه الـ PDF، بعلاقته بالمستند. بيظهر في قائمة المرفقات في قارئ الـ PDF، ومع {@link #pdfA3} بيبقى ملف
+     * «مرتبط» بالمستند زي ما الأرشفة بتطلب.
+     *
+     * @param name     اسم الملف زي ما هيظهر: {@code "invoice.xml"}؛ كل اسم مرة واحدة
+     * @param mimeType {@code "application/xml"}، {@code "text/xml"}...
+     * @throws IllegalArgumentException لو الاسم فاضي أو متكرر، أو النوع مش {@code type/subtype}
+     */
+    public PdfDocument attach(String name, byte[] data, String mimeType, Relationship relationship) {
+        Objects.requireNonNull(data, "data");
+        Objects.requireNonNull(relationship, "relationship");
+        if (name == null || name.isBlank() || name.contains("/") || name.contains("\\")) {
+            throw new IllegalArgumentException("An attachment needs a file name without a path: " + name);
+        }
+        if (mimeType == null || !mimeType.matches("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+")) {
+            throw new IllegalArgumentException("A MIME type is type/subtype, such as application/xml: " + mimeType);
+        }
+        String clean = name.strip();
+        if (attachments.stream().anyMatch(file -> file.name().equals(clean))) {
+            throw new IllegalArgumentException("The attachment " + clean + " is already in the document.");
+        }
+        attachments.add(new Attachment(clean, data.clone(), mimeType, relationship));
+        return this;
+    }
+
+    /**
+     * يكتب المستند PDF/A-3B، صيغة الأرشفة: ملف الألوان (sRGB) والبيانات الوصفية XMP جوّاه، والخطوط مضمّنة أصلًا، والملفات
+     * المرفقة ({@link #attach}) مرتبطة بالمستند. للفاتورة اللي لازم تتحفظ سنين ومعاها الـ XML بتاعها. مقفول من غير ما
+     * يتحدد.
+     */
+    public PdfDocument pdfA3(boolean value) {
+        this.pdfA3 = value;
         return this;
     }
 
@@ -596,6 +669,14 @@ public final class PdfDocument {
 
     String watermarkText() {
         return watermark;
+    }
+
+    List<Attachment> attachments() {
+        return attachments;
+    }
+
+    boolean pdfA3() {
+        return pdfA3;
     }
 
     boolean arabicIndicDigits() {
