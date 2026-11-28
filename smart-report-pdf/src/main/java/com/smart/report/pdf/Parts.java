@@ -43,6 +43,9 @@ final class Parts {
             case PdfDocument.TitleBlock title -> List.of(Flow.of(
                     lines(frame, title.text(), true, style.titleSize(), style.textColor(), Canvas.Side.CENTER))
                     .withGaps(0, 3));
+            case PdfDocument.PrintedBlock printed -> List.of(Flow.of(
+                    lines(frame, printed.text(), false, style.smallSize(), style.mutedColor(), Canvas.Side.CENTER))
+                    .withGaps(0, 3));
             case PdfDocument.SubtitleBlock subtitle -> List.of(Flow.of(
                     lines(frame, subtitle.text(), false, style.subtitleSize(), style.mutedColor(),
                             Canvas.Side.CENTER)).withGaps(0, 3));

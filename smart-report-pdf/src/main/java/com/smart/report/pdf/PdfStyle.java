@@ -126,6 +126,17 @@ public record PdfStyle(float margin,
                 stripeFill, ruleColor, grid, stripes);
     }
 
+    /**
+     * مجموعة ألوان جاهزة متناسقة: رأس الجدول، وصف الإجمالي، والخط تحت الترويسة، والصفوف المتبادلة، وخطوط الجدول؛
+     * الأحجام والهوامش زي ما هي.
+     */
+    public PdfStyle withColorSet(ColorSet set) {
+        java.util.Objects.requireNonNull(set, "set");
+        return new PdfStyle(margin, titleSize, subtitleSize, headingSize, bodySize, headerSize, smallSize,
+                textColor, mutedColor, set.accent(), set.headerFill(), set.headerText(), set.totalsFill(),
+                set.totalsText(), set.stripe(), set.rule(), grid, stripes);
+    }
+
     /** توفير الحبر: بلا أي تعبئة — الرأس والإجمالي بخطوط بدل الخلفيات، ولا صفوف ملوّنة. */
     public PdfStyle inkSaver() {
         return new PdfStyle(margin, titleSize, subtitleSize, headingSize, bodySize, headerSize, smallSize,

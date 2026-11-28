@@ -91,6 +91,10 @@ public final class PdfDocument {
     record ImageBlock(byte[] bytes, float width, int[] pixels, Align align) implements Block {
     }
 
+    /** سطر «طُبع في ... بواسطة ...» تحت العنوان. */
+    record PrintedBlock(String text) implements Block {
+    }
+
     /** الجزء اللي بعده يبدأ في صفحة جديدة؛ القواعد في {@link #pageBreak()}. */
     record PageBreakBlock() implements Block {
     }
@@ -125,6 +129,12 @@ public final class PdfDocument {
     private boolean arabicIndicDigits;
     private final List<Attachment> attachments = new ArrayList<>();
     private boolean pdfA3;
+    private java.time.LocalDateTime printedOn;
+    private String printedBy;
+    private PageNumberStyle pageNumberStyle = PageNumberStyle.WORDS;
+    /** الورق المطبوع عليه ترويسة: المسافة فوق بالنقطة، أو سالب = ورق أبيض. */
+    private float prePrintedTop = -1;
+    private float totalsFontSize;
 
     /** علاقة الملف المرفق بالمستند، زي ما PDF/A-3 بيسميها ({@code /AFRelationship}). */
     public enum Relationship {
@@ -189,6 +199,61 @@ public final class PdfDocument {
      */
     public PdfDocument failOnMissingGlyphs(boolean value) {
         this.failOnMissingGlyphs = value;
+        return this;
+    }
+
+    /**
+     * سطر صغير تحت أول عنوان بوقت الطباعة: «طُبع في 2026-11-28 10:30». مع {@link #printedBy} في نفس السطر.
+     * {@code null} = من غيره.
+     */
+    public PdfDocument printedOn(java.time.LocalDateTime when) {
+        this.printedOn = when == null ? null : when.truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+        return this;
+    }
+
+    /** اسم المستخدم في سطر الطباعة تحت أول عنوان: «بواسطة أحمد». {@code null} أو فاضي = من غيره. */
+    public PdfDocument printedBy(String user) {
+        this.printedBy = user == null || user.isBlank() ? null : user.strip();
+        return this;
+    }
+
+    /** شكل رقم الصفحة: «صفحة 1 من 3» ({@link PageNumberStyle#WORDS}، الافتراضي) أو «1 / 3». */
+    public PdfDocument pageNumberStyle(PageNumberStyle value) {
+        this.pageNumberStyle = Objects.requireNonNull(value, "value");
+        return this;
+    }
+
+    /**
+     * ورق مطبوع عليه ترويسة المحل: الترويسة ({@link #letterhead} والشعار) ما بتترسمش، والمحتوى بيبدأ بعد
+     * {@code topMm} مليمتر زيادة على الهامش في كل صفحة، تحت الترويسة المطبوعة.
+     *
+     * @throws IllegalArgumentException لو سالب
+     */
+    public PdfDocument prePrinted(float topMm) {
+        if (!(topMm >= 0) || Float.isInfinite(topMm)) {
+            throw new IllegalArgumentException("The top space is 0 mm or more: " + topMm);
+        }
+        this.prePrintedTop = topMm * POINTS_PER_MM;
+        return this;
+    }
+
+    /** ورق أبيض: الترويسة بتترسم زي العادي (بيلغي {@link #prePrinted}). */
+    public PdfDocument plainPaper() {
+        this.prePrintedTop = -1;
+        return this;
+    }
+
+    /**
+     * حجم خط صفوف الإجمالي في الجداول، منفصل عن خط الصفوف ({@link PdfStyle#bodySize}). صفر = زي الصفوف.
+     *
+     * @throws IllegalArgumentException لو مش صفر وأصغر من {@link PdfStyle#MIN_FONT_SIZE}
+     */
+    public PdfDocument totalsFontSize(float points) {
+        if (points != 0 && !(points >= PdfStyle.MIN_FONT_SIZE && points <= 72)) {
+            throw new IllegalArgumentException("The totals size is 0 or " + PdfStyle.MIN_FONT_SIZE + " to 72 points: "
+                    + points);
+        }
+        this.totalsFontSize = points;
         return this;
     }
 
@@ -669,6 +734,38 @@ public final class PdfDocument {
 
     String watermarkText() {
         return watermark;
+    }
+
+    /** نص سطر «طُبع في ... بواسطة ...»، أو {@code null} من غيره. */
+    String printedLine() {
+        if (printedOn == null && printedBy == null) {
+            return null;
+        }
+        String when = printedOn == null ? null
+                : printedOn.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+        if (rightToLeft) {
+            return (when == null ? "" : "طُبع في " + when) + (when != null && printedBy != null ? " " : "")
+                    + (printedBy == null ? "" : "بواسطة " + printedBy);
+        }
+        String line = (when == null ? "" : "Printed on " + when) + (when != null && printedBy != null ? " " : "")
+                + (printedBy == null ? "" : "by " + printedBy);
+        return when == null ? Character.toUpperCase(line.charAt(0)) + line.substring(1) : line;
+    }
+
+    PageNumberStyle pageNumberStyleValue() {
+        return pageNumberStyle;
+    }
+
+    boolean prePrinted() {
+        return prePrintedTop >= 0;
+    }
+
+    float prePrintedTop() {
+        return Math.max(0, prePrintedTop);
+    }
+
+    float totalsFontSize() {
+        return totalsFontSize;
     }
 
     List<Attachment> attachments() {
