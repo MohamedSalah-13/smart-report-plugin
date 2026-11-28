@@ -6,12 +6,16 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.printing.Orientation;
 import org.apache.pdfbox.printing.PDFPageable;
 
+import javax.print.DocFlavor;
+import javax.print.PrintException;
 import javax.print.PrintService;
 import javax.print.PrintServiceLookup;
+import javax.print.SimpleDoc;
 import javax.print.attribute.HashPrintRequestAttributeSet;
 import javax.print.attribute.PrintRequestAttributeSet;
 import javax.print.attribute.standard.Copies;
 import javax.print.attribute.standard.JobName;
+import javax.print.attribute.standard.Media;
 import javax.print.attribute.standard.MediaSize;
 import javax.print.attribute.standard.MediaSizeName;
 import javax.print.attribute.standard.PageRanges;
@@ -125,6 +129,14 @@ public final class PdfPrinter {
     }
 
     static void printOn(PrintService printer, byte[] pdf, Paper paper, PrintOptions options) throws ReportException {
+        if (paper != null && paper.roll() && options.copies() > 1) {
+            // طابعة الإيصالات بتقص في آخر المهمة: نسختين في مهمة واحدة بيطلعوا شريط واحد من غير قص. كل نسخة مهمة.
+            PrintOptions one = options.withCopies(1);
+            for (int i = 0; i < options.copies(); i++) {
+                printOn(printer, pdf, paper, one);
+            }
+            return;
+        }
         int copies = options.copies();
         try (PDDocument document = Loader.loadPDF(pdf)) {
             PrinterJob job = PrinterJob.getPrinterJob();
@@ -165,6 +177,82 @@ public final class PdfPrinter {
         } catch (PrinterException e) {
             throw new ReportException("Printing on \"" + printer.getName() + "\" failed: " + e.getMessage(), e);
         }
+    }
+
+    /** سن درج النقدية في الطابعة: أغلب الأدراج على السن 2. */
+    public enum DrawerPin {
+        PIN_2, PIN_5
+    }
+
+    /** يفتح درج النقدية المتوصل بالطابعة: السن 2، ونبضة 100 ملّي ثانية. */
+    public static void openCashDrawer(String printerName) throws ReportException {
+        openCashDrawer(printerName, DrawerPin.PIN_2, 100);
+    }
+
+    /**
+     * يفتح درج النقدية المتوصل بطابعة الإيصالات: أمر ESC/POS {@code ESC p} كبايتات خام، من غير PDF.
+     *
+     * @param pin     السن اللي الدرج عليه
+     * @param pulseMs طول النبضة بالملّي ثانية، من 2 لـ 510 (أغلب الأدراج 50 لـ 200)
+     * @throws ReportException لو الطابعة مش موجودة، أو الدرايفر بتاعها ما بياخدش بايتات خام (طابعة PDF أو طابعة
+     *                         مكتب)، أو رفضت المهمة
+     */
+    public static void openCashDrawer(String printerName, DrawerPin pin, int pulseMs) throws ReportException {
+        sendRaw(find(printerName), drawerPulse(pin, pulseMs));
+    }
+
+    /** {@code ESC p m t1 t2}: السن، ومدة النبضة ومدة الراحة بوحدات 2 ملّي ثانية. */
+    static byte[] drawerPulse(DrawerPin pin, int pulseMs) {
+        Objects.requireNonNull(pin, "pin");
+        if (pulseMs < 2 || pulseMs > 510) {
+            throw new IllegalArgumentException("The drawer pulse is 2 to 510 ms: " + pulseMs);
+        }
+        int on = Math.round(pulseMs / 2f);
+        // الراحة بعد النبضة أطول منها، وعلى الأقل 100 ملّي ثانية، عشان الملف ما يسخنش.
+        int off = Math.min(255, Math.max(50, on * 2));
+        return new byte[]{0x1B, 0x70, (byte) (pin == DrawerPin.PIN_2 ? 0 : 1), (byte) on, (byte) off};
+    }
+
+    static void sendRaw(PrintService printer, byte[] bytes) throws ReportException {
+        DocFlavor raw = DocFlavor.BYTE_ARRAY.AUTOSENSE;
+        if (!printer.isDocFlavorSupported(raw)) {
+            throw new ReportException("The driver of \"" + printer.getName() + "\" takes no raw bytes, so the cash"
+                    + " drawer cannot be opened through it. Use the receipt printer's own driver (Generic / Text Only"
+                    + " on Windows, raw on CUPS).");
+        }
+        try {
+            printer.createPrintJob().print(new SimpleDoc(bytes, raw, null), new HashPrintRequestAttributeSet());
+        } catch (PrintException e) {
+            throw new ReportException("Sending to \"" + printer.getName() + "\" failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * هل الطابعة بتقول إنها بتطبع على الورقة دي؟ عشان شاشة الإعدادات تنبّه قبل أول طباعة. اللفة الحرارية {@code true}
+     * (ما بيتطلبش لها مقاس)، وكمان لو الطابعة ما بتعلنش أي مقاسات (ما نقدرش نعرف).
+     *
+     * @throws ReportException لو الطابعة مش موجودة
+     */
+    public static boolean declaresPaper(String printerName, Paper paper) throws ReportException {
+        Objects.requireNonNull(paper, "paper");
+        return declares(find(printerName), paper);
+    }
+
+    static boolean declares(PrintService printer, Paper paper) {
+        MediaSizeName wanted = media(paper);
+        if (wanted == null) {
+            return true;
+        }
+        Object values = printer.getSupportedAttributeValues(Media.class, null, null);
+        if (!(values instanceof Media[] media) || media.length == 0) {
+            return true;
+        }
+        for (Media one : media) {
+            if (wanted.equals(one)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static PrintService find(String printerName) throws ReportException {

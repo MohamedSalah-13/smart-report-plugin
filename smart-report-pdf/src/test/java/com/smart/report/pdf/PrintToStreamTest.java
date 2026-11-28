@@ -185,6 +185,24 @@ class PrintToStreamTest {
         assertThrows(IllegalArgumentException.class, () -> PrintOptions.DEFAULT.pages(3, 2));
     }
 
+    /** على اللفة كل نسخة مهمة لوحدها عشان الطابعة تقص بينهم؛ على الورق مهمة واحدة بـ Copies. */
+    @Test
+    void aRollGetsAJobPerCopyAndASheetOneJob() throws Exception {
+        byte[] receipt = PdfDocument.rtl(Paper.ROLL_80).text("إيصال").toBytes();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        RecordingService roll = new RecordingService(out);
+        PdfPrinter.printOn(roll, receipt, Paper.ROLL_80, 3);
+        assertEquals(3, roll.jobs);
+        for (PrintRequestAttributeSet job : roll.everyJob) {
+            assertEquals(1, ((Copies) job.get(Copies.class)).getValue());
+        }
+
+        RecordingService sheet = new RecordingService(new ByteArrayOutputStream());
+        PdfPrinter.printOn(sheet, statement(Paper.A4, 10), Paper.A4, 3);
+        assertEquals(1, sheet.jobs);
+        assertEquals(3, ((Copies) sheet.attributes.get(Copies.class)).getValue());
+    }
+
     @Test
     void a4IsSentOnA4WithEveryPage() throws Exception {
         byte[] pdf = statement(Paper.A4, 90);
@@ -362,6 +380,7 @@ class PrintToStreamTest {
         private final StreamPrintService postScript;
         private Doc doc;
         private PrintRequestAttributeSet attributes;
+        private final List<PrintRequestAttributeSet> everyJob = new ArrayList<>();
         private int jobs;
 
         RecordingService(ByteArrayOutputStream out) {
@@ -381,6 +400,7 @@ class PrintToStreamTest {
                     jobs++;
                     doc = sentDoc;
                     attributes = sentAttributes;
+                    everyJob.add(sentAttributes);
                     job.print(sentDoc, sentAttributes);
                 }
 
