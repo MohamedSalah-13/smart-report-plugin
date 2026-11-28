@@ -191,6 +191,11 @@ What each part is:
   `SymbolImage.qrPng(text, pixelsPerModule)`, `SymbolImage.barcodePng(text, pixelsPerModule, heightPixels)`, or
   `SymbolImage.qr(...)` / `barcode(...)` for a `BufferedImage`. Quiet zone included, black and white, whole pixels
   per module: do not write the ZXing-to-image loop by hand, and do not scale the image by a fraction.
+- A **code to find a printed document by scanning it** (a return, a search box), from `v2.11.0`:
+  `DocumentCode.DEFAULT.encode(type, number)` (`com.smart.report.util`) gives 13 digits with a check digit;
+  print it with `barcode(...)`. `DocumentCode.DEFAULT.parse(scanned)` gives `Optional<Scanned(type, number)>`,
+  empty for anything that is not such a code, and accepts Arabic-Indic digits. Digits only, never letters: an
+  Arabic keyboard layout turns a scanned Latin letter into an Arabic one. Store nothing: compute it again on reprint.
 - **The Saudi simplified tax invoice QR** (ZATCA e-invoicing, phase 1) - when the program issues invoices in
   Saudi Arabia, the receipt or invoice ends with this code:
 

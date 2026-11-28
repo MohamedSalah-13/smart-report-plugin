@@ -338,6 +338,27 @@ BufferedImage image = SymbolImage.qr(qrText, 6);               // for SwingFXUti
 - Black and white only, every module a whole number of pixels, no smoothing. To make it bigger, ask for more pixels
   per module rather than scaling the image: a fractional scale makes the modules uneven.
 
+### A code to find a document by scanning it (`DocumentCode`)
+
+So that a printed invoice can be found again by scanning it, for a return or in a list (v2.11.0, in
+`smart-report-api`):
+
+```java
+DocumentCode codes = DocumentCode.DEFAULT;          // 13 digits: 2, the type, 10 for the number, a check digit
+document.barcode(codes.encode(1, invoice.number()));   // type 1 = sale: "2100000000425" for invoice 42
+
+codes.parse(scannedText)                            // Optional[Scanned[type=1, number=42]]
+        .ifPresent(found -> openDocument(found.type(), found.number()));
+```
+
+- Digits only: a scanner types what it reads as key presses, and with an Arabic keyboard layout a Latin letter
+  arrives as an Arabic one. `parse` also accepts Arabic-Indic digits (`٢١٠٠…`) and surrounding spaces.
+- `parse` answers empty for a wrong length, a wrong first digit or a wrong check digit (GS1 modulo 10, the EAN-13
+  one), so a search box can take either a typed invoice number or a scanned code.
+- Nothing is stored: the code is computed from the type and the number, so a reprint carries the same code.
+- `DocumentCode.of(firstDigit, numberDigits)` for another shape. The default starts with 2, so it is also a valid
+  EAN-13 in the 20–29 range GS1 leaves for use inside a shop, and never matches a real product's barcode.
+
 ### Style (`PdfStyle`)
 
 With nothing set, the style follows the paper (`PdfStyle.forPaper`): a smaller font and margins on A5. To change it:
