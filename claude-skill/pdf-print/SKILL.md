@@ -221,6 +221,9 @@ What each part is:
   print it with `barcode(...)`. `DocumentCode.DEFAULT.parse(scanned)` gives `Optional<Scanned(type, number)>`,
   empty for anything that is not such a code, and accepts Arabic-Indic digits. Digits only, never letters: an
   Arabic keyboard layout turns a scanned Latin letter into an Arabic one. Store nothing: compute it again on reprint.
+- **An archivable invoice** (from `v2.11.0`): `.attach("invoice.xml", signedXmlBytes, "application/xml")` puts
+  the e-invoice XML inside the PDF, and `.pdfA3(true)` writes PDF/A-3B (it passes veraPDF). Use both when the
+  program must keep the invoice file for years; do not build PDF/A with another library.
 - **The Saudi simplified tax invoice QR** (ZATCA e-invoicing, phase 1) - when the program issues invoices in
   Saudi Arabia, the receipt or invoice ends with this code:
 

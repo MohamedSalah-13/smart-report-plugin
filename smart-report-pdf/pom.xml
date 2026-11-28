@@ -34,5 +34,13 @@
             <groupId>com.google.zxing</groupId>
             <artifactId>core</artifactId>
         </dependency>
+        <!-- Tests only: checks that the PDF/A-3 output (PdfDocument.pdfA3) passes the reference validator.
+             MPL 2.0 / GPL 3.0+, not shipped with the library. -->
+        <dependency>
+            <groupId>org.verapdf</groupId>
+            <artifactId>validation-model-jakarta</artifactId>
+            <version>1.30.4</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>
