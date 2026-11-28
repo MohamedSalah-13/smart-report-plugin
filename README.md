@@ -496,6 +496,48 @@ PdfPreview.of(paper -> ReceiptPdf.document(sale, shop, paper))
   user choose another printer, call `show(ownerWindow)` from that branch.
 - To change the printer later, open the window with `show(ownerWindow)` and print once from it.
 
+### Print settings per kind of document (`PrintSettings`)
+
+A program prints several kinds of paper (a sales receipt, a statement, a voucher), and each needs its own paper,
+printer, way out and copies (v2.11.0). Declare the kinds once and the library keeps the settings and gives a ready
+settings pane:
+
+```java
+import com.smart.report.print.*;       // in smart-report-api
+
+PrintSettings settings = PrintSettings.of(
+        PrintSettingsStore.preferences(Preferences.userRoot().node("my-shop/print")),
+        List.of("normal", "thermal"),                                     // printer roles your program names
+        DocumentKind.of("sale-receipt", "إيصال البيع",
+                PrintProfile.of("80mm", OutputMode.PRINT, PrinterTarget.role("thermal"), 1),
+                "80mm", "58mm", "A5"),                                     // the papers it may take
+        DocumentKind.of("statement", "كشف حساب",
+                PrintProfile.of("A4", OutputMode.PREVIEW, PrinterTarget.role("normal"), 1), "A4", "A5"));
+
+PrintProfile profile = settings.profile("sale-receipt");   // read at print time, never kept for a screen's life
+Optional<String> printer = settings.printerName(profile);  // the role turned into a printer; empty = the default
+
+settingsTab.setContent(PrintSettingsPane.of(settings)     // in smart-report-fx
+        .rightToLeft(true)
+        .roleLabel("thermal", "طابعة الإيصالات")
+        .build());
+```
+
+- A profile is the paper (by name, as `Paper.parse` reads it), the output mode (`PRINT`, `PREVIEW`, `SAVE_PDF` or
+  `ASK`), the printer and the copies. The printer is a role, an installed printer by name, or the system default.
+  A role is turned into a printer name at print time, so changing the thermal printer once moves every paper on it.
+- Nonsense is refused when it is built: a paper the kind does not take, a role the program did not declare, copies
+  outside 1 to 99.
+- What is stored is one line of text per kind (`paper=A5;mode=preview;printer=role:normal;copies=1`), read
+  tolerantly: a value written by another version never stops a print, and any part that cannot be read falls back
+  to the kind's default.
+- `PrintSettingsStore` is three methods (get, put, remove): `preferences(node)`, `inMemory()` for tests, or your own
+  over your program's settings table.
+- The pane has a row per kind (paper, output, printer, copies, a reset to the default and a trial print) and a
+  printer per role. Every change is saved at once. `.sample("statement", paper -> ...)` prints your own document
+  as the trial page; without it the trial is a page with the kind, the paper, the printer and the time.
+- `PdfPreview.remember(key)` keeps working as before.
+
 ### Font
 
 The library bundles the **Noto Naskh Arabic** font (regular and bold), so the output is the same on every
