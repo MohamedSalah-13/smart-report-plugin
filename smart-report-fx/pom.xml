@@ -31,5 +31,12 @@
             <version>${javafx.version}</version>
             <scope>provided</scope>
         </dependency>
+        <!-- Tests only: the hardware check (docs/HARDWARE-CHECK.md) writes a grouped Excel report to open in Excel. -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>smart-report-excel</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>
