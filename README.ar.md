@@ -428,7 +428,7 @@ import com.smart.report.fx.PdfPreview;
 PdfPreview.of(paper -> StatementPdf.document(statement, companyName, paper))
         .papers(Paper.A4, Paper.A5)       // مقاس واحد = بلا اختيار مقاس في النافذة
         .title("كشف حساب عربية 1751")
-        .fileName("كشف 1751")              // الاسم المقترح عند «حفظ PDF»
+        .fileName("كشف 1751")              // الاسم المقترح عند «حفظ PDF»؛ و / : * ? وأمثالها تصير -
         .rightToLeft(true)                 // نافذة عربية؛ false = إنجليزية
         .remember("statement")             // آخر طابعة ومقاس، لكل نوع مستند
         .stylesheet(appStylesheetUrl)      // اختياري: CSS بتاع برنامجك
@@ -605,6 +605,7 @@ ReportService.generateToFile(ReportType.PDF, request, Path.of("employees.pdf"));
 
 ```java
 .parameter(PdfReportProvider.PAPER, "A5-landscape")        // أو كائن Paper
+.parameter(PdfReportProvider.LANDSCAPE_FROM_COLUMNS, 8)   // من 8 أعمدة تنقلب الورقة بالعرض (v2.11.0)
 .parameter(PdfReportProvider.RIGHT_TO_LEFT, true)
 .parameter(ExcelReportProvider.RIGHT_TO_LEFT, true)       // اتجاه ورقة الـ Excel
 ```

@@ -135,12 +135,39 @@ public final class PdfPreview {
         return this;
     }
 
-    /** الاسم المقترح للملف عند «حفظ PDF». */
+    /**
+     * الاسم المقترح للملف عند «حفظ PDF». الحروف اللي ما تنفعش في اسم ملف على Windows ({@code \ / : * ? " < > |}
+     * وحروف التحكم) بتبقى {@code -}، والنقط والمسافات في آخره بتتشال، واسم جهاز محجوز ({@code CON}،
+     * {@code COM1}...) بياخد {@code _} قبله. فعنوان زي {@code "فاتورة 12/2026"} يتحفظ من غير ما البرنامج ينضفه.
+     */
     public PdfPreview fileName(String name) {
-        if (name != null && !name.isBlank()) {
-            this.fileName = name.toLowerCase(Locale.ROOT).endsWith(".pdf") ? name : name + ".pdf";
+        String safe = safeFileName(name);
+        if (!safe.isEmpty()) {
+            this.fileName = safe.toLowerCase(Locale.ROOT).endsWith(".pdf") ? safe : safe + ".pdf";
         }
         return this;
+    }
+
+    private static final java.util.regex.Pattern RESERVED =
+            java.util.regex.Pattern.compile("(?i)(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])(\\..*)?");
+
+    /** اسم ملف يقبله Windows ولينكس؛ فاضي لو ما فضلش فيه حاجة. */
+    static String safeFileName(String name) {
+        if (name == null) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder(name.length());
+        name.codePoints().forEach(c -> out.appendCodePoint(c < 0x20 || c == 0x7F || "\\/:*?\"<>|".indexOf(c) >= 0
+                ? '-' : c));
+        int end = out.length();
+        while (end > 0 && (out.charAt(end - 1) == '.' || Character.isWhitespace(out.charAt(end - 1)))) {
+            end--;
+        }
+        String safe = out.substring(0, end).strip();
+        if (safe.chars().allMatch(c -> c == '-')) {
+            return "";
+        }
+        return RESERVED.matcher(safe).matches() ? "_" + safe : safe;
     }
 
     /** اتجاه النافذة ولغة كلامها (عربي / إنجليزي) لو {@link #texts} ما اتحددش. */

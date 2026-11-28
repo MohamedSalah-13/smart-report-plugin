@@ -39,7 +39,8 @@ import java.util.Locale;
  * ما بينزلش لوحده في أول صفحة: آخر صف في مجموعته بيتنقل معاه.</p>
  *
  * <p><b>الورق:</b> A4 طولي، إلا لو {@link #PAPER} اتحدد في {@code parameters} بكائن {@link Paper}
- * أو باسمه ({@code "A5"}، {@code "A4-landscape"}).</p>
+ * أو باسمه ({@code "A5"}، {@code "A4-landscape"}). ومع {@link #LANDSCAPE_FROM_COLUMNS} الورقة بتتقلب بالعرض لو عدد
+ * الأعمدة وصل للرقم ده، فالتقرير اللي أعمدته كتير ما يتزنقش.</p>
  *
  * <p><b>الخط:</b> الخط العام ({@link PdfFontResolver})، إلا لو {@link #FONT} اتحدد بكائن {@link PdfFont}؛
  * و {@link #FAIL_ON_MISSING_GLYPHS} بيخلّي الحرف اللي مش في أي خط يرمي {@link ReportException} بدل
@@ -52,6 +53,12 @@ public final class PdfReportProvider implements ReportProvider {
 
     /** مفتاح في {@code ReportRequest.parameters()}: {@link Paper} أو اسمه. */
     public static final String PAPER = "smart.report.pdf.paper";
+    /**
+     * مفتاح في {@code ReportRequest.parameters()}: عدد أعمدة ({@code Integer}، أو نصه)، لو التقرير فيه العدد ده
+     * أو أكتر الورقة ({@link #PAPER} أو A4) بتتقلب بالعرض ({@link Paper#landscape()}). أقل منه الورقة زي ما هي،
+     * واللفة الحرارية ما بتتقلبش.
+     */
+    public static final String LANDSCAPE_FROM_COLUMNS = "smart.report.pdf.landscapeFromColumns";
     /** مفتاح في {@code ReportRequest.parameters()}: {@code Boolean} يحسم اتجاه التقرير. */
     public static final String RIGHT_TO_LEFT = "smart.report.pdf.rightToLeft";
     /**
@@ -78,6 +85,10 @@ public final class PdfReportProvider implements ReportProvider {
         }
 
         Paper paper = paper(request.parameters().get(PAPER));
+        Integer landscapeFrom = columnCount(request.parameters().get(LANDSCAPE_FROM_COLUMNS));
+        if (landscapeFrom != null && columns.size() >= landscapeFrom) {
+            paper = paper.landscape();
+        }
         boolean rightToLeft = TextDirection.rightToLeft(request, RIGHT_TO_LEFT);
         PdfDocument document = rightToLeft ? PdfDocument.rtl(paper) : PdfDocument.ltr(paper);
         document.font(font(request.parameters().get(FONT)))
@@ -233,6 +244,22 @@ public final class PdfReportProvider implements ReportProvider {
         }
         throw new ReportException("Invalid " + FONT + " parameter: expected a PdfFont, for example"
                 + " PdfFont.of(Path.of(\"fonts/Amiri-Regular.ttf\")), but got " + value.getClass().getName() + ".");
+    }
+
+    private static Integer columnCount(Object value) throws ReportException {
+        if (value == null) {
+            return null;
+        }
+        try {
+            int count = value instanceof Integer number ? number : Integer.parseInt(value.toString().strip());
+            if (count >= 1) {
+                return count;
+            }
+        } catch (NumberFormatException e) {
+            // نفس الرسالة تحت.
+        }
+        throw new ReportException("Invalid " + LANDSCAPE_FROM_COLUMNS + " parameter: expected a number of columns"
+                + " of at least 1, but got " + value + ".");
     }
 
     private static Paper paper(Object value) throws ReportException {

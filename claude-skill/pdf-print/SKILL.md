@@ -248,7 +248,7 @@ print.setOnAction(event -> {
     PdfPreview.of(paper -> InvoicePdf.document(invoice, company, paper))
             .papers(Paper.A4, Paper.A5)                 // one paper = no paper choice in the window
             .title("فاتورة " + invoice.number())
-            .fileName("فاتورة " + invoice.number())
+            .fileName("فاتورة " + invoice.number())   // from v2.11.0: / : * ? become -, no cleaning needed
             .rightToLeft(true)                          // Arabic window; false for English
             .remember("invoice")                        // last printer and paper, per kind of document
             .stylesheet(Ui.STYLESHEET)                  // the program's CSS, if it has one
@@ -361,6 +361,7 @@ has not been on a real printer yet; the old one usually had.
           .title("تقرير الموظفين").data(employees)
           .addColumn("name", "الاسم").addColumn("salary", "الراتب")
           .parameter(PdfReportProvider.PAPER, "A5-landscape")
+          .parameter(PdfReportProvider.LANDSCAPE_FROM_COLUMNS, 8)   // from v2.11.0: sideways from 8 columns
           .build();
   byte[] pdf = ReportService.generate(ReportType.PDF, request);
   ```

@@ -383,6 +383,9 @@ class PdfPreviewTest {
         final List<Job> jobs = new CopyOnWriteArrayList<>();
         volatile ReportException failure;
         volatile File saveTo;
+        /** لو اتحدد: الحفظ بيروح للمجلد ده بالاسم اللي النافذة اقترحته. */
+        volatile Path saveFolder;
+        volatile String suggestedName;
         /** لو اتحدد، الطباعة بتستنى لحد ما الاختبار يفتحه. */
         volatile CountDownLatch gate;
 
@@ -418,6 +421,10 @@ class PdfPreviewTest {
 
         @Override
         public File chooseSaveFile(FileChooser chooser, Window owner) {
+            suggestedName = chooser.getInitialFileName();
+            if (saveFolder != null) {
+                return saveFolder.resolve(suggestedName).toFile();
+            }
             return saveTo;
         }
     }
@@ -698,5 +705,33 @@ class PdfPreviewTest {
         assertEquals("كشف 1751.pdf", PdfPreview.of(report(Paper.A4)).fileName("كشف 1751").fileName);
         assertEquals("a.PDF", PdfPreview.of(report(Paper.A4)).fileName("a.PDF").fileName);
         assertEquals("document.pdf", PdfPreview.of(report(Paper.A4)).fileName(" ").fileName);
+    }
+
+    @Test
+    void fileNameDropsWhatAFileNameCannotHold() {
+        assertEquals("فاتورة 12-2026 - a-b-.pdf",
+                PdfPreview.of(report(Paper.A4)).fileName("فاتورة 12/2026 : a*b?").fileName);
+        assertEquals("a-b-c-d-e-f", PdfPreview.safeFileName("a\\b\"c<d>e|f"));
+        assertEquals("tab-line.pdf", PdfPreview.of(report(Paper.A4)).fileName("tab\tline").fileName);
+        assertEquals("كشف.pdf", PdfPreview.of(report(Paper.A4)).fileName("كشف. . ").fileName);
+        assertEquals("_CON.pdf", PdfPreview.of(report(Paper.A4)).fileName("CON").fileName);
+        assertEquals("_com1.txt.pdf", PdfPreview.of(report(Paper.A4)).fileName("com1.txt").fileName);
+        assertEquals("CONTRACT.pdf", PdfPreview.of(report(Paper.A4)).fileName("CONTRACT").fileName);
+        assertEquals("document.pdf", PdfPreview.of(report(Paper.A4)).fileName("/:*?").fileName);
+    }
+
+    /** الحفظ من النافذة بعنوان فيه {@code / : * ?} بيكتب الملف فعلًا بالاسم المقترح. */
+    @Test
+    void savesUnderATitleWithSlashesAndColons(@TempDir Path folder) throws Exception {
+        assumeTrue(toolkit, "no display");
+        FakeSystem system = new FakeSystem("Till");
+        system.saveFolder = folder;
+        Stage stage = onFx(() -> faked(PdfPreview.of(PdfPreviewTest::report).rightToLeft(false)
+                .fileName("Invoice 12/2026: A*B?"), system).show(null));
+        await("the save button", () -> !PdfPreviewTest.<Button>node(stage, "save").isDisabled());
+
+        press(copiesBox(stage), KeyCode.S, true);
+        assertEquals("Invoice 12-2026- A-B-.pdf", system.suggestedName);
+        assertTrue(isPdf(Files.readAllBytes(folder.resolve(system.suggestedName))));
     }
 }
