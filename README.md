@@ -336,6 +336,47 @@ PdfDocument receipt = PdfDocument.rtl(Paper.ROLL_80).printerDpi(203);   // or 30
   less than 0.25 mm for bars; below that it fails with a `ReportException` instead of shrinking to fractions.
 - Without it, or with `printerDpi(0)`, nothing changes.
 
+### EAN-13 and item labels (`ean13`, `PdfLabels`)
+
+The barcode on products (v2.11.0):
+
+```java
+document.ean13("622100012345");                 // 12 digits: the check digit is computed
+document.ean13("4006381333931", 15, Align.START); // 13 digits: the check digit is verified
+```
+
+- 0.33 mm bars (the standard size) with the longer guard bars and the digits under them, the first digit in the
+  left quiet zone. It narrows down to 0.264 mm (80%, the smallest the standard allows) to fit, then fails with a
+  `ReportException`. With `printerDpi` every bar is a whole number of printer dots.
+- A 13-digit number with a wrong check digit is rejected: a mistyped number would print another product's code.
+
+Item labels for a shop, on a label roll or an A4 label sheet:
+
+```java
+PdfLabels labels = PdfLabels.roll(40, 25)          // a 40 × 25 mm label
+        .across(2, 2)                                // two side by side, 2 mm apart
+        .rightToLeft(true)
+        .printerDpi(203)
+        .offset(0.5f, 0);                            // this printer's feed, in mm
+for (Unit unit : units) {
+    labels.add(PdfLabels.Item.of(unit.name(), unit.priceText(), unit.barcode())
+            .withOldPrice(unit.priceBeforeOffer()), unit.labelCount());
+}
+PdfPrinter.print(labels.toBytes(), printer, labels.paper(), 1);
+
+PdfLabels sheet = PdfLabels.sheet(Paper.A4, 3, 8).margins(8.5f, 0);   // 24 labels a sheet
+```
+
+- Each label has the name, the price (with the old price struck through beside it, if there is room) and the
+  barcode. A valid 13-digit code is drawn as EAN-13 with its digits; any other code as Code 128, so the scanner
+  reads back exactly the code stored in the program.
+- A name too long for the label is cut with "…" (`LongName.ELLIPSIS`, the default), shrunk to the smallest font
+  first (`SHRINK`), or left out (`HIDE`). `showName`, `showPrice` and `showDigits` turn parts off.
+- On a roll each row of labels is a page of its own size; on a sheet the label size is what the margins and
+  `gaps(...)` leave. A label too small for its barcode fails with a `ReportException` that names the item, and an
+  item with no barcode is refused (a unit without a barcode gets no label).
+- `offset(xMm, yMm)` moves everything for a printer whose roll feeds slightly off; keep it with the printer.
+
 ### QR code or barcode as an image (`SymbolImage`)
 
 To show a code on a screen, or serve one from a web endpoint, without a PDF (v2.11.0):

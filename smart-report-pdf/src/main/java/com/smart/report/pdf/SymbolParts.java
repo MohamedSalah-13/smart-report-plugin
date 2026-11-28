@@ -193,6 +193,125 @@ final class SymbolParts {
         return Flow.of(List.of(code)).withGaps(Parts.BLOCK_GAP, 0);
     }
 
+    /** أضيق خط في EAN-13: 0.33 مم، الحجم الأساسي في المواصفة. */
+    static final float EAN_MODULE = 0.33f * POINTS_PER_MM;
+    /** أقل حجم للـ EAN-13: 80% من الأساسي، 0.264 مم. */
+    static final float MIN_EAN_MODULE = 0.264f * POINTS_PER_MM;
+
+    /**
+     * عرض أضيق خط لرمز عرضه {@code span} مربع في {@code width}: {@code natural} لو كفّى، وأضيق لحد {@code min}؛
+     * ومع دقة طابعة ({@code dot} أكبر من صفر) عدد صحيح من النقط، الأقرب لـ {@code natural} ونقطتين على الأقل.
+     *
+     * @throws ReportException فيها {@code what} لو حتى الأضيق ما كفّاش
+     */
+    static float fitModule(int span, float natural, float min, float width, float dot, int dpi, String what)
+            throws ReportException {
+        if (dot > 0) {
+            int fewest = Math.max(MIN_DOTS, (int) Math.ceil(min / dot - 0.001f));
+            int dots = Math.max(fewest, Math.round(natural / dot));
+            while (dots > fewest && span * dots * dot > width) {
+                dots--;
+            }
+            if (span * dots * dot > width * 1.0001f) {
+                throw new ReportException(String.format(Locale.ROOT,
+                        "%s needs %.1f mm with its narrowest bars %d printer dots wide at %d dpi, but there are only"
+                                + " %.1f mm. Use a shorter code or wider paper.",
+                        what, span * dots * dot / POINTS_PER_MM, dots, dpi, width / POINTS_PER_MM));
+            }
+            return dots * dot;
+        }
+        float module = Math.min(natural, width / span);
+        if (module < min * 0.999f) {
+            throw new ReportException(String.format(Locale.ROOT,
+                    "%s needs %.1f mm at its narrowest readable bars, but there are only %.1f mm."
+                            + " Use a shorter code or wider paper.",
+                    what, span * min / POINTS_PER_MM, width / POINTS_PER_MM));
+        }
+        return module;
+    }
+
+    /** مقاس أرقام EAN-13: ست أرقام في 40 مربع، ولحد {@code max}. */
+    static float eanDigitSize(Typesetter text, float module, float max) throws IOException, ReportException {
+        float six = text.plain("000000", 1f).width();
+        return six > 0 ? Math.min(max, 40 * module / six) : max;
+    }
+
+    /** الطول اللي EAN-13 بياخده تحت خطوطه للأرقام (والخطوط الحارسة بتنزل في نصه). */
+    static float eanDigitsHeight(float digitSize) {
+        return digitSize * 1.1f;
+    }
+
+    /** أرقام EAN-13 متجهّزة للرسم: الأول في المنطقة الفاضية، وستة تحت كل نص؛ {@code null} = من غير أرقام. */
+    record EanDigits(Typesetter.Line first, Typesetter.Line left, Typesetter.Line right, float size) {
+
+        static EanDigits of(Typesetter text, Ean13Symbol symbol, float size) throws IOException, ReportException {
+            String digits = symbol.digits();
+            return new EanDigits(text.plain(digits.substring(0, 1), size), text.plain(digits.substring(1, 7), size),
+                    text.plain(digits.substring(7), size), size);
+        }
+    }
+
+    /**
+     * يرسم EAN-13: أول خط عند {@code originX}، والخطوط من {@code top} لتحت بطول {@code bars}، والحارسة أطول، والأرقام
+     * تحتها لو {@code digits} مش {@code null}. أسود، وكل الخطوط مسار واحد.
+     */
+    static void drawEan13(Canvas canvas, Ean13Symbol symbol, float originX, float top, float module, float bars,
+                          EanDigits digits, int textColor) throws IOException {
+        float guardExtra = digits != null ? digits.size() * 0.55f : 0;
+        canvas.fillColor(0x000000);
+        int column = 0;
+        while (column < Ean13Symbol.MODULES) {
+            if (!symbol.dark(column)) {
+                column++;
+                continue;
+            }
+            int start = column;
+            boolean guard = Ean13Symbol.guard(column);
+            while (column < Ean13Symbol.MODULES && symbol.dark(column) && Ean13Symbol.guard(column) == guard) {
+                column++;
+            }
+            float height = bars + (guard ? guardExtra : 0);
+            canvas.rect(originX + start * module, top - height, (column - start) * module, height);
+        }
+        canvas.fill();
+        if (digits == null) {
+            return;
+        }
+        float size = digits.size();
+        float baseline = top - bars - size * 0.92f;
+        canvas.text(digits.first(), size, textColor, originX - digits.first().width() - module * 2,
+                digits.first().width(), Canvas.Side.LEFT, baseline);
+        canvas.text(digits.left(), size, textColor, originX + 3 * module, 42 * module, Canvas.Side.CENTER, baseline);
+        canvas.text(digits.right(), size, textColor, originX + 50 * module, 42 * module, Canvas.Side.CENTER, baseline);
+    }
+
+    /** EAN-13 بأرقامه، قطعة واحدة ما بتتقسمش، بمنطقته الفاضية على الجنبين. */
+    static Part ean13(PdfDocument.Ean13Block ean, Frame frame) throws IOException, ReportException {
+        Ean13Symbol symbol = ean.symbol();
+        int span = Ean13Symbol.QUIET_LEFT + Ean13Symbol.MODULES + Ean13Symbol.QUIET_RIGHT;
+        float module = fitModule(span, EAN_MODULE, MIN_EAN_MODULE, frame.width(), frame.dot(), frame.dpi(),
+                "The EAN-13 barcode " + symbol.digits());
+        float digitSize = eanDigitSize(frame.text(), module, frame.style().bodySize() * 1.2f);
+        EanDigits digits = EanDigits.of(frame.text(), symbol, digitSize);
+        float digitsHeight = eanDigitsHeight(digitSize);
+        float bars = Math.max(1f, Math.min(ean.height(), frame.freshRoom() - digitsHeight));
+        float originX = onDots(boxLeft(frame, ean.align(), span * module), frame.dot())
+                + Ean13Symbol.QUIET_LEFT * module;
+        Piece code = new Piece() {
+            @Override
+            public float height() {
+                return bars + digitsHeight;
+            }
+
+            @Override
+            public void draw(Canvas canvas, float top) throws IOException {
+                drawEan13(canvas, symbol, originX, topOnDots(top, frame), module, bars, digits,
+                        frame.style().textColor());
+            }
+        };
+        return Flow.of(List.of(code)).withGaps(Parts.BLOCK_GAP, 0);
+    }
+
     /**
      * نص الباركود سطورًا تكفي عرض السطر بالخط {@code size}: سطر واحد في العادي، وبيتكسر على حروفه بس لو
      * أعرض من السطر حتى بأصغر خط.
