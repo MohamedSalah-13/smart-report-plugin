@@ -450,6 +450,20 @@ document.image(Path.of("signature.png"), 40, Align.START);
 - An image (PNG or JPEG; PNG transparency is kept, so a stamp does not hide what is under it) never splits: it
   moves whole to the next page, and shrinks, keeping its shape, when it is wider than the line or taller than a page.
 
+### Arabic-Indic digits (`arabicIndicDigits`)
+
+For official documents that write numbers as `١٢٣` (v2.11.0):
+
+```java
+PdfDocument.rtl(Paper.A4).arabicIndicDigits(true)        // the generic report: PdfReportProvider.ARABIC_INDIC_DIGITS
+```
+
+- Every number the document draws changes: text, tables, fields, the summary, the letterhead and the page numbers.
+  Each number stays where it was in its line (Arabic-Indic digits read left to right too), and the minus sign, the
+  comma and the dot stay as written.
+- What a scanner reads stays Latin: the content of a QR code and a barcode, the code written under a barcode, and
+  the digits of an EAN-13.
+
 ### Style (`PdfStyle`)
 
 With nothing set, the style follows the paper (`PdfStyle.forPaper`): a smaller font and margins on A5. To change it:

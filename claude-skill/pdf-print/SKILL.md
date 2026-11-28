@@ -141,6 +141,9 @@ What each part is:
   statement, or `table.cellStyle((row, column, text) -> ... ? CellStyle.bold() : CellStyle.PLAIN)`; the generic
   report takes `.parameter(PdfReportProvider.NEGATIVE_IN_RED, true)`. Do not prefix numbers with symbols to
   mark them.
+- **Arabic-Indic digits** (`١٢٣`) for the whole document (from `v2.11.0`): `.arabicIndicDigits(true)` on
+  `PdfDocument`, or `.parameter(PdfReportProvider.ARABIC_INDIC_DIGITS, true)`. Do not convert digits in the
+  program's strings: bidi ordering works on Latin digits, and codes must stay Latin for the scanner.
 - **A stamp or signature image** in the body (from `v2.11.0`): `document.image(pngBytes, widthMm, Align.END)` or
   `image(path, widthMm, align)`; it keeps its shape, never splits, and moves whole to the next page.
 - `table(...)` - columns with weights, rows, and `totals(...)` rows drawn as a band with one cell under each
