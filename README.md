@@ -538,7 +538,14 @@ PdfPreview.of(batch).show(ownerWindow);      // or a batch: all its documents, p
 PdfPreview.ofBatch(paper -> PdfBatch.of(statementsOn(paper)))   // a batch built for the paper the user picks
         .papers(Paper.A4, Paper.A5)
         .show(ownerWindow);
+
+PdfPreview.ofPdf(pdfBytes).show(ownerWindow);                  // any ready PDF: a Jasper report, a file (v2.11.0)
+PdfPreview.ofPdf(paper -> jasperPdfOn(paper)).show(ownerWindow);  // or one built for the paper the user picks
 ```
+
+- A ready PDF opens on the paper of its first page (A4 or A5, upright or landscape, when it is one). A Jasper report
+  the program filled itself becomes PDF bytes with `JasperReportProvider.pdf(jasperPrint)`, in `smart-report-jasper`.
+- The window takes its owner's icons, so it shows the program's icon in the task bar.
 
 - The window shows the pages with the same drawing the printer receives, and does not block the program.
 - A batch is shown and printed like one document: the window's page counter runs over the whole batch, while each

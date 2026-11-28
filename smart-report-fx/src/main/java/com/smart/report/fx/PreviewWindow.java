@@ -139,6 +139,10 @@ final class PreviewWindow {
         this.remembered = setup.remembered();
         if (owner != null) {
             stage.initOwner(owner);
+            if (owner instanceof Stage parent) {
+                // أيقونة البرنامج في شريط المهام بدل أيقونة Java.
+                stage.getIcons().setAll(parent.getIcons());
+            }
         }
         stage.setTitle(setup.title == null || setup.title.isBlank() ? texts.title() : setup.title);
         stage.setScene(scene());

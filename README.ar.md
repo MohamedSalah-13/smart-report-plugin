@@ -609,6 +609,8 @@ PdfPreview.of(paper -> StatementPdf.document(statement, companyName, paper))
 
 PdfPreview.of(document).show(ownerWindow);   // أو مستند جاهز على ورقته
 PdfPreview.of(batch).show(ownerWindow);      // أو دفعة: كل مستنداتها، وبتتطبع مهمة واحدة
+PdfPreview.ofPdf(pdfBytes).show(ownerWindow);                  // أي PDF جاهز: تقرير Jasper، ملف (v2.11.0)
+PdfPreview.ofPdf(paper -> jasperPdfOn(paper)).show(ownerWindow);  // أو مبني على الورقة اللي المستخدم يختارها
 PdfPreview.ofBatch(paper -> PdfBatch.of(statementsOn(paper)))   // دفعة بتتبني على الورقة اللي المستخدم يختارها
         .papers(Paper.A4, Paper.A5)
         .show(ownerWindow);
@@ -616,6 +618,9 @@ PdfPreview.ofBatch(paper -> PdfBatch.of(statementsOn(paper)))   // دفعة بت
 
 </div>
 
+- الـ PDF الجاهز بيفتح على ورقة أول صفحة فيه (A4 أو A5 بالطول أو بالعرض لو هي). وتقرير Jasper البرنامج ملاه بنفسه
+  بيبقى بايتات PDF بـ `JasperReportProvider.pdf(jasperPrint)` في `smart-report-jasper`.
+- النافذة بتاخد أيقونات النافذة الأم، فبتظهر بأيقونة البرنامج في شريط المهام.
 - النافذة بتعرض الصفحات بنفس الرسم اللي الطابعة بتستلمه، وما بتحجزش البرنامج.
 - الدفعة بتتعرض وتتطبع زي مستند واحد: عدّاد الصفحات في النافذة على الدفعة كلها، وكل صفحة مطبوعة برقمها في
   مستندها. الدفعة اللي مستنداتها على ورق مختلف النافذة بتقول إنها ما اتبنتش.

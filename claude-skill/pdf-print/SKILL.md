@@ -292,7 +292,9 @@ print.setOnAction(event -> {
 ```
 
 The window shows the pages as the printer will receive them, lets the person choose the printer, the paper
-and the copies, and has "طباعة" and "حفظ PDF". It does not block the program.
+and the copies, and has "طباعة" and "حفظ PDF". It does not block the program. For a PDF that did not come from
+`PdfDocument` (a Jasper report, a file) use `PdfPreview.ofPdf(bytes)` or `ofPdf(paper -> bytes)` (from `v2.11.0`);
+a filled `JasperPrint` becomes bytes with `JasperReportProvider.pdf(print)`. Do not write a second preview window.
 
 **Several kinds of paper, each with its own settings** (from `v2.11.0`): do not write a settings table or a
 preferences class. Declare the kinds with `PrintSettings.of(store, roles, DocumentKind.of(key, label, defaults,
