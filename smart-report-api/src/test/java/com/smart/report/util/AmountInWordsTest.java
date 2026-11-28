@@ -2,6 +2,7 @@ package com.smart.report.util;
 
 import com.smart.report.util.AmountInWords.Currency;
 import com.smart.report.util.AmountInWords.EnglishCurrency;
+import com.smart.report.util.AmountInWords.Negative;
 import com.smart.report.util.AmountInWords.Noun;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -11,6 +12,7 @@ import java.math.BigDecimal;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -171,11 +173,159 @@ class AmountInWordsTest {
 
     /** خانات الكسر في كل عملة جاهزة زي ISO 4217 (جدول java.util.Currency). */
     @ParameterizedTest
-    @CsvSource({"EGP", "SAR", "AED", "KWD", "USD", "QAR", "BHD", "OMR", "JOD"})
+    @CsvSource({"EGP", "SAR", "AED", "KWD", "USD", "QAR", "BHD", "OMR", "JOD", "SDG", "GBP", "YER", "MAD", "IQD",
+            "LYD", "TND", "DZD", "SYP", "LBP", "TRY", "EUR"})
     void readyCurrenciesHaveTheirIsoFractionDigits(String code) {
         int iso = java.util.Currency.getInstance(code).getDefaultFractionDigits();
-        assertEquals(iso, ARABIC.get(code).fractionDigits());
-        assertEquals(iso, ENGLISH.get(code).fractionDigits());
+        assertEquals(iso, Currency.forCode(code).orElseThrow().fractionDigits());
+        assertEquals(iso, EnglishCurrency.forCode(code).orElseThrow().fractionDigits());
+    }
+
+    /** البحث بالكود: الجاهزة ترجع نفسها، والكود المجهول فاضي، والحروف الصغيرة والمسافات مقبولة. */
+    @Test
+    void currenciesAreFoundByTheirIsoCode() {
+        ARABIC.forEach((code, currency) -> assertSame(currency, Currency.forCode(code).orElseThrow()));
+        ENGLISH.forEach((code, currency) -> assertSame(currency, EnglishCurrency.forCode(code).orElseThrow()));
+        assertSame(Currency.EUR, Currency.forCode(" eur ").orElseThrow());
+        assertSame(EnglishCurrency.TRY, EnglishCurrency.forCode("try").orElseThrow());
+        assertTrue(Currency.forCode("XYZ").isEmpty());
+        assertTrue(Currency.forCode("").isEmpty());
+        assertTrue(Currency.forCode(null).isEmpty());
+        assertTrue(EnglishCurrency.forCode("JPY").isEmpty());
+        assertTrue(EnglishCurrency.forCode(null).isEmpty());
+    }
+
+    /** العملات المضافة: واحد، اثنان، الجمع، المنصوب، والكسر. */
+    @ParameterizedTest
+    @CsvSource({
+            "SDG, 1,        جنيه واحد",
+            "SDG, 2,        جنيهان",
+            "SDG, 5,        خمسة جنيهات",
+            "SDG, 0.25,     خمسة وعشرون قرشًا",
+            "GBP, 1,        جنيه واحد",
+            "GBP, 2.02,     جنيهان وبنسان",
+            "GBP, 0.07,     سبعة بنسات",
+            "GBP, 12.50,    اثنا عشر جنيهًا وخمسون بنسًا",
+            "YER, 1,        ريال واحد",
+            "YER, 2,        ريالان",
+            "YER, 300,      ثلاثمائة ريال",
+            "YER, 0.05,     خمسة فلوس",
+            "MAD, 1,        درهم واحد",
+            "MAD, 2,        درهمان",
+            "MAD, 4,        أربعة دراهم",
+            "MAD, 0.01,     سنتيم واحد",
+            "MAD, 0.20,     عشرون سنتيمًا",
+            "MAD, 0.03,     ثلاثة سنتيمات",
+            "IQD, 1,        دينار واحد",
+            "IQD, 2,        ديناران",
+            "IQD, 25000,    خمسة وعشرون ألف دينار",
+            "IQD, 0.250,    مائتان وخمسون فلسًا",
+            "LYD, 1,        دينار واحد",
+            "LYD, 3.500,    ثلاثة دنانير وخمسمائة درهم",
+            "LYD, 0.002,    درهمان",
+            "LYD, 0.015,    خمسة عشر درهمًا",
+            "TND, 1,        دينار واحد",
+            "TND, 2.001,    ديناران ومليم واحد",
+            "TND, 0.005,    خمسة مليمات",
+            "TND, 0.750,    سبعمائة وخمسون مليمًا",
+            "DZD, 1,        دينار واحد",
+            "DZD, 10,       عشرة دنانير",
+            "DZD, 0.02,     سنتيمان",
+            "DZD, 0.50,     خمسون سنتيمًا",
+            "SYP, 1,        ليرة واحدة",
+            "SYP, 2,        ليرتان",
+            "SYP, 3,        ثلاث ليرات",
+            "SYP, 11,       إحدى عشرة ليرةً",
+            "SYP, 21,       إحدى وعشرون ليرةً",
+            "SYP, 1000,     ألف ليرة",
+            "SYP, 0.50,     خمسون قرشًا",
+            "LBP, 1,        ليرة واحدة",
+            "LBP, 2,        ليرتان",
+            "LBP, 101,      مائة وواحدة ليرة",
+            "LBP, 1500000,  مليون وخمسمائة ألف ليرة",
+            "TRY, 1,        ليرة واحدة",
+            "TRY, 2.02,     ليرتان وقرشان",
+            "TRY, 12,       اثنتا عشرة ليرةً",
+            "TRY, 0.05,     خمسة قروش",
+            "EUR, 1,        يورو واحد",
+            "EUR, 2,        يوروان",
+            "EUR, 3,        ثلاثة يوروهات",
+            "EUR, 11,       أحد عشر يورو",
+            "EUR, 100,      مائة يورو",
+            "EUR, 0.99,     تسعة وتسعون سنتًا",
+            "EUR, 0.05,     خمسة سنتات",
+    })
+    void addedCurrencies(String code, String amount, String words) {
+        assertEquals(words, AmountInWords.arabicWords(new BigDecimal(amount), Currency.forCode(code).orElseThrow()));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "SDG, 1.01,     one Sudanese pound and one piastre",
+            "SDG, 2,        two Sudanese pounds",
+            "GBP, 1.01,     one pound sterling and one penny",
+            "GBP, 2.50,     two pounds sterling and fifty pence",
+            "YER, 1,        one Yemeni rial",
+            "YER, 0.10,     ten fils",
+            "MAD, 1.01,     one Moroccan dirham and one centime",
+            "MAD, 0.20,     twenty centimes",
+            "IQD, 2.250,    two Iraqi dinars and two hundred fifty fils",
+            "LYD, 1.001,    one Libyan dinar and one dirham",
+            "LYD, 0.500,    five hundred dirhams",
+            "TND, 1.001,    one Tunisian dinar and one millime",
+            "TND, 0.750,    seven hundred fifty millimes",
+            "DZD, 3.01,     three Algerian dinars and one centime",
+            "SYP, 1,        one Syrian pound",
+            "SYP, 0.50,     fifty piastres",
+            "LBP, 2,        two Lebanese pounds",
+            "TRY, 1.01,     one Turkish lira and one kuruş",
+            "TRY, 5.50,     five Turkish lira and fifty kuruş",
+            "EUR, 1.01,     one euro and one cent",
+            "EUR, 2.50,     two euros and fifty cents",
+    })
+    void addedCurrenciesInEnglish(String code, String amount, String words) {
+        assertEquals(words,
+                AmountInWords.englishWords(new BigDecimal(amount), EnglishCurrency.forCode(code).orElseThrow()));
+    }
+
+    /** المبلغ السالب: حروف القيمة المطلقة، والكلمة قبل النص كله أو بعده. */
+    @Test
+    void negativeAmountsTakeTheProgramsWord() {
+        assertEquals("فقط مائة وخمسون جنيهًا لا غير (دائن)",
+                AmountInWords.arabic(new BigDecimal("-150"), Currency.EGP, Negative.suffix("(دائن)")));
+        assertEquals("سالب مائة وخمسون جنيهًا",
+                AmountInWords.arabicWords(new BigDecimal("-150"), Currency.EGP, Negative.prefix("سالب")));
+        assertEquals("Minus one hundred US dollars and one cent only",
+                AmountInWords.english(new BigDecimal("-100.01"), EnglishCurrency.USD, Negative.prefix("minus")));
+        assertEquals("Seven Egyptian pounds only (credit)",
+                AmountInWords.english(new BigDecimal("-7"), EnglishCurrency.EGP, Negative.suffix(" (credit) ")));
+        assertEquals("[ seven Egyptian pounds ]", AmountInWords.englishWords(new BigDecimal("-7"),
+                EnglishCurrency.EGP, new Negative("[", "]")));
+    }
+
+    /** الموجب والصفر بيتكتبوا زي من غير {@link Negative}؛ والسالب اللي بيتقرّب لصفر من غير الكلمة. */
+    @Test
+    void negativeWordOnlyForAmountsBelowZero() {
+        Negative credit = Negative.suffix("(دائن)");
+        assertEquals(AmountInWords.arabic(new BigDecimal("7200"), Currency.EGP),
+                AmountInWords.arabic(new BigDecimal("7200"), Currency.EGP, credit));
+        assertEquals("صفر جنيه", AmountInWords.arabicWords(BigDecimal.ZERO, Currency.EGP, credit));
+        assertEquals("صفر جنيه", AmountInWords.arabicWords(new BigDecimal("-0.004"), Currency.EGP, credit));
+        assertEquals("قرش واحد (دائن)", AmountInWords.arabicWords(new BigDecimal("-0.005"), Currency.EGP, credit));
+        assertEquals("zero Egyptian pounds", AmountInWords.englishWords(new BigDecimal("-0.00"),
+                EnglishCurrency.EGP, Negative.prefix("minus")));
+    }
+
+    @Test
+    void invalidNegativeOptionIsRejected() {
+        assertThrows(IllegalArgumentException.class, () -> new Negative(null, " "));
+        assertThrows(IllegalArgumentException.class, () -> Negative.prefix(""));
+        assertThrows(NullPointerException.class,
+                () -> AmountInWords.arabic(new BigDecimal("-1"), Currency.EGP, null));
+        assertThrows(NullPointerException.class,
+                () -> AmountInWords.arabic(null, Currency.EGP, Negative.prefix("سالب")));
+        assertThrows(IllegalArgumentException.class, () -> AmountInWords.arabicWords(
+                new BigDecimal("-1000000000000"), Currency.EGP, Negative.prefix("سالب")), "الحد بيتطبق على السالب");
     }
 
     /** العملات الجديدة: الريال القطري ودرهمه، والدينار البحريني والأردني وفلسهم (ثلاث خانات). */

@@ -168,11 +168,15 @@ What each part is:
 - The amount in words, when the old paper had it ("فقط ... لا غير"):
   `document.text(AmountInWords.arabic(invoice.net(), AmountInWords.Currency.EGP))` (from
   `com.smart.report.util`, in `smart-report-api`, which `smart-report-pdf` brings). Ready currencies: `EGP`,
-  `SAR`, `AED`, `KWD`, `USD`, and from `v2.7.1` `QAR`, `BHD`, `OMR`, `JOD`; another is a
+  `SAR`, `AED`, `KWD`, `USD`, from `v2.7.1` `QAR`, `BHD`, `OMR`, `JOD`, and from `v2.11.0` `SDG`, `GBP`, `YER`,
+  `MAD`, `IQD`, `LYD`, `TND`, `DZD`, `SYP`, `LBP`, `TRY`, `EUR`, also by code with `Currency.forCode(iso)` (an
+  `Optional`, empty for an unknown code: print no line then); another is a
   `new AmountInWords.Currency(...)` with its noun forms (see the README). `arabicWords` gives the words without
   "فقط ... لا غير". For a bilingual invoice, `AmountInWords.english(amount, AmountInWords.EnglishCurrency.EGP)`
   gives "Seven thousand two hundred Egyptian pounds only" (from `v2.7.1`). Pass the `BigDecimal` itself, not a
-  formatted string; a negative amount is rejected, so write a refund's words from its absolute value.
+  formatted string. A negative amount is rejected unless a `Negative` is passed (from `v2.11.0`):
+  `AmountInWords.arabic(balance, Currency.EGP, Negative.suffix("(دائن)"))` writes the absolute value with the word
+  after the whole text.
 - `qrCode(text)` - a QR code, 30 mm and centred; `qrCode(text, Align.START)` puts it at the start of the line
   (right on an Arabic page), and `qrCode(text, sizeMm, align)` sets its side in millimetres. It is drawn as
   vector squares with its empty border, never split across pages, and shrinks if the line is too narrow. Arabic

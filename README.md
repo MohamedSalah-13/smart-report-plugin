@@ -133,13 +133,26 @@ AmountInWords.english(new BigDecimal("7200.50"), AmountInWords.EnglishCurrency.E
 - The counted noun follows the number: `جنيه واحد`, `جنيهان`, `ثلاثة جنيهات`, `أحد عشر جنيهًا`, `مائة جنيه`, `مائتا جنيه`, `ألفا جنيه`.
 - Numbers agree with the noun's gender: `ثلاثة جنيهات` but `ثلاث هللات`, and the Omani baisa is feminine too:
   `ثلاث بيسات`, `إحدى عشرة بيسةً`.
-- Ready currencies: `EGP`, `SAR`, `AED`, `KWD`, `USD`, `QAR`, `BHD`, `OMR` and `JOD`. The fraction digits follow
-  ISO 4217: 3 for the Kuwaiti, Bahraini and Jordanian dinar (fils) and the Omani rial (baisa), 2 for the others.
-  Any other is a `new Currency(...)` with its noun forms.
+- Ready currencies: `EGP`, `SAR`, `AED`, `KWD`, `USD`, `QAR`, `BHD`, `OMR` and `JOD`, and from v2.11.0 `SDG`,
+  `GBP`, `YER`, `MAD`, `IQD`, `LYD`, `TND`, `DZD`, `SYP`, `LBP`, `TRY` and `EUR`. The fraction digits follow
+  ISO 4217: 3 for the Kuwaiti, Bahraini, Jordanian, Iraqi, Libyan and Tunisian dinar and the Omani rial, 2 for the
+  others. The lira is feminine: `ثلاث ليرات`, `إحدى عشرة ليرةً`. Any other is a `new Currency(...)` with its noun forms.
+- By code (v2.11.0): `Currency.forCode("EGP")` and `EnglishCurrency.forCode("EGP")` return an `Optional`, empty for
+  a code they do not know, so a program prints no line rather than a wrong one.
 - English: `english(...)` (with «only») and `englishWords(...)` take an `EnglishCurrency` with the same codes. The
   numbers are written as on invoices and cheques (`two hundred fifty`, `thirty-four`), with «and» only before the
   fraction. Any other currency is `new EnglishCurrency("Libyan dinar", "Libyan dinars", "dirham", "dirhams", 3)`.
-- The amount is rounded to the currency's digits (half up). Negative amounts and amounts of a trillion or more are rejected.
+- The amount is rounded to the currency's digits (half up). Amounts of a trillion or more are rejected, and so is a
+  negative amount, unless a `Negative` says how to write it (v2.11.0): the words of its absolute value, with your word
+  before or after the whole text.
+
+```java
+AmountInWords.arabic(new BigDecimal("-150"), AmountInWords.Currency.EGP, AmountInWords.Negative.suffix("(دائن)"));
+// فقط مائة وخمسون جنيهًا لا غير (دائن)
+AmountInWords.english(new BigDecimal("-150"), AmountInWords.EnglishCurrency.EGP, AmountInWords.Negative.prefix("minus"));
+// Minus one hundred fifty Egyptian pounds only
+```
+
 - It lives in `smart-report-api`, so a Jasper or Excel report can use it too (as a parameter, for example).
 
 ### On every page
