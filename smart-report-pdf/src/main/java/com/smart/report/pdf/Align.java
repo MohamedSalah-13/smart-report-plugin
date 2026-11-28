@@ -1,13 +1,14 @@
 package com.smart.report.pdf;
 
 /**
- * محاذاة النص داخل خليته، منسوبة لاتجاه المستند لا لليمين واليسار: {@link #START} هي اليمين في
- * مستند عربي واليسار في مستند إنجليزي، فنفس التعريف يشتغل في الاتجاهين.
+ * Text alignment inside its cell, relative to the document direction rather than left and right:
+ * {@link #START} is the right side in an Arabic document and the left side in an English one, so the
+ * same definition works in both directions.
  */
 public enum Align {
-    /** الجهة اللي السطر بيبدأ منها. */
+    /** The side where the line starts. */
     START,
     CENTER,
-    /** الجهة اللي السطر بينتهي عندها — مكان عمود الأرقام لو عايزها تحت بعض. */
+    /** The side where the line ends. Use it for a column of numbers so the numbers line up. */
     END
 }

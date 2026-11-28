@@ -6,14 +6,14 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * جدول داخل {@link PdfDocument}: أعمدة بعناوينها وأوزانها، صفوف، وصفوف إجمالي.
+ * A table inside a {@link PdfDocument}: columns with their headers and weights, rows, and totals rows.
  *
- * <p>الأعمدة والخلايا بتتكتب <b>بالترتيب المنطقي</b> — أول عمود هو اللي القارئ بيبدأ بيه — والمستند
- * هو اللي بيحط أول عمود على اليمين في الصفحة العربية وعلى اليسار في الإنجليزية. رأس الجدول بيتكرر
- * في أول كل صفحة يمتد عليها.</p>
+ * <p>Columns and cells are written <b>in logical order</b> (the first column is the one the reader starts
+ * with), and the document places the first column on the right of an Arabic page and on the left of an
+ * English one. The table header repeats at the top of every page the table spans.</p>
  *
- * <p>وزن العمود نسبة من عرض الجدول، لكن أي عمود ما ينزلش عن عرض أطول كلمة فيه: الكلمة ما تتكسرش
- * والنص الأطول من عرض العمود بيلتف على أكتر من سطر.</p>
+ * <p>A column weight is a share of the table width, but no column gets narrower than its longest word: a word
+ * is never broken, and text longer than the column width wraps onto more than one line.</p>
  */
 public final class PdfTable {
 
@@ -21,24 +21,28 @@ public final class PdfTable {
     }
 
     /**
-     * @param withPrevious الصف بيتنقل مع اللي قبله لصفحة جديدة: الإجمالي الفرعي مع آخر صف في مجموعته
-     * @param grand        الإجمالي الكلي تحت إجماليات فرعية، بشكل يفرّقه عنها
+     * @param withPrevious the row moves to a new page together with the row before it: a subtotal with the last
+     *                     row of its group
+     * @param grand        the grand total under subtotals, styled so it stands apart from them
      */
-    /** @param joinNext الصف ده واللي بعده واحد: من غير خط بينهم، وبيتنقلوا مع بعض ({@link #rowJoinedToNext}) */
+    /**
+     * @param joinNext this row and the next one are one unit: no line between them, and they move together
+     *                 ({@link #rowJoinedToNext})
+     */
     record Row(int index, String[] cells, boolean total, boolean withPrevious, boolean grand, boolean joinNext) {
     }
 
     /**
-     * قاعدة شكل الخلايا: بتتسأل لكل خلية في صفوف البيانات والإجمالي (مش الرأس)، وبترجع {@link CellStyle#PLAIN}
-     * للخلية اللي تفضل زي صفها.
+     * A cell style rule. It is called for every cell in the data and totals rows (not the header), and returns
+     * {@link CellStyle#PLAIN} for a cell that keeps its row style.
      */
     @FunctionalInterface
     public interface CellRule {
 
         /**
-         * @param row    رقم الصف من صفر بترتيب الإضافة، صفوف الإجمالي معاهم
-         * @param column رقم العمود من صفر بالترتيب المنطقي (أول عمود اتضاف)
-         * @param text   نص الخلية زي ما اتكتب
+         * @param row    the zero-based row number in the order the rows were added, totals rows included
+         * @param column the zero-based column number in logical order (the first column added)
+         * @param text   the cell text as written
          */
         CellStyle style(int row, int column, String text);
     }
@@ -56,19 +60,20 @@ public final class PdfTable {
         return new PdfTable();
     }
 
-    /** عمود بوزن 1 ومحاذاة لبداية السطر. */
+    /** A column with weight 1, aligned to the start of the line. */
     public PdfTable column(String header) {
         return column(header, 1f, Align.START);
     }
 
-    /** عمود بمحاذاة لبداية السطر. */
+    /** A column aligned to the start of the line. */
     public PdfTable column(String header, float weight) {
         return column(header, weight, Align.START);
     }
 
     /**
-     * @param weight نصيب العمود من عرض الجدول منسوبًا لباقي الأعمدة (22 و14 و64 مثلًا)
-     * @param align  محاذاة خلايا العمود؛ رأس العمود في المنتصف دائمًا
+     * @param weight the column's share of the table width, relative to the other columns (22, 14 and 64, for
+     *               example)
+     * @param align  the alignment of the column cells; the column header is always centred
      */
     public PdfTable column(String header, float weight, Align align) {
         if (!(weight > 0)) {
@@ -81,13 +86,19 @@ public final class PdfTable {
         return this;
     }
 
-    /** صف بيانات: خلية لكل عمود بالترتيب. الصف الأقصر بيتكمّل بخلايا فاضية، و{@code null} خلية فاضية. */
+    /**
+     * A data row: one cell per column, in order. A shorter row is filled up with empty cells, and {@code null} is
+     * an empty cell.
+     */
     public PdfTable row(String... cells) {
         rows.add(new Row(rows.size(), fitted(cells), false, joined(), false, false));
         return this;
     }
 
-    /** صف لكل عنصر، و{@code cells} بتحوّل العنصر لخلاياه — مكان تنسيق المبالغ والتواريخ. */
+    /**
+     * One row per item; {@code cells} turns the item into its cells. This is where amounts and dates are
+     * formatted.
+     */
     public <T> PdfTable rows(Iterable<T> items, Function<? super T, String[]> cells) {
         for (T item : items) {
             row(cells.apply(item));
@@ -95,15 +106,15 @@ public final class PdfTable {
         return this;
     }
 
-    /** صف إجمالي: بخط عريض على خلفية مميّزة، وخلاياه تحت أعمدتها بالظبط. */
+    /** A totals row: bold text on a distinct background, with its cells exactly under their columns. */
     public PdfTable totals(String... cells) {
         rows.add(new Row(rows.size(), fitted(cells), true, joined(), false, false));
         return this;
     }
 
     /**
-     * صف إجمالي فرعي تحت مجموعة صفوف: نفس شكل {@link #totals}، بس ما بينزلش لوحده في أول صفحة جديدة — لو ما
-     * كفّاهوش الباقي، آخر صف قبله بيتنقل معاه.
+     * A subtotal row under a group of rows. It looks like {@link #totals}, but it never lands alone at the top of
+     * a new page: if the rest of the page has no room for it, the last row before it moves with it.
      */
     PdfTable subtotal(String... cells) {
         if (rows.isEmpty()) {
@@ -114,8 +125,9 @@ public final class PdfTable {
     }
 
     /**
-     * الإجمالي الكلي لجدول فيه إجماليات فرعية ({@link #subtotal}): نفس شكل {@link #totals} وفوقه خط سميك وتحته
-     * خطين زي إجمالي الدفاتر، فما يتلخبطش مع آخر إجمالي فرعي اللي فوقه على طول.
+     * The grand total of a table that has subtotals ({@link #subtotal}). It looks like {@link #totals}, with a
+     * thick line above it and a double line below it, as in an accounting ledger, so it is not confused with the
+     * last subtotal right above it.
      */
     PdfTable grandTotal(String... cells) {
         rows.add(new Row(rows.size(), fitted(cells), true, joined(), true, false));
@@ -123,8 +135,9 @@ public final class PdfTable {
     }
 
     /**
-     * شكل لخلايا بعينها: {@code (row, column, text) -> column == 2 && text.startsWith("-") ? CellStyle.color(0xC62828)
-     * : CellStyle.PLAIN}. أكتر من قاعدة بيتجمعوا بالترتيب، واللي بعدها بتغلب في اللي حددته.
+     * A style for specific cells: {@code (row, column, text) -> column == 2 && text.startsWith("-")
+     * ? CellStyle.color(0xC62828) : CellStyle.PLAIN}. Several rules are combined in order, and a later rule wins
+     * for whatever it sets.
      */
     public PdfTable cellStyle(CellRule rule) {
         rules.add(Objects.requireNonNull(rule, "rule"));
@@ -132,9 +145,9 @@ public final class PdfTable {
     }
 
     /**
-     * المبالغ السالبة بالأحمر ({@link CellStyle#RED}) في الأعمدة دي (من صفر بالترتيب المنطقي)، أو في كل الأعمدة
-     * من غيرها. السالب: رقم في أوله {@code -} أو {@code −}، أو في آخره {@code -} ({@code 1,200.00-})، أو بين قوسين
-     * ({@code (1,200.00)}) زي الدفاتر.
+     * Negative amounts in red ({@link CellStyle#RED}) in these columns (zero-based, in logical order), or in all
+     * columns when none are given. A negative is a number that starts with {@code -} or {@code −}, ends with
+     * {@code -} ({@code 1,200.00-}), or is in brackets ({@code (1,200.00)}) as in accounting ledgers.
      */
     public PdfTable negativeInRed(int... columns) {
         int[] chosen = columns == null ? new int[0] : columns.clone();
@@ -147,7 +160,7 @@ public final class PdfTable {
         });
     }
 
-    /** نص رقم سالب: {@code -5}، {@code −5}، {@code 5-}، {@code (5)}، بأرقام لاتيني أو عربي. */
+    /** The text of a negative number: {@code -5}, {@code −5}, {@code 5-}, {@code (5)}, with Latin or Arabic digits. */
     static boolean negative(String text) {
         if (text == null) {
             return false;
@@ -161,7 +174,7 @@ public final class PdfTable {
         return first == '-' || first == '\u2212' || last == '-' || last == '\u2212' || first == '(' && last == ')';
     }
 
-    /** شكل الخلية من القواعد كلها. */
+    /** The cell style from all the rules. */
     CellStyle styleOf(Row row, int column) {
         CellStyle style = CellStyle.PLAIN;
         for (CellRule rule : rules) {
@@ -171,26 +184,26 @@ public final class PdfTable {
     }
 
     /**
-     * صف من غير خط تحته، والصف اللي بعده معاه دايمًا في نفس الصفحة: اسم الصنف في سطر لوحده في الإيصال، وتحته الكمية
-     * والسعر والإجمالي.
+     * A row with no line under it, always on the same page as the row after it. For example, on a receipt the
+     * item name is on its own line, with the quantity, price and total under it.
      */
     PdfTable rowJoinedToNext(String... cells) {
         rows.add(new Row(rows.size(), fitted(cells), false, joined(), false, true));
         return this;
     }
 
-    /** الصف الجاي بيتنقل مع اللي قبله لو اللي قبله {@link #rowJoinedToNext}. */
+    /** The next row moves with the row before it if that row is a {@link #rowJoinedToNext}. */
     private boolean joined() {
         return !rows.isEmpty() && rows.get(rows.size() - 1).joinNext();
     }
 
-    /** جدول بلا رأس — للملخصات (بيان وقيمته) مثلًا. */
+    /** A table with no header, for summaries (a label and its value), for example. */
     public PdfTable withoutHeader() {
         this.headerShown = false;
         return this;
     }
 
-    /** يكبّر خط صفوف الإجمالي بهذا القدر من النقط — للرقم اللي القارئ بيدوّر عليه. */
+    /** Makes the totals row font larger by this many points, for the number the reader is looking for. */
     PdfTable totalSizeBoost(float points) {
         this.totalSizeBoost = points;
         return this;

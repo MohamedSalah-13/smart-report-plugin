@@ -9,22 +9,23 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * يحوّل نصًا عربيًا مخزَّنًا بالترتيب المنطقي إلى الصورة الجاهزة للرسم في PDF:
+ * Turns Arabic text stored in logical order into the form that is ready to draw in a PDF:
  * <ol>
- *     <li><b>التشكيل (shaping):</b> استبدال كل حرف بصورته السياقية (منفصلة / أولية / وسطية / نهائية)
- *         من كتلة Arabic Presentation Forms-B، مع دمج لام-ألف في حرف واحد.</li>
- *     <li><b>ترتيب العرض (bidi):</b> إعادة ترتيب المقاطع من اليمين لليسار عبر {@link Bidi} من الـ JDK،
- *         مع عكس المقاطع العربية ومرآة الأقواس.</li>
+ *     <li><b>Shaping:</b> replaces each letter with its contextual form (isolated / initial / medial / final)
+ *         from the Arabic Presentation Forms-B block, and merges lam-alef into one character.</li>
+ *     <li><b>Display order (bidi):</b> reorders the right-to-left runs with the JDK {@link Bidi}, reversing the
+ *         Arabic runs and mirroring the brackets.</li>
  * </ol>
  *
- * <p>الحاجة لهذا الصنف أن PDFBox يرسم الأحرف كما تُسلَّم له بالضبط ومن اليسار لليمين، فبدون الخطوتين
- * دول العربي بيطلع حروفًا مقطّعة ومقلوبة حتى لو الخط بيحتوي على الحروف.</p>
+ * <p>This class is needed because PDFBox draws the characters exactly as it receives them, from left to right.
+ * Without these two steps, Arabic comes out as separate, reversed letters even when the font contains the
+ * letters.</p>
  *
- * <p>{@link #forDisplay(String)} بيرتّب نصًا واحدًا باتجاهه هو. {@link #forDisplay(String, String, boolean)}
- * هو اللي المستندات بتستخدمه: سطر من فقرة، في صفحة ليها اتجاه، مع عزل الأرقام والتواريخ عشان
- * تتقرا زي ما اتكتبت.</p>
+ * <p>{@link #forDisplay(String)} orders a single text in its own direction.
+ * {@link #forDisplay(String, String, boolean)} is the one the documents use: a line of a paragraph, on a page
+ * with a direction, with numbers and dates isolated so they read as they were written.</p>
  *
- * <p>الصنف بلا حالة (stateless) وآمن للاستخدام من أكثر من thread.</p>
+ * <p>The class is stateless and safe to use from more than one thread.</p>
  */
 public final class ArabicTextShaper {
 
@@ -36,9 +37,9 @@ public final class ArabicTextShaper {
     private static final char LAM = 'ل';          // ل
 
     /**
-     * لكل حرف من {@code ء}..{@code ي}: أول صورة له في كتلة Presentation Forms-B.
-     * الصور مرتّبة داخل الكتلة هكذا: منفصلة، نهائية، ثم (أولية، وسطية) للحروف ثنائية الاتصال.
-     * القيمة 0 تعني موضعًا غير مستخدم في اليونيكود.
+     * For each letter from {@code ء} to {@code ي}: its first form in the Presentation Forms-B block.
+     * Inside the block the forms are ordered: isolated, final, then (initial, medial) for dual-joining letters.
+     * The value 0 means a code point that Unicode does not use.
      */
     private static final char[] FORM_BASE = {
             /* 0621 ء */ 'ﺀ', /* 0622 آ */ 'ﺁ', /* 0623 أ */ 'ﺃ', /* 0624 ؤ */ 'ﺅ',
@@ -55,7 +56,10 @@ public final class ArabicTextShaper {
             /* 0649 ى */ 'ﻯ', /* 064A ي */ 'ﻱ'
     };
 
-    /** عدد الصور لكل حرف: 4 = ثنائي الاتصال، 2 = يتصل بما قبله فقط، 1 = منفصل دائمًا، 0 = تطويل/غير مستخدم. */
+    /**
+     * The number of forms per letter: 4 = dual-joining, 2 = joins the previous letter only, 1 = always isolated,
+     * 0 = tatweel/unused.
+     */
     private static final byte[] FORM_COUNT = {
             /* ء */ 1, /* آ */ 2, /* أ */ 2, /* ؤ */ 2,
             /* إ */ 2, /* ئ */ 4, /* ا */ 2, /* ب */ 4,
@@ -72,9 +76,9 @@ public final class ArabicTextShaper {
     };
 
     /**
-     * حروف خارج {@code ء..ي} بتتكتب في أسماء وكلمات عربية (ڤيلا، چيهان، جوجل بـ گ) وفي الفارسية والأردية.
-     * صورها في كتلة Presentation Forms-A، بنفس الترتيب: منفصلة، نهائية، أولية، وسطية. من غيرها الحرف
-     * كان بيترسم منفصلًا ويقطع الكلمة.
+     * Letters outside {@code ء..ي} that appear in Arabic names and words ("ڤيلا", "چيهان", "جوجل" written with
+     * "گ") and in Persian and Urdu. Their forms are in the Presentation Forms-A block, in the same order:
+     * isolated, final, initial, medial. Without them the letter was drawn isolated and broke the word.
      */
     private static final String EXTRA_LETTERS =
             "ٱٹپچڈڑژڤکگھہیے";
@@ -95,29 +99,34 @@ public final class ArabicTextShaper {
     private static final int MEDIAL = 3;
 
     /**
-     * رقم بإشارته وفواصله: مبلغ، تاريخ، وقت، نسبة. لازم ينتهي برقم أو علامة نسبة، فالنقطة اللي في
-     * آخر الجملة تفضل للجملة. ومش ملاصق لحرف لاتيني: أرقام كود زي "NC7013" جزء من كلمة لاتينية
-     * الـ bidi بيسيبها سليمة، وعزلها لوحدها كان بيطبعها "7013NC".
+     * A number with its sign and separators: an amount, a date, a time, a percentage. It must end with a digit
+     * or a percent sign, so the full stop at the end of a sentence stays with the sentence. It must not touch a
+     * Latin letter: the digits of a code such as "NC7013" are part of a Latin word that bidi leaves intact, and
+     * isolating them on their own printed "7013NC".
      */
     private static final Pattern NUMBER =
             Pattern.compile("(?<![A-Za-z\\d])[-+]?\\d(?:[\\d,.:/\\-]*\\d)?%?(?![A-Za-z\\d])");
 
     /**
-     * رقم تليفون مكتوب مجموعات بينها مسافات أو شرطات ("0100 000 0000"، "+20 100 000 0000"): بيبدأ
-     * بصفر أو +، مجموعتين على الأقل، وسبعة أرقام على الأقل. بقواعد Unicode كل مجموعة رقم لوحده،
-     * فالسطر العربي بيرصّها من اليمين لليسار والتليفون يتقرا "0000 000 0100"؛ هنا بيتعزل كله قطعة واحدة.
+     * A phone number written in groups separated by spaces or hyphens ("0100 000 0000", "+20 100 000 0000"). It
+     * starts with zero or +, has at least two groups and at least seven digits. Under the Unicode rules each group
+     * is a separate number, so an Arabic line lays the groups out from right to left and the phone reads
+     * "0000 000 0100". Here the whole number is isolated as one piece.
      */
     private static final Pattern PHONE = Pattern.compile(
             "(?<![A-Za-z\\d+])(?=[+0])(?=\\+?(?:\\d[ -]?){7,})\\+?\\d+(?:[ -]\\d+)+(?![A-Za-z\\d])");
 
-    /** شرطة بين رقمين. بعد حرف عربي كل رقم بيتعزل لوحده ("مقاس 20-24-28" قائمة بتتقرا باتجاه السطر). */
+    /**
+     * A hyphen between two digits. After an Arabic letter each number is isolated on its own ("مقاس 20-24-28" is a
+     * list that reads in the line direction).
+     */
     private static final Pattern HYPHEN_BETWEEN_DIGITS = Pattern.compile("(?<=\\d)-(?=\\d)");
 
-    /** تاريخ حقيقي (سنة-شهر أو سنة-شهر-يوم) بيفضل قطعة واحدة حتى بعد كلمة عربية: "من 2025-10-01". */
+    /** A real date (year-month or year-month-day) stays one piece even after an Arabic word: "من 2025-10-01". */
     private static final Pattern DATE =
             Pattern.compile("(?:19|20)\\d{2}-(?:0[1-9]|1[0-2])(?:-(?:0[1-9]|[12]\\d|3[01]))?");
 
-    /** بداية مقطع لاتيني: حرف لاتيني مش مسبوق بحرف لاتيني أو رقم. */
+    /** The start of a Latin run: a Latin letter not preceded by a Latin letter or a digit. */
     private static final Pattern LATIN_RUN_START = Pattern.compile("(?<![A-Za-z\\d])[A-Za-z]");
 
     // مكتوبين كـ escapes: الاتنين غير مرئيين، والحرف الحرفي بيضيع مع أول تعديل.
@@ -125,22 +134,26 @@ public final class ArabicTextShaper {
     private static final char POP_DIRECTIONAL_ISOLATE = '\u2069';
 
     /**
-     * سطر واحد من فقرة، جاهزًا للرسم في صفحة اتجاهها {@code rightToLeft}.
+     * One line of a paragraph, ready to draw on a page whose direction is {@code rightToLeft}.
      *
-     * <p><b>الأرقام بتتعزل قبل الـ bidi، وده الجزء السهل كسره.</b> بقواعد Unicode، السالب اللي مفيش
-     * جنبه عربي بياخد اتجاه الفقرة ويروح آخر الرقم ({@code 11,995.00-})، والتاريخ بعد كلمة عربية
-     * بيتقلب ({@code 01-10-2025})، وعلامة النسبة بتسبق رقمها ({@code %113.44}). كل رقم وتاريخ
-     * ووقت ونسبة وكل مقطع لاتيني بيتحط في عزل من اليسار لليمين (LRI ... PDI) وعلامات العزل
-     * بتتشال من الناتج، فيتقرا زي ما اتكتب.</p>
+     * <p><b>Numbers are isolated before bidi, and this is the part that is easy to break.</b> Under the Unicode
+     * rules, a minus sign with no Arabic next to it takes the paragraph direction and moves to the end of the
+     * number ({@code 11,995.00-}), a date after an Arabic word is reversed ({@code 01-10-2025}), and the percent
+     * sign comes before its number ({@code %113.44}). Every number, date, time and percentage, and every Latin
+     * run, is put in a left-to-right isolate (LRI ... PDI), and the isolate marks are removed from the output,
+     * so it reads as it was written.</p>
      *
-     * <p><b>النص اللي بيلتف لازم يتكسر لسطوره قبل ما ييجي هنا، مش بعد.</b> الناتج بترتيب الرسم؛
-     * لو اتكسر بعدها، آخر الجملة يطلع في السطر الأول. عشان كده الاتجاه بييجي من {@code paragraph}
-     * (النص كله): السطر التاني اللي بالصدفة بيبدأ بكلمة لاتينية ما يتقلبش لوحده.</p>
+     * <p><b>Wrapping text must be split into its lines before it comes here, not after.</b> The output is in
+     * drawing order; if it is split afterwards, the end of the sentence ends up on the first line. That is why
+     * the direction comes from {@code paragraph} (the whole text): a second line that happens to start with a
+     * Latin word is not reversed on its own.</p>
      *
-     * @param line        السطر المطلوب رسمه، بالترتيب المنطقي
-     * @param paragraph   النص الكامل اللي السطر مقطوع منه، وهو اللي بيحدد الاتجاه؛ {@code null} = السطر نفسه
-     * @param rightToLeft اتجاه الصفحة، وبيحسم فقط النص اللي مفيهوش حروف (تاريخ ووقت، كود أرقام)
-     * @return السطر بترتيب العرض من اليسار لليمين، بلا أي علامات تحكم في الاتجاه
+     * @param line        the line to draw, in logical order
+     * @param paragraph   the whole text the line was cut from, which sets the direction; {@code null} = the line
+     *                    itself
+     * @param rightToLeft the page direction; it decides only text that has no letters (a date and time, a numeric
+     *                    code)
+     * @return the line in left-to-right display order, with no direction control marks
      */
     public static String forDisplay(String line, String paragraph, boolean rightToLeft) {
         if (line == null || line.isEmpty()) {
@@ -151,7 +164,7 @@ public final class ArabicTextShaper {
         return stripFormatChars(reorder(shaped, rtl ? Bidi.DIRECTION_RIGHT_TO_LEFT : Bidi.DIRECTION_LEFT_TO_RIGHT));
     }
 
-    /** اتجاه أول حرف قوي في النص؛ النص اللي مفيهوش حروف بياخد اتجاه الصفحة. */
+    /** The direction of the first strong character in the text; text with no letters takes the page direction. */
     private static boolean paragraphIsRightToLeft(String text, boolean whenNeutral) {
         for (int i = 0; i < text.length(); ) {
             int codePoint = text.codePointAt(i);
@@ -168,7 +181,10 @@ public final class ArabicTextShaper {
         return whenNeutral;
     }
 
-    /** يحط كل مقطع لاتيني وكل رقم خارجه في عزل من اليسار لليمين، فالـ bidi يحرّك كل واحد قطعة واحدة. */
+    /**
+     * Puts every Latin run, and every number outside one, in a left-to-right isolate, so bidi moves each one as a
+     * single piece.
+     */
     static String isolateNumbers(String text) {
         StringBuilder out = new StringBuilder(text.length() + 8);
         Matcher start = LATIN_RUN_START.matcher(text);
@@ -184,9 +200,9 @@ public final class ArabicTextShaper {
     }
 
     /**
-     * نهاية المقطع اللاتيني اللي بيبدأ عند {@code start}: آخر حرف أو رقم أو علامة نسبة قبل أول حرف
-     * من اليمين لليسار. بعد حرف لاتيني الأرقام اللي بعده لاتينية الاتجاه برضه، فـ "Pepsi 330"
-     * قطعة واحدة؛ المسافات وعلامات الترقيم اللي بعدها بتاعة السطر العربي.
+     * The end of the Latin run that starts at {@code start}: the last letter, digit or percent sign before the
+     * first right-to-left character. After a Latin letter, the digits that follow are left-to-right too, so
+     * "Pepsi 330" is one piece; the spaces and punctuation after it belong to the Arabic line.
      */
     private static int endOfLatinRun(String text, int start) {
         int end = start + 1;
@@ -206,7 +222,7 @@ public final class ArabicTextShaper {
         return end;
     }
 
-    /** الأرقام اللي بين مقطعين لاتينيين، كل واحد معزول. */
+    /** The numbers between two Latin runs, each one isolated. */
     private static void isolateEachNumber(String text, int start, int end, StringBuilder out) {
         Matcher number = NUMBER.matcher(text).region(start, end).useTransparentBounds(true);
         Matcher phone = PHONE.matcher(text).region(start, end).useTransparentBounds(true);
@@ -248,7 +264,10 @@ public final class ArabicTextShaper {
         out.append(LEFT_TO_RIGHT_ISOLATE).append(piece).append(POP_DIRECTIONAL_ISOLATE);
     }
 
-    /** هل أول حرف قبل {@code index} عربي؟ ده الشرط اللي بيخلي الـ bidi يعتبر الأرقام اللي بعده "أرقامًا عربية". */
+    /**
+     * Is the first letter before {@code index} Arabic? This is the condition that makes bidi treat the numbers
+     * after it as "Arabic numbers".
+     */
     private static boolean arabicLetterBefore(String text, int index) {
         for (int i = index - 1; i >= 0; i--) {
             byte direction = Character.getDirectionality(text.charAt(i));
@@ -263,7 +282,7 @@ public final class ArabicTextShaper {
         return false;
     }
 
-    /** علامات التحكم في الاتجاه خلصت شغلها بعد الـ bidi ومش موجودة في أغلب الخطوط. */
+    /** The direction control marks have done their job after bidi, and most fonts do not contain them. */
     private static String stripFormatChars(String text) {
         StringBuilder out = new StringBuilder(text.length());
         for (int i = 0; i < text.length(); i++) {
@@ -275,7 +294,7 @@ public final class ArabicTextShaper {
         return out.toString();
     }
 
-    /** يحوّل النص للصورة النهائية الجاهزة للرسم: تشكيل ثم ترتيب عرض. */
+    /** Turns the text into its final form, ready to draw: shaping, then display order. */
     public static String forDisplay(String text) {
         if (text == null || text.isEmpty()) {
             return text;
@@ -283,7 +302,7 @@ public final class ArabicTextShaper {
         return toVisualOrder(shape(text));
     }
 
-    /** يستبدل الحروف العربية بصورها السياقية، مع إبقاء باقي النص كما هو. */
+    /** Replaces the Arabic letters with their contextual forms and leaves the rest of the text unchanged. */
     public static String shape(String text) {
         if (text == null || text.isEmpty() || !containsArabic(text)) {
             return text;
@@ -327,14 +346,14 @@ public final class ArabicTextShaper {
     }
 
     /**
-     * يعيد ترتيب النص من الترتيب المنطقي لترتيب العرض (من اليسار لليمين كما سيُرسم)،
-     * فيعكس المقاطع العربية ويحافظ على المقاطع اللاتينية والأرقام في اتجاهها الطبيعي.
+     * Reorders the text from logical order to display order (left to right, as it will be drawn). It reverses
+     * the Arabic runs and keeps the Latin runs and the numbers in their natural direction.
      */
     public static String toVisualOrder(String text) {
         return reorder(text, Bidi.DIRECTION_DEFAULT_LEFT_TO_RIGHT);
     }
 
-    /** ترتيب العرض باتجاه فقرة محدد ({@code Bidi.DIRECTION_*}). */
+    /** Display order with a given paragraph direction ({@code Bidi.DIRECTION_*}). */
     private static String reorder(String text, int direction) {
         if (text == null || text.isEmpty()) {
             return text;
@@ -362,7 +381,7 @@ public final class ArabicTextShaper {
         return out.toString();
     }
 
-    /** هل النص يحتوي على أي حرف من كتل العربية (بما فيها صور العرض)؟ */
+    /** Does the text contain any character from the Arabic blocks (including the presentation forms)? */
     public static boolean containsArabic(String text) {
         return TextDirection.containsArabic(text);
     }
@@ -382,7 +401,7 @@ public final class ArabicTextShaper {
         return base; // الهمزة (منفصلة دائمًا) أو التطويل
     }
 
-    /** أول صورة لدمج لام-ألف، أو 0 لو الحرف التالي ليس ألفًا. */
+    /** The first form of the lam-alef ligature, or 0 if the next letter is not an alef. */
     private static char lamAlefLigature(char alef) {
         return switch (alef) {
             case 'آ' -> 'ﻵ'; // لآ
@@ -393,17 +412,20 @@ public final class ArabicTextShaper {
         };
     }
 
-    /** هل يستطيع الحرف الاتصال بما بعده (ثنائي الاتصال أو تطويل)؟ */
+    /** Can the letter join the letter after it (dual-joining, or tatweel)? */
     private static boolean joinsForward(char c) {
         return c == TATWEEL || formCount(c) == 4;
     }
 
-    /** هل يستطيع الحرف الاتصال بما قبله (له صورة نهائية أو تطويل)؟ */
+    /** Can the letter join the letter before it (it has a final form, or it is tatweel)? */
     private static boolean joinsBackward(char c) {
         return c == TATWEEL || formCount(c) >= 2;
     }
 
-    /** أول صورة عرض للحرف، أو 0 لو ليس حرفًا عربيًا قابلًا للتشكيل. التطويل بيرجع نفسه. */
+    /**
+     * The first presentation form of the letter, or 0 if it is not an Arabic letter that can be shaped. Tatweel
+     * returns itself.
+     */
     private static char formBase(char c) {
         if (c >= ARABIC_START && c <= ARABIC_END) {
             return FORM_BASE[c - ARABIC_START];
@@ -412,7 +434,10 @@ public final class ArabicTextShaper {
         return extra < 0 ? 0 : EXTRA_BASE[extra];
     }
 
-    /** عدد صور الحرف: 4 ثنائي الاتصال، 2 يتصل بما قبله فقط، 1 منفصل دائمًا، 0 تطويل أو مش حرف. */
+    /**
+     * The number of forms of the letter: 4 dual-joining, 2 joins the previous letter only, 1 always isolated,
+     * 0 tatweel or not a letter.
+     */
     private static int formCount(char c) {
         if (c >= ARABIC_START && c <= ARABIC_END) {
             return FORM_COUNT[c - ARABIC_START];
@@ -421,7 +446,7 @@ public final class ArabicTextShaper {
         return extra < 0 ? 0 : EXTRA_COUNT[extra];
     }
 
-    /** علامات التشكيل شفّافة: لا تكسر الاتصال بين الحرفين المحيطين بها. */
+    /** Diacritics are transparent: they do not break the joining between the two letters around them. */
     private static boolean isTransparent(char c) {
         return Character.getType(c) == Character.NON_SPACING_MARK;
     }
@@ -441,8 +466,8 @@ public final class ArabicTextShaper {
     }
 
     /**
-     * يعكس النص مع إبقاء كل علامة تشكيل ملتصقة بحرفها الأساسي،
-     * فلا تنفصل الحركات عن حروفها عند العكس.
+     * Reverses the text and keeps each diacritic attached to its base letter,
+     * so the vowel marks do not come off their letters when the text is reversed.
      */
     private static String reverseClusters(String text) {
         List<String> clusters = new ArrayList<>(text.length());
@@ -461,7 +486,7 @@ public final class ArabicTextShaper {
         return out.toString();
     }
 
-    /** الأقواس وما شابهها تنقلب اتجاهًا داخل المقاطع من اليمين لليسار. */
+    /** Brackets and similar characters are mirrored inside right-to-left runs. */
     private static String mirror(String text) {
         StringBuilder out = new StringBuilder(text.length());
         for (int i = 0; i < text.length(); i++) {

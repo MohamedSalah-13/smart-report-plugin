@@ -11,13 +11,13 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * اللي المعاينة بتلمسه برّه البرنامج: طابعات الجهاز ونافذة اختيار مكان الحفظ. الاختبارات بتبدّله
- * بنسخة مزيفة على {@link PdfPreview}، فما فيش اختبار بيبعت ورقة لطابعة حقيقية ولا بيفتح نافذة حفظ
- * بتستنى حد يقفلها.
+ * What the preview touches outside the application: the computer's printers and the save dialog. Tests replace
+ * it with a fake on {@link PdfPreview}, so no test sends paper to a real printer or opens a save dialog that waits
+ * for someone to close it.
  */
 interface PreviewSystem {
 
-    /** الجهاز نفسه: {@link PdfPrinter} ونافذة الحفظ بتاعة النظام. */
+    /** The computer itself: {@link PdfPrinter} and the system's save dialog. */
     PreviewSystem REAL = new PreviewSystem() {
         @Override
         public List<String> printerNames() {
@@ -46,26 +46,26 @@ interface PreviewSystem {
         }
     };
 
-    /** بتتنادى خارج thread الواجهة: مع طابعات الشبكة بتاخد ثواني. */
+    /** Called off the UI thread: with network printers it takes seconds. */
     List<String> printerNames();
 
     Optional<String> defaultPrinter();
 
-    /** بتتنادى خارج thread الواجهة. */
+    /** Called off the UI thread. */
     void print(byte[] pdf, String printer, Paper paper, int copies) throws ReportException;
 
-    /** بمدى الصفحات والوجهين؛ النسخ المزيفة القديمة بتاخد النسخ بس. بتتنادى خارج thread الواجهة. */
+    /** With a page range and two-sided printing; older fakes take the copies only. Called off the UI thread. */
     default void print(byte[] pdf, String printer, Paper paper, com.smart.report.pdf.PrintOptions options)
             throws ReportException {
         print(pdf, printer, paper, options.copies());
     }
 
-    /** بتتنادى من thread الواجهة؛ {@code null} = المستخدم لغى. */
+    /** Called from the UI thread; {@code null} = the user cancelled. */
     File chooseSaveFile(FileChooser chooser, Window owner);
 
     /**
-     * سؤال {@link com.smart.report.print.OutputMode#ASK}: طباعة، أو معاينة، أو حفظ؛ {@code null} = المستخدم لغى.
-     * بتتنادى من thread الواجهة وبتستنى الرد.
+     * The {@link com.smart.report.print.OutputMode#ASK} question: print, preview or save; {@code null} = the user
+     * cancelled. Called from the UI thread, and waits for the answer.
      */
     default com.smart.report.print.OutputMode ask(Window owner, PrintTexts texts) {
         javafx.scene.control.ButtonType print = new javafx.scene.control.ButtonType(texts.print());

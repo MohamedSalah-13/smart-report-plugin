@@ -1,14 +1,14 @@
 package com.smart.report.print;
 
-/** المستند بيطلع إزاي لما المستخدم يدوس «طباعة» في شاشة البرنامج. */
+/** How the document comes out when the user presses «طباعة» ("Print") on the program's screen. */
 public enum OutputMode {
 
-    /** على طول للطابعة، من غير نافذة: الكاشير والإيصالات. */
+    /** Straight to the printer, with no window: for cashiers and receipts. */
     PRINT,
-    /** نافذة المعاينة الأول، والمستخدم بيطبع منها. */
+    /** The preview window first; the user prints from it. */
     PREVIEW,
-    /** ملف PDF، من غير نافذة معاينة. */
+    /** A PDF file, with no preview window. */
     SAVE_PDF,
-    /** يسأل المستخدم كل مرة: طباعة، أو معاينة، أو حفظ. */
+    /** Asks the user every time: print, preview, or save. */
     ASK
 }

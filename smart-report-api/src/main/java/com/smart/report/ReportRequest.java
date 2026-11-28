@@ -8,10 +8,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * حاوية موحّدة لبيانات أي تقرير (PDF عام / Excel عام / Jasper).
+ * One container for the data of any report (generic PDF / generic Excel / Jasper).
  * <ul>
- *     <li>لتقارير PDF/Excel العامة: استخدم {@code data} + {@code columns}.</li>
- *     <li>لتقارير Jasper: استخدم {@code data} + {@code template} (+ {@code parameters} و{@code exportFormat} اختياريًا).</li>
+ *     <li>For the generic PDF/Excel reports: use {@code data} + {@code columns}.</li>
+ *     <li>For Jasper reports: use {@code data} + {@code template} (+ optional {@code parameters} and
+ *     {@code exportFormat}).</li>
  * </ul>
  */
 public final class ReportRequest<T> {
@@ -44,9 +45,9 @@ public final class ReportRequest<T> {
     }
 
     /**
-     * نسخة غير قابلة للتعديل مع رسالة واضحة عند وجود عنصر فاضي.
-     * {@code List.copyOf} كانت بترمي NullPointerException بدون أي رسالة، فالمستخدم
-     * ما كانش يعرف أنهي صف في بياناته هو السبب.
+     * An unmodifiable copy, with a clear message when an element is null.
+     * {@code List.copyOf} threw a NullPointerException with no message, so the user
+     * could not tell which row in their data caused it.
      */
     private static <E> List<E> immutableCopy(List<E> source, String name) {
         List<E> copy = new ArrayList<>(source.size());
@@ -86,35 +87,35 @@ public final class ReportRequest<T> {
     }
 
     /**
-     * الكلمة اللي في أول صف الإجمالي، زي ما البرنامج حددها؛ {@code null} = الافتراضي حسب اتجاه التقرير
-     * («الإجمالى» أو «Total»، شوف {@link com.smart.report.util.Totals#label}).
+     * The word at the start of the total row, as the program set it; {@code null} = the default for the report's
+     * direction («الإجمالى» or «Total», see {@link com.smart.report.util.Totals#label}).
      */
     public String totalsLabel() {
         return totalsLabel;
     }
 
     /**
-     * الخاصية اللي صفوف التقرير العام (PDF وExcel) بتتقسم عليها مجموعات، بصف إجمالي فرعي تحت كل مجموعة؛
-     * {@code null} = من غير مجموعات (شوف {@link Builder#groupBy(String)}).
+     * The property that splits the rows of the generic report (PDF and Excel) into groups, with a subtotal row
+     * under each group; {@code null} = no groups (see {@link Builder#groupBy(String)}).
      */
     public String groupBy() {
         return groupBy;
     }
 
     /**
-     * الكلام اللي قبل قيمة المجموعة في صف الإجمالي الفرعي، زي ما البرنامج حدده؛ {@code null} = الافتراضي حسب
-     * اتجاه التقرير (شوف {@link com.smart.report.util.Totals#subtotalLabel}).
+     * The text before the group value in the subtotal row, as the program set it; {@code null} = the default
+     * for the report's direction (see {@link com.smart.report.util.Totals#subtotalLabel}).
      */
     public String subtotalLabel() {
         return subtotalLabel;
     }
 
-    /** سطر بقيمة المجموعة فوق صفوفها ({@link Builder#groupHeader}). */
+    /** A line with the group value above the group's rows ({@link Builder#groupHeader}). */
     public boolean groupHeader() {
         return groupHeader;
     }
 
-    /** كل مجموعة في صفحة جديدة ({@link Builder#pageBreakPerGroup}). */
+    /** Each group on a new page ({@link Builder#pageBreakPerGroup}). */
     public boolean pageBreakPerGroup() {
         return pageBreakPerGroup;
     }
@@ -157,7 +158,7 @@ public final class ReportRequest<T> {
             return this;
         }
 
-        /** عمود بخياراته: {@code addColumn(ColumnDefinition.of("amount", "المبلغ").withFormat("#,##0.00"))}. */
+        /** A column with options: {@code addColumn(ColumnDefinition.of("amount", "المبلغ").withFormat("#,##0.00"))}. */
         public Builder<T> addColumn(ColumnDefinition column) {
             if (column == null) {
                 throw new IllegalArgumentException("column is required.");
@@ -177,7 +178,10 @@ public final class ReportRequest<T> {
             return this;
         }
 
-        /** مسار قالب Jasper: إما مسار ملف على القرص أو مسار مورد على الـ classpath (ينتهي بـ .jrxml أو .jasper). */
+        /**
+         * The Jasper template path: either a file path on disk or a resource path on the classpath (ending in
+         * .jrxml or .jasper).
+         */
         public Builder<T> template(String template) {
             this.template = template;
             return this;
@@ -189,9 +193,10 @@ public final class ReportRequest<T> {
         }
 
         /**
-         * الكلمة اللي في أول صف الإجمالي، تحت أول عمود مش متجمّع ({@link ColumnDefinition#withTotal()}):
-         * {@code "المجموع"} أو {@code "Grand total"} مثلًا. {@code null} يرجّع الافتراضي حسب اتجاه التقرير
-         * («الإجمالى» أو «Total»)، والنص الفاضي بيسيب الخانة فاضية.
+         * The word at the start of the total row, under the first column that is not summed
+         * ({@link ColumnDefinition#withTotal()}): for example {@code "المجموع"} or {@code "Grand total"}.
+         * {@code null} restores the default for the report's direction («الإجمالى» or «Total»), and an empty
+         * string leaves the cell empty.
          */
         public Builder<T> totalsLabel(String label) {
             this.totalsLabel = label;
@@ -199,16 +204,16 @@ public final class ReportRequest<T> {
         }
 
         /**
-         * يقسم صفوف التقرير العام (PDF وExcel) مجموعات بخاصية، وتحت كل مجموعة صف إجمالي فرعي للأعمدة
-         * المتجمّعة ({@link ColumnDefinition#withTotal()})، والإجمالي الكلي في الآخر زي ما هو:
-         * {@code groupBy("customer")} لكشف حساب بالعميل مثلًا.
+         * Splits the rows of the generic report (PDF and Excel) into groups by a property. Under each group comes
+         * a subtotal row for the summed columns ({@link ColumnDefinition#withTotal()}), and the grand total stays
+         * at the end as before. For example, {@code groupBy("customer")} for a statement per customer.
          *
-         * <p>الصفوف ما بتترتبش: بتيجي بترتيب {@link #data}، والمجموعة الجديدة بتبدأ مكان ما القيمة بتتغير عن
-         * الصف اللي قبلها (الأرقام بقيمتها، فـ {@code 1.0} و{@code 1.00} مجموعة واحدة). رتّب البيانات بالخاصية
-         * دي الأول. الخاصية مش لازم تكون عمود في التقرير. التقرير اللي فيه مجموعات لازم يكون فيه عمود متجمّع
-         * واحد على الأقل، وتقارير Jasper ما بتستخدمش الخيار ده.</p>
+         * <p>The rows are not sorted: they come in the order of {@link #data}, and a new group starts wherever the
+         * value differs from the previous row (numbers compare by value, so {@code 1.0} and {@code 1.00} are one
+         * group). Sort the data by this property first. The property does not have to be a column in the report.
+         * A report with groups must have at least one summed column. Jasper reports do not use this option.</p>
          *
-         * @param fieldName الخاصية، بتتقري زي أي عمود؛ {@code null} أو نص فاضي = من غير مجموعات
+         * @param fieldName the property, read like any column; {@code null} or an empty string = no groups
          */
         public Builder<T> groupBy(String fieldName) {
             this.groupBy = fieldName == null || fieldName.isBlank() ? null : fieldName;
@@ -216,8 +221,8 @@ public final class ReportRequest<T> {
         }
 
         /**
-         * الكلام اللي قبل قيمة المجموعة في صف الإجمالي الفرعي ({@link #groupBy}): {@code "مجموع "} بيطلع
-         * «مجموع أحمد». {@code null} يرجّع الافتراضي حسب اتجاه التقرير («إجمالى: » أو «Total: »).
+         * The text before the group value in the subtotal row ({@link #groupBy}): {@code "مجموع "} prints
+         * «مجموع أحمد». {@code null} restores the default for the report's direction («إجمالى: » or «Total: »).
          */
         public Builder<T> subtotalLabel(String label) {
             this.subtotalLabel = label;
@@ -225,8 +230,8 @@ public final class ReportRequest<T> {
         }
 
         /**
-         * سطر بقيمة المجموعة فوق صفوف كل مجموعة ({@link #groupBy}): في الـ PDF عنوان ما بيفضلش لوحده في آخر صفحة،
-         * وفي Excel صف بخط عريض. محتاج {@link #groupBy}.
+         * A line with the group value above each group's rows ({@link #groupBy}). In the PDF it is a heading that
+         * is never left alone at the bottom of a page; in Excel it is a bold row. Requires {@link #groupBy}.
          */
         public Builder<T> groupHeader(boolean value) {
             this.groupHeader = value;
@@ -234,8 +239,9 @@ public final class ReportRequest<T> {
         }
 
         /**
-         * كل مجموعة ({@link #groupBy}) تبدأ في صفحة جديدة، فكشف كل عميل يتبعت لوحده؛ والإجمالي الكلي تحت آخر مجموعة.
-         * في Excel فاصل صفحات للطباعة بعد كل إجمالي فرعي. محتاج {@link #groupBy}.
+         * Each group ({@link #groupBy}) starts on a new page, so each customer's statement can be sent on its own;
+         * the grand total comes under the last group. In Excel this is a print page break after each subtotal.
+         * Requires {@link #groupBy}.
          */
         public Builder<T> pageBreakPerGroup(boolean value) {
             this.pageBreakPerGroup = value;

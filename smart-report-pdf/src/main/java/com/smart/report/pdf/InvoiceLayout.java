@@ -1,11 +1,11 @@
 package com.smart.report.pdf;
 
-/** شكل صفحة الفاتورة ({@link InvoicePdf#of}). على اللفة الحرارية الفاتورة دايمًا إيصال. */
+/** The layout of an invoice page ({@link InvoicePdf#of}). On a thermal roll, the invoice is always a receipt. */
 public enum InvoiceLayout {
-    /** اقتصادي: من غير أي تعبئة، خطوط بس، للطابعات الليزر أبيض وأسود وتوفير الحبر. */
+    /** Economy: no fills at all, lines only, for black-and-white laser printers and to save toner. */
     ECONOMY,
-    /** حديث: رأس الجدول ملوّن والصفوف متبادلة، من غير شبكة. */
+    /** Modern: a coloured table header and alternating rows, without a grid. */
     MODERN,
-    /** مفصّل: شبكة كاملة، ورقم السطر، وكود الصنف والوحدة لو موجودين. */
+    /** Detailed: a full grid, the line number, and the item code and unit if present. */
     DETAILED
 }

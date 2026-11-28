@@ -8,12 +8,12 @@ import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 
 /**
- * المكان اللي {@link PrintSettings} بيحفظ فيه: نص بمفتاح. البرنامج اللي عنده إعداداته في قاعدة بيانات أو ملف
- * بيكتب نسخته (تلات دوال)، والاختبار بياخد {@link #inMemory()}.
+ * Where {@link PrintSettings} saves: text by key. A program that keeps its settings in a database or a file writes
+ * its own implementation (three methods), and a test uses {@link #inMemory()}.
  */
 public interface PrintSettingsStore {
 
-    /** القيمة المحفوظة بالمفتاح، أو فاضي. */
+    /** The value saved under the key, or empty. */
     Optional<String> get(String key);
 
     void put(String key, String value);
@@ -21,8 +21,9 @@ public interface PrintSettingsStore {
     void remove(String key);
 
     /**
-     * عقدة {@link Preferences}: على Windows في الـ registry تحت المستخدم، وعلى لينكس في ملف في البيت. أي خطأ في
-     * الحفظ بيتسجّل ويتجاهل: الطباعة ما توقفش عشان إعداد ما اتحفظش.
+     * A {@link Preferences} node: on Windows in the registry under the user, on Linux in a file in the home
+     * directory. Any error while saving is logged and ignored: printing does not stop because a setting was not
+     * saved.
      */
     static PrintSettingsStore preferences(Preferences node) {
         Objects.requireNonNull(node, "node");
@@ -59,12 +60,12 @@ public interface PrintSettingsStore {
         };
     }
 
-    /** في الذاكرة بس، للاختبارات أو لبرنامج بيحفظ بنفسه بعدين ({@link InMemory#snapshot}). */
+    /** In memory only, for tests or for a program that saves by itself later ({@link InMemory#snapshot}). */
     static InMemory inMemory() {
         return new InMemory();
     }
 
-    /** {@link #inMemory()}: آمن بين الـ threads. */
+    /** {@link #inMemory()}: thread-safe. */
     final class InMemory implements PrintSettingsStore {
         private final Map<String, String> values = new ConcurrentHashMap<>();
 
@@ -85,7 +86,7 @@ public interface PrintSettingsStore {
             values.remove(key);
         }
 
-        /** نسخة من كل المحفوظ. */
+        /** A copy of everything saved. */
         public Map<String, String> snapshot() {
             return Map.copyOf(values);
         }

@@ -1,13 +1,13 @@
 package com.smart.report;
 
 /**
- * مزوّد نوع واحد من التقارير. كل وحدة (smart-report-pdf / -excel / -jasper) بتسجّل مزوّدها في
- * {@code META-INF/services/com.smart.report.ReportProvider}، و{@link ReportService} بيلاقيه
- * عن طريق {@link java.util.ServiceLoader} — فالمشروع بياخد الوحدات اللي محتاجها بس.
+ * Provider for one report type. Each module (smart-report-pdf / -excel / -jasper) registers its provider in
+ * {@code META-INF/services/com.smart.report.ReportProvider}, and {@link ReportService} finds it
+ * through {@link java.util.ServiceLoader}. So a project only takes the modules it needs.
  */
 public interface ReportProvider {
 
-    /** نوع التقرير اللي المزوّد ده بيولّده. */
+    /** The report type this provider generates. */
     ReportType type();
 
     byte[] generate(ReportRequest<?> request) throws ReportException;

@@ -1,13 +1,13 @@
 package com.smart.report;
 
 /**
- * محاذاة قيم عمود في التقرير العام، منسوبة لاتجاه التقرير لا لليمين واليسار: {@link #START} هي اليمين
- * في تقرير عربي واليسار في تقرير إنجليزي.
+ * Alignment of a column's values in the generic report. It is relative to the report's direction, not to
+ * left and right: {@link #START} is the right side in an Arabic report and the left side in an English one.
  */
 public enum Alignment {
-    /** الجهة اللي السطر بيبدأ منها. */
+    /** The side where a line starts. */
     START,
     CENTER,
-    /** الجهة اللي السطر بينتهي عندها — الأرقام بتيجي تحت بعض من آخرها. */
+    /** The side where a line ends. Numbers line up under each other by their last digit. */
     END
 }

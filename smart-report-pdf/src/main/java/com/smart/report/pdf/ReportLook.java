@@ -7,23 +7,25 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * شكل التقارير زي ما المحل بيختاره مرة وكل المستندات بتمشي عليه: مجموعة الألوان، توفير الحبر، الشبكة والصفوف
- * الملونة، شكل رقم الصفحة، سطر «طُبع في ... بواسطة ...»، الورق المطبوع عليه ترويسة، وحجم خط الإجمالي.
+ * The look of the reports, chosen once by the shop and followed by every document: the colour set, ink saving, the
+ * grid and striped rows, the page number style, the «طُبع في ... بواسطة ...» line ("printed on ... by ..."),
+ * paper with a pre-printed letterhead, and the font size of the totals.
  *
  * <pre>{@code
- * ReportLook look = ReportLook.decode(settings.get("report.look"));   // اللي اتحفظ، أو الافتراضي
+ * ReportLook look = ReportLook.decode(settings.get("report.look"));   // the saved look, or the default
  * PdfDocument document = look.applyTo(PdfDocument.rtl(Paper.A4), currentUser.name());
  *
  * settings.put("report.look", look.withColorSet(ColorSet.NAVY).withPageNumbers(PageNumberStyle.SLASH).encode());
- * PdfPreview.of(look.sample(Paper.A4, true, "أحمد")).show(owner);   // معاينة حية في شاشة الإعدادات
+ * PdfPreview.of(look.sample(Paper.A4, true, "أحمد")).show(owner);   // live preview in the settings screen
  * }</pre>
  *
- * <p>{@link #encode()} سطر نص، و {@link #decode} بيقراه بتسامح: قيمة كتبتها نسخة تانية من البرنامج ما توقفش
- * الطباعة، وأي جزء ما يتقريش بياخد الافتراضي. الصنف immutable.</p>
+ * <p>{@link #encode()} gives one line of text, and {@link #decode} reads it leniently: a value written by another
+ * version of the program does not stop printing, and any part that cannot be read takes the default. The class is
+ * immutable.</p>
  */
 public final class ReportLook {
 
-    /** شكل المكتبة من غير أي اختيار: رمادي، شبكة، «صفحة 1 من 3»، ورق أبيض. */
+    /** The library's look with no choices made: grey, grid, «صفحة 1 من 3» ("page 1 of 3"), plain white paper. */
     public static final ReportLook DEFAULT = new ReportLook(ColorSet.GREY, false, true, false,
             PageNumberStyle.WORDS, false, false, -1, 0);
 
@@ -34,7 +36,7 @@ public final class ReportLook {
     private final PageNumberStyle pageNumbers;
     private final boolean printedDate;
     private final boolean printedUser;
-    /** المسافة فوق للورق المطبوع بالمليمتر، أو سالب = ورق أبيض. */
+    /** The top space for pre-printed paper in mm, or negative = plain white paper. */
     private final float prePrintedTopMm;
     private final float totalsFontSize;
 
@@ -63,7 +65,7 @@ public final class ReportLook {
                 totalsFontSize);
     }
 
-    /** بلا أي تعبئة ({@link PdfStyle#inkSaver()})، فوق مجموعة الألوان. */
+    /** No fills at all ({@link PdfStyle#inkSaver()}), applied on top of the colour set. */
     public ReportLook withInkSaver(boolean value) {
         return new ReportLook(colors, value, grid, stripes, pageNumbers, printedDate, printedUser, prePrintedTopMm,
                 totalsFontSize);
@@ -84,13 +86,13 @@ public final class ReportLook {
                 totalsFontSize);
     }
 
-    /** سطر الطباعة تحت العنوان: الوقت، واسم المستخدم، كل واحد لوحده. */
+    /** The printed line under the title: the time and the user name, each on or off separately. */
     public ReportLook withPrintedLine(boolean date, boolean user) {
         return new ReportLook(colors, inkSaver, grid, stripes, pageNumbers, date, user, prePrintedTopMm,
                 totalsFontSize);
     }
 
-    /** ورق مطبوع عليه ترويسة: من غير ترويسة، والمحتوى بيبدأ بعد {@code topMm}. */
+    /** Paper with a pre-printed letterhead: no letterhead is drawn, and the content starts after {@code topMm}. */
     public ReportLook withPrePrinted(float topMm) {
         if (!(topMm >= 0)) {
             throw new IllegalArgumentException("The top space is 0 mm or more: " + topMm);
@@ -99,13 +101,13 @@ public final class ReportLook {
                 totalsFontSize);
     }
 
-    /** ورق أبيض بترويسة البرنامج. */
+    /** Plain white paper with the program's letterhead. */
     public ReportLook withPlainPaper() {
         return new ReportLook(colors, inkSaver, grid, stripes, pageNumbers, printedDate, printedUser, -1,
                 totalsFontSize);
     }
 
-    /** حجم خط صف الإجمالي؛ صفر = زي الصفوف. */
+    /** The font size of the totals row; zero = the same as the rows. */
     public ReportLook withTotalsFontSize(float points) {
         return new ReportLook(colors, inkSaver, grid, stripes, pageNumbers, printedDate, printedUser, prePrintedTopMm,
                 points);
@@ -143,7 +145,7 @@ public final class ReportLook {
         return prePrintedTopMm >= 0;
     }
 
-    /** المسافة فوق للورق المطبوع بالمليمتر؛ صفر للورق الأبيض. */
+    /** The top space for pre-printed paper in mm; zero for plain white paper. */
     public float prePrintedTopMm() {
         return Math.max(0, prePrintedTopMm);
     }
@@ -153,10 +155,11 @@ public final class ReportLook {
     }
 
     /**
-     * يطبّق الشكل على المستند: {@link PdfDocument#style} مناسب لورقته بالألوان، وشكل رقم الصفحة، وسطر الطباعة بالوقت
-     * دلوقتي، والورق المطبوع، وحجم الإجمالي. بيرجّع نفس المستند.
+     * Applies the look to the document: a {@link PdfDocument#style} that suits its paper, with the colours; the page
+     * number style; the printed line with the current time; the pre-printed paper; and the totals size. Returns the
+     * same document.
      *
-     * @param user اسم المستخدم لسطر الطباعة؛ {@code null} = من غيره
+     * @param user the user name for the printed line; {@code null} = without it
      */
     public PdfDocument applyTo(PdfDocument document, String user) {
         Objects.requireNonNull(document, "document");
@@ -169,7 +172,10 @@ public final class ReportLook {
         return prePrinted() ? document.prePrinted(prePrintedTopMm) : document.plainPaper();
     }
 
-    /** مستند تجربة بالشكل ده، لمعاينة حية في شاشة الإعدادات: ترويسة، وعنوان، وحقول، وجدول بإجمالي، على صفحتين. */
+    /**
+     * A sample document in this look, for a live preview in the settings screen: a letterhead, a title, fields, and
+     * a table with a total, over two pages.
+     */
     public PdfDocument sample(Paper paper, boolean rightToLeft, String user) {
         PdfDocument document = rightToLeft ? PdfDocument.rtl(paper) : PdfDocument.ltr(paper);
         PdfTable table = PdfTable.create()
@@ -190,7 +196,10 @@ public final class ReportLook {
         return applyTo(document, user);
     }
 
-    /** الشكل كسطر نص: {@code colors=navy;ink=false;grid=true;stripes=false;numbers=slash;date=true;user=true;...}. */
+    /**
+     * The look as one line of text:
+     * {@code colors=navy;ink=false;grid=true;stripes=false;numbers=slash;date=true;user=true;...}.
+     */
     public String encode() {
         return "colors=" + colors.name().toLowerCase(Locale.ROOT) + ";ink=" + inkSaver + ";grid=" + grid
                 + ";stripes=" + stripes + ";numbers=" + pageNumbers.name().toLowerCase(Locale.ROOT)
@@ -204,8 +213,8 @@ public final class ReportLook {
     }
 
     /**
-     * يقرا {@link #encode()} بتسامح: الجزء اللي ما يتقريش أو برّه المدى بياخد قيمته من {@link #DEFAULT}، والأجزاء
-     * المجهولة بتتجاهل؛ {@code null} أو فاضي = {@link #DEFAULT}.
+     * Reads {@link #encode()} leniently: a part that cannot be read or is out of range takes its value from
+     * {@link #DEFAULT}, and unknown parts are ignored; {@code null} or empty = {@link #DEFAULT}.
      */
     public static ReportLook decode(String text) {
         if (text == null || text.isBlank()) {

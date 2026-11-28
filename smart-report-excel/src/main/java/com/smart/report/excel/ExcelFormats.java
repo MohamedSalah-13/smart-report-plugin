@@ -1,26 +1,26 @@
 package com.smart.report.excel;
 
 /**
- * نمط تنسيق عمود (بصيغة Java، زي ما {@code ColumnDefinition.withFormat} بياخده) بصيغة Excel، عشان
- * العمود يتنسّق في الـ Excel زي الـ PDF.
+ * Converts a column format pattern (in Java syntax, as {@code ColumnDefinition.withFormat} takes it) to Excel
+ * syntax, so the column is formatted the same way in Excel as in the PDF.
  *
  * <ul>
- *     <li><b>الأرقام</b> ({@link java.text.DecimalFormat}): {@code # 0 , . % ;} زي ما هي، والأس
- *         {@code E0} ← {@code E+0}، وأي حروف أو كلام تاني (العملة مثلًا) بين علامتي تنصيص.</li>
- *     <li><b>التواريخ</b> ({@link java.time.format.DateTimeFormatter}): {@code yyyy MM dd HH mm ss EEEE a}
- *         ← {@code yyyy mm dd hh mm ss dddd AM/PM}. Excel بيفرّق الشهر من الدقيقة ({@code mm}) بمكانها:
- *         بعد الساعة أو قبل الثواني دقايق، وغير كده شهر.</li>
+ *     <li><b>Numbers</b> ({@link java.text.DecimalFormat}): {@code # 0 , . % ;} stay as they are, the exponent
+ *         {@code E0} becomes {@code E+0}, and any other letters or text (a currency, for example) go in quotes.</li>
+ *     <li><b>Dates</b> ({@link java.time.format.DateTimeFormatter}): {@code yyyy MM dd HH mm ss EEEE a}
+ *         becomes {@code yyyy mm dd hh mm ss dddd AM/PM}. Excel tells month from minute ({@code mm}) by position:
+ *         after the hour or before the seconds it means minutes; anywhere else it means the month.</li>
  * </ul>
  *
- * <p>الحرف اللي مالوش مقابل في Excel (المنطقة الزمنية {@code z} مثلًا) بيرمي
- * {@link IllegalArgumentException}، فالتقرير يقول أنهي عمود بدل ما يطلع تاريخ غلط.</p>
+ * <p>A letter that has no Excel equivalent (the time zone {@code z}, for example) throws
+ * {@link IllegalArgumentException}, so the report names the column instead of showing a wrong date.</p>
  */
 final class ExcelFormats {
 
     private ExcelFormats() {
     }
 
-    /** نمط أرقام Java بصيغة Excel. */
+    /** Converts a Java number pattern to Excel syntax. */
     static String number(String pattern) {
         StringBuilder out = new StringBuilder(pattern.length() + 8);
         StringBuilder literal = new StringBuilder();
@@ -50,9 +50,9 @@ final class ExcelFormats {
     }
 
     /**
-     * الكلام الثابت في نمط أرقام بين علامتي تنصيص دايمًا: الفاصلة والنقطة والصفر في Excel ليهم معنى
-     * حتى برّه مكانهم — الفاصلة في الآخر بتقسم الرقم على ألف — فالمكتوب بين علامتي تنصيص في Java
-     * لازم يفضل كده.
+     * Literal text in a number pattern always goes in quotes: in Excel the comma, the period and zero have a
+     * meaning even outside their usual place (a trailing comma divides the number by a thousand), so text that is
+     * quoted in Java must stay quoted.
      */
     private static void quote(StringBuilder literal, StringBuilder out) {
         if (!literal.isEmpty()) {
@@ -62,12 +62,13 @@ final class ExcelFormats {
     }
 
     /**
-     * نمط تواريخ Java بصيغة Excel.
+     * Converts a Java date pattern to Excel syntax.
      *
-     * <p>Excel بيعرض الساعة بنظام 24 ساعة إلا لو الصيغة فيها AM/PM، وساعتها كل ساعة فيها بنظام 12.
-     * فـ {@code hh} من غير {@code a} و{@code HH} مع {@code a} كانوا هيطلعوا ساعة غير اللي Java بتطبعها
-     * ({@code 13:05} ← {@code 01:05})، و{@code k}/{@code K} (الساعة من 1 لـ 24 أو من 0 لـ 11) مالهمش
-     * مقابل؛ كلهم بيترفضوا بدل ما الورقة تعرض وقت تاني.</p>
+     * <p>Excel shows the hour on a 24-hour clock unless the format has AM/PM; then every hour in it uses a
+     * 12-hour clock. So {@code hh} without {@code a}, and {@code HH} with {@code a}, would show a different hour
+     * from the one Java prints ({@code 13:05} becomes {@code 01:05}), and {@code k}/{@code K} (the hour from 1 to
+     * 24, or from 0 to 11) have no equivalent. All of them are rejected, instead of the sheet showing a different
+     * time.</p>
      */
     static String date(String pattern) {
         clockMatches(pattern);
@@ -109,7 +110,7 @@ final class ExcelFormats {
         return out.toString();
     }
 
-    /** يرفض أنماط الساعة اللي Excel هيعرضها بنظام غير اللي Java بتطبع بيه (شوف {@link #date}). */
+    /** Rejects hour patterns that Excel would show on another clock than the one Java prints (see {@link #date}). */
     private static void clockMatches(String pattern) {
         boolean twelve = false;
         boolean twentyFour = false;
@@ -145,7 +146,7 @@ final class ExcelFormats {
         }
     }
 
-    /** نص بين علامتي تنصيص مفردة في نمط Java ({@code ''} = علامة تنصيص)؛ بيرجّع مكان اللي بعده. */
+    /** Reads text in single quotes in a Java pattern ({@code ''} = a quote mark); returns the index after it. */
     private static int quoted(String pattern, int start, StringBuilder literal) {
         if (start + 1 < pattern.length() && pattern.charAt(start + 1) == '\'') {
             literal.append('\'');
@@ -169,8 +170,8 @@ final class ExcelFormats {
     }
 
     /**
-     * الكلام الثابت بين علامتي تنصيص مزدوجة، إلا الفواصل والمسافات اللي Excel بيعرضها زي ما هي
-     * من غير تنصيص (عشان {@code dd/mm/yyyy} تفضل مقروءة).
+     * Puts literal text in double quotes, except separators and spaces, which Excel shows as they are without
+     * quotes (so {@code dd/mm/yyyy} stays readable).
      */
     private static void flush(StringBuilder literal, StringBuilder out) {
         if (literal.isEmpty()) {

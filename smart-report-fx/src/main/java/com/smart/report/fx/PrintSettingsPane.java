@@ -33,21 +33,23 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * شاشة إعدادات الطباعة الجاهزة: صف لكل نوع مستند ({@link DocumentKind}) فيه الورقة، وطريقة الإخراج، والطابعة، وعدد
- * النسخ، وزر يرجّعه للافتراضي، وزر طباعة تجربة؛ وتحتهم الطابعة لكل دور. أي تغيير بيتحفظ على طول في
- * {@link PrintSettings}، فالبرنامج ما يكتبش كود حفظ.
+ * A ready-made print settings screen: one row per document type ({@link DocumentKind}) with the paper, the output
+ * mode, the printer, the number of copies, a button that resets it to the default, and a trial print button; under
+ * them, the printer for each role. Every change is saved at once in {@link PrintSettings}, so the application
+ * writes no saving code.
  *
  * <pre>{@code
  * Parent pane = PrintSettingsPane.of(settings)
  *         .rightToLeft(true)
  *         .roleLabel("thermal", "طابعة الإيصالات")
- *         .sample("sale-receipt", paper -> ReceiptPdf.sample(paper))   // اختياري: ورقة التجربة
+ *         .sample("sale-receipt", paper -> ReceiptPdf.sample(paper))   // optional: the trial page
  *         .build();
  * settingsTab.setContent(pane);
  * }</pre>
  *
- * <p>من غير {@link #sample} ورقة التجربة صفحة فيها اسم النوع والورقة والطابعة والوقت. أسماء الطابعات بتتسأل على
- * thread جانبي (طابعات الشبكة بتاخد ثواني)، والطباعة كمان. {@link #build()} بتتنادى من thread الواجهة.</p>
+ * <p>Without {@link #sample}, the trial page is a page with the type name, the paper, the printer and the time.
+ * Printer names are queried on a background thread (network printers take seconds), and so is printing.
+ * {@link #build()} is called from the UI thread.</p>
  */
 public final class PrintSettingsPane {
 
@@ -57,7 +59,7 @@ public final class PrintSettingsPane {
     private final Map<String, String> roleLabels = new HashMap<>();
     private final Map<String, Function<Paper, PdfDocument>> samples = new HashMap<>();
     private boolean rightToLeft = "ar".equals(java.util.Locale.getDefault().getLanguage());
-    /** الطابعات؛ الاختبارات بتبدّلها. */
+    /** The printers; tests replace it. */
     PreviewSystem system = PreviewSystem.REAL;
 
     private PrintSettingsPane(PrintSettings settings) {
@@ -68,13 +70,13 @@ public final class PrintSettingsPane {
         return new PrintSettingsPane(settings);
     }
 
-    /** اتجاه الشاشة ولغة كلامها: عربي (من غيره حسب لغة الجهاز) أو إنجليزي. */
+    /** The screen direction and text language: Arabic (by default, if the computer's language is) or English. */
     public PrintSettingsPane rightToLeft(boolean value) {
         this.rightToLeft = value;
         return this;
     }
 
-    /** اسم الدور في الشاشة بدل مفتاحه: {@code roleLabel("thermal", "طابعة الإيصالات")}. */
+    /** The role's name on the screen instead of its key: {@code roleLabel("thermal", "طابعة الإيصالات")}. */
     public PrintSettingsPane roleLabel(String role, String label) {
         if (!settings.roles().contains(role)) {
             throw new IllegalArgumentException("Unknown role: " + role + "; the roles are " + settings.roles());
@@ -83,14 +85,14 @@ public final class PrintSettingsPane {
         return this;
     }
 
-    /** ورقة طباعة التجربة للنوع ده، مبنية على الورقة المختارة. الدالة بتتنادى خارج thread الواجهة. */
+    /** The trial page for this type, built on the chosen paper. The function is called off the UI thread. */
     public PrintSettingsPane sample(String kindKey, Function<Paper, PdfDocument> document) {
         settings.kind(kindKey);
         samples.put(kindKey, Objects.requireNonNull(document, "document"));
         return this;
     }
 
-    /** الشاشة. كل نداء بيبني واحدة جديدة مقرية من الإعدادات دلوقتي. */
+    /** The screen. Each call builds a new one, read from the settings as they are now. */
     public Parent build() {
         return new View().root;
     }
@@ -103,7 +105,7 @@ public final class PrintSettingsPane {
         return roleLabels.getOrDefault(role, role);
     }
 
-    /** كلام الشاشة. */
+    /** The screen texts. */
     record Texts(String document, String paper, String output, String printer, String copies, String reset,
                  String trial, String roles, String systemDefault, String rolePrefix,
                  String print, String preview, String savePdf, String ask,
@@ -130,14 +132,14 @@ public final class PrintSettingsPane {
         }
     }
 
-    /** الشاشة المبنية، بعناصرها. */
+    /** The built screen, with its nodes. */
     private final class View {
 
         final VBox root = new VBox(12);
         final Label status = new Label();
         final Map<String, Row> rows = new LinkedHashMap<>();
         final Map<String, ComboBox<String>> rolePrinters = new LinkedHashMap<>();
-        /** وقت ما العناصر بتتملى من الإعدادات: التغيير ده مش من المستخدم، فما بيتحفظش. */
+        /** While the nodes are filled from the settings: that change is not from the user, so it is not saved. */
         boolean loading;
 
         View() {
@@ -211,7 +213,10 @@ public final class PrintSettingsPane {
             };
         }
 
-        /** أسماء الطابعات المتعرّفة على thread جانبي، وبعدين في كل القوائم من غير ما الاختيار يتغير. */
+        /**
+         * Reads the installed printer names on a background thread, then adds them to every list without changing
+         * the selection.
+         */
         private void loadPrinters() {
             Thread thread = new Thread(() -> {
                 List<String> names;
@@ -246,7 +251,7 @@ public final class PrintSettingsPane {
             thread.start();
         }
 
-        /** صف نوع مستند. */
+        /** The row of one document type. */
         private final class Row {
             final DocumentKind kind;
             final ComboBox<String> paper = new ComboBox<>();
@@ -317,7 +322,7 @@ public final class PrintSettingsPane {
                 trial.setOnAction(event -> trialPrint());
             }
 
-            /** العناصر من الإعداد، من غير ما ده يتحسب تغيير. */
+            /** Fills the nodes from the profile, without that counting as a change. */
             void load(PrintProfile profile) {
                 loading = true;
                 try {
@@ -356,7 +361,7 @@ public final class PrintSettingsPane {
                 settings.save(kind.key(), current());
             }
 
-            /** ورقة تجربة واحدة على الطابعة والورقة المختارين دلوقتي. */
+            /** Prints one trial page on the printer and paper chosen right now. */
             private void trialPrint() {
                 PrintProfile profile = current();
                 Texts texts = texts();

@@ -1,6 +1,9 @@
 package com.smart.report.fx;
 
-/** كلام طريق الطباعة بالإعداد ({@link PdfPreview#print}): سؤال «اسأل كل مرة» وتنبيه الطابعة الغايبة. */
+/**
+ * The texts of printing by profile ({@link PdfPreview#print}): the «اسأل كل مرة» ("Ask every time") question and
+ * the missing-printer notice.
+ */
 record PrintTexts(boolean rightToLeft, String askTitle, String askHeader, String print, String preview, String save,
                   String cancel, String missingPrinter, String noPrinter, String pages, String allPages,
                   String twoSided, String badPages) {

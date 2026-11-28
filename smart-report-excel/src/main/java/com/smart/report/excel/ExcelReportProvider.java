@@ -46,36 +46,41 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * يولّد تقرير Excel (.xlsx) عام (عنوان + رأس أعمدة منسّق + صفوف بيانات) بدون الحاجة لأي قالب،
- * انطلاقًا من أي List من الكائنات + قائمة ColumnDefinition.
+ * Generates a generic Excel (.xlsx) report (a title, a formatted column header and data rows) without any
+ * template, from any List of objects and a list of ColumnDefinition.
  *
- * <p>الأرقام والمنطقيات والتواريخ بتتكتب بأنواعها الأصلية في Excel (مش كنصوص)، والتواريخ بياخدوا
- * تنسيق تاريخ فعلي عشان يظهروا كتواريخ بدل الرقم التسلسلي الخام.</p>
+ * <p>Numbers, booleans and dates are written with their native Excel types (not as text). Dates get a real
+ * date format, so they show as dates instead of the raw serial number.</p>
  *
- * <p>عرض كل عمود على قد رأسه ومحتواه (شوف {@link ColumnWidths})، ورأس الأعمدة ثابت فوق وعليه
- * أزرار الفلتر، فالورقة تتفرز وتتفلتر من غير أي تجهيز.</p>
+ * <p>Each column is as wide as its header and content (see {@link ColumnWidths}). The column header is frozen
+ * at the top and carries filter buttons, so the sheet can be sorted and filtered without any setup.</p>
  *
- * <p><b>الاتجاه:</b> الورقة من اليمين لليسار (أول عمود على اليمين) لو العنوان أو أي رأس عمود فيه
- * عربي — نفس قاعدة تقرير الـ PDF العام — إلا لو {@link #RIGHT_TO_LEFT} اتحدد في {@code parameters}.</p>
+ * <p><b>Direction:</b> the sheet runs right to left (first column on the right) when the title or any column
+ * header contains Arabic (the same rule as the generic PDF report), unless {@link #RIGHT_TO_LEFT} is set in
+ * {@code parameters}.</p>
  *
- * <p><b>الإجمالي:</b> لو في عمود متجمّع ({@link ColumnDefinition#withTotal()})، صف إجمالي بخط عريض بعد
- * البيانات بسطر فاضي: تحت كل عمود متجمّع معادلة {@code SUM} حقيقية على صفوف البيانات (فالإجمالي بيتغير لو
- * المستخدم عدّل رقم) بنمط العمود، ومعاها قيمتها محسوبة، فالرقم بيظهر صح حتى في برنامج ما بيحسبش المعادلات
- * وهو بيفتح الملف. القيمة دي بحساب Excel نفسه: أرقام {@code double} زي اللي في الخلايا، متجمّعة بالترتيب، فإعادة
- * الحساب ما بتغيرهاش — بس ممكن تختلف عن إجمالي الـ PDF اللي بالظبط في أرقام أطول من 15-17 خانة أو
- * {@code float}. القيمة اللي ما تتجمعش بترمي نفس خطأ الـ PDF ({@link Totals#check}). الكلمة ({@link Totals#label}) تحت أول عمود مش متجمّع. السطر الفاضي
- * بيفصل الإجمالي عن البيانات: Excel بيمد الفلتر والترتيب على الصفوف اللازقة في الجدول، فصف الإجمالي اللازق
- * كان ممكن يتفرز وسط البيانات. من غير بيانات، الإجمالي صفر (من غير معادلة: مفيش صفوف تتجمع).</p>
+ * <p><b>Totals:</b> when a column is totalled ({@link ColumnDefinition#withTotal()}), a bold totals row follows
+ * the data after one blank row. Under each totalled column it holds a real {@code SUM} formula over the data rows
+ * (so the total changes when the user edits a number), in the column's format, together with its computed value,
+ * so the number shows correctly even in a program that does not calculate formulas when it opens the file. That
+ * value uses Excel's own arithmetic: {@code double} numbers as in the cells, summed in order, so recalculating
+ * does not change it. It can differ from the PDF's exact total for numbers longer than 15-17 digits, or for
+ * {@code float}. A value that cannot be totalled throws the same error as the PDF ({@link Totals#check}). The
+ * word ({@link Totals#label}) goes under the first column that is not totalled. The blank row separates the
+ * total from the data: Excel extends filtering and sorting to the rows that touch the table, so a touching totals
+ * row could be sorted into the data. With no data, the total is zero (with no formula: there are no rows to sum).
+ * </p>
  *
- * <p><b>الإجمالي الفرعي:</b> مع {@link ReportRequest#groupBy()}، صف تحت كل مجموعة بمعادلة {@code SUBTOTAL(9, ...)} على
- * صفوفها، والإجمالي الكلي {@code SUBTOTAL(9, ...)} برضه على كل الصفوف: بيسيب الإجماليات الفرعية اللي في نطاقه فما
- * بيعدّهاش مرتين، وبيجمع الصفوف اللي الفلتر سايبها ظاهرة بس. خلية المجموعة في صف إجماليها فيها قيمتها زي صفوفها،
- * فالفلتر على عميل بيسيب إجماليه؛ والفلتر بيوصل للسطر الفاضي بعد آخر إجمالي فرعي. الفرز بيخلط الإجماليات الفرعية
- * بالبيانات، زي أمر Subtotal في Excel نفسه.</p>
+ * <p><b>Subtotals:</b> with {@link ReportRequest#groupBy()}, a row under each group holds a
+ * {@code SUBTOTAL(9, ...)} formula over that group's rows, and the grand total is also {@code SUBTOTAL(9, ...)}
+ * over all rows: it skips the subtotals in its range, so it does not count them twice, and it sums only the rows
+ * the filter leaves visible. The group cell in a group's subtotal row holds the group value, like the group's rows,
+ * so filtering on a customer keeps that customer's subtotal; the filter range reaches the blank row after the last
+ * subtotal. Sorting mixes the subtotals into the data, as with Excel's own Subtotal command.</p>
  */
 public final class ExcelReportProvider implements ReportProvider {
 
-    /** مفتاح في {@code ReportRequest.parameters()}: {@code Boolean} يحسم اتجاه الورقة. */
+    /** Key in {@code ReportRequest.parameters()}: a {@code Boolean} that decides the sheet direction. */
     public static final String RIGHT_TO_LEFT = "smart.report.excel.rightToLeft";
 
     private static final String DATE_FORMAT = "yyyy-mm-dd";
@@ -83,30 +88,31 @@ public final class ExcelReportProvider implements ReportProvider {
     private static final String TIME_FORMAT = "hh:mm:ss";
     private static final double SECONDS_PER_DAY = 86_400d;
 
-    /** عدد الصفوف المحفوظة في الذاكرة قبل ما تتكتب على القرص. */
+    /** Number of rows kept in memory before they are written to disk. */
     private static final int ROW_WINDOW = 200;
 
-    /** أقصى عدد صفوف في ورقة xlsx واحدة. */
+    /** Maximum number of rows in one xlsx sheet. */
     private static final int MAX_ROWS = 1_048_576;
 
-    /** عدد صفوف البيانات اللي النصوص فيها بتتقاس لعرض العمود (مع رأس الأعمدة). */
+    /** Number of data rows whose text is measured for the column width (together with the column header). */
     static final int WIDTH_SAMPLE_ROWS = 500;
 
-    /** اسم الورقة لو مفيش عنوان، أو لو العنوان ما فضلش منه اسم ينفع (شوف {@link #sheetName}). */
+    /** Sheet name when there is no title, or when nothing usable is left of the title (see {@link #sheetName}). */
     private static final String DEFAULT_SHEET_NAME = "Report";
 
-    /** أقصى طول لاسم ورقة في Excel. */
+    /** Maximum length of a sheet name in Excel. */
     private static final int MAX_SHEET_NAME = 31;
 
-    /** أقصى عرض لعمود في Excel: 255 حرف، بوحدات 1/256 من عرض الحرف. */
+    /** Maximum column width in Excel: 255 characters, in units of 1/256 of a character width. */
     private static final int MAX_COLUMN_WIDTH = 255 * 256;
 
-    /** مكان زرار الفلتر في خلية الرأس، بعرض الحروف (حوالي 17 بكسل في Calibri 11). */
+    /** Room for the filter button in a header cell, in character widths (about 17 pixels in Calibri 11). */
     private static final double FILTER_BUTTON_WIDTH = 2.5;
 
     /**
-     * أعرض تاريخ ممكن: أطول اسم شهر (سبتمبر) وأطول اسم يوم (الأربعاء) ويوم وساعة برقمين، فأي تاريخ
-     * في العمود ييجي على قده وما يطلعش {@code ####}.
+     * The widest possible date: the longest month name (September, "سبتمبر") and the longest day name
+     * (Wednesday, "الأربعاء"), with a two-digit day and hour, so any date in the column fits and does not show as
+     * {@code ####}.
      */
     private static final double WIDEST_DATE = DateUtil.getExcelDate(LocalDateTime.of(2026, 9, 30, 22, 59, 59));
 
@@ -261,14 +267,16 @@ public final class ExcelReportProvider implements ReportProvider {
     }
 
     /**
-     * صف الإجمالي: معادلة {@code SUM} تحت كل عمود متجمّع على صفوف بياناته، ومعاها قيمتها المحسوبة — Excel
-     * بيعرض القيمة المحفوظة لحد ما يحسب المعادلة، والملف من غير قيمة محفوظة كان هيعرض صفر في أي برنامج ما
-     * بيحسبش وهو بيفتح. الكلمة تحت أول عمود مش متجمّع، والخلايا الفاضية بنفس الشكل فخطوط الإجمالي بعرض
-     * الجدول كله.
+     * Writes the totals row: a {@code SUM} formula under each totalled column over its data rows, together with
+     * its computed value. Excel shows the stored value until it calculates the formula, and a file without a
+     * stored value would show zero in any program that does not calculate on open. The word goes under the first
+     * column that is not totalled, and the empty cells get the same style, so the totals lines span the whole
+     * table.
      *
-     * @param sums         مجموع الأرقام المكتوبة في كل عمود، بنفس حساب Excel، فإعادة الحساب ما بتغيرهوش
-     * @param firstDataRow أول صف بيانات (من صفر)
-     * @param lastDataRow  آخر صف بيانات؛ أقل من {@code firstDataRow} لو مفيش بيانات
+     * @param sums         the sum of the numbers written in each column, with Excel's arithmetic, so
+     *                     recalculating does not change it
+     * @param firstDataRow the first data row (zero-based)
+     * @param lastDataRow  the last data row; less than {@code firstDataRow} when there is no data
      */
     private static void writeTotals(Row row, ReportRequest<?> request, double[] sums, int firstDataRow,
                                     int lastDataRow, boolean subtotalFunction, String label, int labelAt,
@@ -296,8 +304,8 @@ public final class ExcelReportProvider implements ReportProvider {
     }
 
     /**
-     * صف عنوان المجموعة: قيمتها بخط عريض في عمودها لو هي عمود في التقرير (فالفلتر على العمود ده بيسيبها مع صفوفها)،
-     * وإلا في أول عمود.
+     * Writes the group header row: the group value in bold, in its own column when it is a column of the report
+     * (so a filter on that column keeps it with its rows), otherwise in the first column.
      */
     private static void writeGroupHeader(Row row, ReportRequest<?> request, Object value, CellStyle style,
                                          ColumnWidths widths) {
@@ -317,13 +325,16 @@ public final class ExcelReportProvider implements ReportProvider {
     }
 
     /**
-     * صف الإجمالي الفرعي تحت آخر صف في مجموعته: معادلة {@code SUBTOTAL(9, ...)} على صفوف المجموعة، فالإجمالي
-     * الكلي ({@code SUBTOTAL} برضه) ما بيعدّهاش مرتين؛ وقيمتها المحسوبة بنفس حساب Excel.
+     * Writes the subtotal row under the last row of its group: a {@code SUBTOTAL(9, ...)} formula over the group's
+     * rows, so the grand total ({@code SUBTOTAL} as well) does not count it twice, and its value computed with
+     * Excel's arithmetic.
      *
-     * <p>لو المجموعة عمود في التقرير، خليته في صف الإجمالي فيها قيمة المجموعة نفسها بنوعها ونمطها، زي صفوفها
-     * بالظبط: الفلتر على العميل ده بيسيب إجماليه ظاهر تحت صفوفه (كلمة «إجمالى: أحمد» في الخلية دي كانت بتخفيه).
-     * الكلام («إجمالى») تحت أول عمود تاني مش متجمّع، ولو مفيش، الصف من غير كلام: خطه العريض وحدوده بيقولوا إنه
-     * إجمالي. لو المجموعة مش عمود، الكلمة كاملة («إجمالى: أحمد») مكان كلمة الإجمالي الكلي.</p>
+     * <p>When the group is a column of the report, that column's cell in the subtotal row holds the group value
+     * itself, with its type and format, exactly like the group's rows: a filter on that customer keeps the
+     * customer's subtotal visible under its rows (the text «إجمالى: أحمد», "Total: Ahmed", in that cell used to hide
+     * it). The words («إجمالى», "Total") go under the first other column that is not totalled; if there is none, the
+     * row has no words, and its bold font and borders show that it is a total. When the group is not a column, the
+     * full text («إجمالى: أحمد») takes the place of the grand total's word.</p>
      */
     private void writeSubtotal(Row row, ReportRequest<?> request, double[] sums, int firstRow, int lastRow,
                                Object groupValue, ColumnStyles[] columnStyles, ColumnWidths widths,
@@ -351,12 +362,12 @@ public final class ExcelReportProvider implements ReportProvider {
         widths.totals(cell, groupColumn);
     }
 
-    /** كلام الإجمالي الفرعي من غير قيمة المجموعة: «إجمالى: » بتبقى «إجمالى». */
+    /** The subtotal words without the group value: «إجمالى: » becomes «إجمالى» ("Total"). */
     private static String words(ReportRequest<?> request, boolean rightToLeft) {
         return Totals.subtotalPrefix(request, rightToLeft).strip().replaceAll("[:：\\s]+$", "");
     }
 
-    /** قيمة {@link ReportRequest#groupBy()} لكل صف، أو {@code null} لو التقرير من غير مجموعات. */
+    /** The {@link ReportRequest#groupBy()} value of each row, or {@code null} when the report has no groups. */
     private static Object[] groupValues(ReportRequest<?> request) {
         if (request.groupBy() == null) {
             return null;
@@ -370,8 +381,8 @@ public final class ExcelReportProvider implements ReportProvider {
 
 
     /**
-     * التواريخ في Excel أرقام تسلسلية، فبدون تنسيق تاريخ على الخلية بيظهروا للمستخدم كرقم
-     * زي {@code 45245.01} بدل التاريخ نفسه؛ عشان كده كل نوع تاريخ بياخد الـ style المناسب له.
+     * Dates in Excel are serial numbers, so without a date format on the cell the user sees a number such as
+     * {@code 45245.01} instead of the date itself. That is why each date type gets its matching style.
      */
     private void writeCell(Cell cell, Object value, ColumnStyles styles) {
         CellStyle style = switch (value) {
@@ -443,10 +454,11 @@ public final class ExcelReportProvider implements ReportProvider {
     }
 
     /**
-     * styles عمود واحد، بتتعمل أول ما قيمة محتاجاها تيجي: نمط العمود (لو فيه) بصيغة Excel ومحاذاته.
-     * النمط بيتحوّل حسب نوع القيمة — أرقام أو تواريخ — فنمط تاريخ في عمود أرقام ما بيتلمسش.
+     * The styles of one column, created when the first value that needs them arrives: the column's format (if
+     * any) in Excel syntax, and its alignment. The format is converted by the value type (numbers or dates), so a
+     * date pattern in a number column is left untouched.
      *
-     * <p>Excel بيقف عند 64,000 style، فكل عمود بيعمل style واحد لكل صيغة، مش لكل خلية.</p>
+     * <p>Excel stops at 64,000 styles, so each column creates one style per format, not one per cell.</p>
      */
     private static final class ColumnStyles {
 
@@ -456,7 +468,7 @@ public final class ExcelReportProvider implements ReportProvider {
         private final Font bold;
         private final Map<String, CellStyle> made = new HashMap<>();
 
-        /** @param bold خط صف الإجمالي، واحد للملف كله */
+        /** @param bold the font of the totals row, one for the whole file */
         ColumnStyles(Workbook workbook, ColumnDefinition column, boolean rightToLeft, Font bold) {
             this.workbook = workbook;
             this.format = column.format();
@@ -469,7 +481,7 @@ public final class ExcelReportProvider implements ReportProvider {
             };
         }
 
-        /** نص أو قيمة منطقية: المحاذاة بس، و{@code null} لو مفيش (زي الأول بالظبط). */
+        /** Text or a boolean: the alignment only, or {@code null} when there is none (exactly as before). */
         CellStyle text() {
             return alignment == null ? null : style("text", null);
         }
@@ -478,18 +490,19 @@ public final class ExcelReportProvider implements ReportProvider {
             return format == null ? text() : style("number", ExcelFormats.number(format));
         }
 
-        /** تاريخ: نمط العمود لو فيه، وإلا الصيغة الافتراضية لنوعه. */
+        /** A date: the column's format if it has one, otherwise the default format for the date type. */
         CellStyle date(String defaultFormat) {
             String excel = format == null ? defaultFormat : ExcelFormats.date(format);
             return style("date|" + excel, excel);
         }
 
         /**
-         * خلية في صف الإجمالي: خط عريض، وخط رفيع فوقها وخطين تحتها زي إجمالي الدفاتر، والمجموع بنمط العمود.
-         * الإجمالي الفرعي بخط رفيع تحته بدل الخطين: الخطين للإجمالي الكلي بس.
+         * A cell in the totals row: bold font, a thin line above and a double line below, as in ledger totals, and
+         * the sum in the column's format. A subtotal has a thin line below instead of the double line: the double
+         * line is for the grand total only.
          *
-         * @param number   المجموع نفسه، مش الكلمة أو خلية فاضية
-         * @param subtotal صف إجمالي فرعي تحت مجموعة
+         * @param number   the sum itself, not the word or an empty cell
+         * @param subtotal a subtotal row under a group
          */
         CellStyle total(boolean number, boolean subtotal) {
             String key = (subtotal ? "subtotal|" : "total|") + (number ? "number" : "text");
@@ -505,10 +518,10 @@ public final class ExcelReportProvider implements ReportProvider {
         }
 
         /**
-         * خلية قيمة المجموعة في صف إجماليها: نفس style القيمة في صفوف المجموعة (صيغة التاريخ مثلًا، فالفلتر بيشوفها
-         * زيهم) بخط الإجمالي الفرعي وحدوده.
+         * The group value cell in the group's subtotal row: the same style as the value in the group's rows (the
+         * date format, for example, so the filter sees it like them), with the subtotal font and borders.
          *
-         * @param value style القيمة زي ما اتكتبت؛ {@code null} = من غير style
+         * @param value the style of the value as written; {@code null} = no style
          */
         CellStyle subtotalValue(CellStyle value) {
             if (value == null) {
@@ -546,29 +559,35 @@ public final class ExcelReportProvider implements ReportProvider {
     }
 
     /**
-     * عرض الأعمدة بنفس قياس {@code autoSizeColumn} (خط الخلية والنص زي ما هيظهر بنمطه، عربي أو أرقام
-     * أو تواريخ)، بس من غير ما كل خلية في الورقة تتقاس: {@code trackAllColumnsForAutoSizing} كان بيعمل
-     * كده فكان التقرير الكبير أبطأ حوالي 5 مرات.
+     * Column widths with the same measurement as {@code autoSizeColumn} (the cell's font and the text as it will
+     * show in its format, whether Arabic, numbers or dates), but without measuring every cell in the sheet:
+     * {@code trackAllColumnsForAutoSizing} did that, and it made a large report about 5 times slower.
      *
      * <ul>
-     *     <li><b>رأس الأعمدة</b> بيتقاس ومعاه مكان زرار الفلتر.</li>
-     *     <li><b>النصوص</b> من أول {@link #WIDTH_SAMPLE_ROWS} صف بس؛ النص الأطول بعدها بيتقص عند حافة
-     *         العمود وبيبان كامل في الخلية نفسها.</li>
-     *     <li><b>الأرقام</b> في كل الصفوف، بس الرقم بيتقاس لما نصه بنمطه يبقى أطول من اللي اتقاس قبله،
-     *         عشان الرقم الأعرض ما يطلعش {@code ####} (شوف {@link #number}).</li>
-     *     <li><b>التواريخ</b> مرة لكل نمط في العمود، بأعرض تاريخ ممكن ({@link #WIDEST_DATE}).</li>
+     *     <li><b>The column header</b> is measured together with room for the filter button.</li>
+     *     <li><b>Text</b> is measured from the first {@link #WIDTH_SAMPLE_ROWS} rows only; longer text after them is
+     *         cut at the column edge and shows in full in the cell itself.</li>
+     *     <li><b>Numbers</b> are checked in all rows, but a number is measured only when its formatted text is
+     *         longer than the ones measured before it, so the widest number does not show as {@code ####} (see
+     *         {@link #number}).</li>
+     *     <li><b>Dates</b> are measured once per format in the column, with the widest possible date
+     *         ({@link #WIDEST_DATE}).</li>
      * </ul>
      *
-     * <p>صف الإجمالي بيتقاس كله. العنوان مش منهم، والعرض ما بيعدّيش أقصى عرض في Excel (255 حرف).</p>
+     * <p>The totals row is measured in full. The title is not measured, and the width never exceeds Excel's
+     * maximum width (255 characters).</p>
      */
     private static final class ColumnWidths {
 
         private final double[] widths;
-        /** طول نص أطول رقم اتقاس في كل عمود (زي ما بيظهر بنمطه). */
+        /** The text length of the longest number measured in each column (as it shows in its format). */
         private final int[] longestNumber;
-        /** أنماط التواريخ اللي اتقاست في كل عمود، برقم الـ style. */
+        /** The date formats already measured in each column, by style index. */
         private final List<Set<Short>> datesMeasured;
-        /** رقم الـ style ← هل صيغته تاريخ؟ (الخلية من غير style بيرجع لها كائن جديد كل مرة، فالمفتاح رقمه.) */
+        /**
+         * Style index to "is its format a date?" (a cell without a style returns a new object each time, so the
+         * key is the index).
+         */
         private final Map<Short, Boolean> dateStyles = new HashMap<>();
         private final float charWidth;
         private final DataFormatter formatter = new DataFormatter();
@@ -587,7 +606,7 @@ public final class ExcelReportProvider implements ReportProvider {
             measure(cell, column, FILTER_BUTTON_WIDTH);
         }
 
-        /** خلية في صف الإجمالي بتتقاس دايمًا، بخطها العريض: المجموع عادةً أعرض رقم في عموده. */
+        /** A totals cell is always measured, in its bold font: the sum is usually the column's widest number. */
         void totals(Cell cell, int column) {
             measure(cell, column, 0);
         }
@@ -618,10 +637,11 @@ public final class ExcelReportProvider implements ReportProvider {
         }
 
         /**
-         * الرقم بيتنسّق زي ما هيظهر (من غير قياس خط، فده أرخص بكتير) وبيتقاس بس لو نصه أطول من أطول رقم
-         * اتقاس في عموده. حجم الرقم لوحده ما بيكفيش: بنمط {@code 0.########} الـ 1 والـ 1.12345678 في
-         * نفس الخانات الصحيحة والتاني أعرض بكتير. النص اللي في نفس الطول فرقه بالكتير رقم مكان فاصلة أو علامة، والـ {@code 0} اللي القياس
-         * بيزوّده على النص بيغطيه.
+         * Formats the number as it will show (without measuring the font, which is much cheaper) and measures it
+         * only when its text is longer than the longest number measured in its column. The size of the number
+         * alone is not enough: with the format {@code 0.########}, 1 and 1.12345678 have the same integer digits,
+         * but the second is much wider. Text of the same length differs at most by a digit in place of a separator
+         * or a sign, and the {@code 0} that the measurement adds to the text covers that.
          */
         private void number(Cell cell, int column, boolean sampled) {
             int length = formatter.formatCellValue(cell).length();
@@ -652,14 +672,14 @@ public final class ExcelReportProvider implements ReportProvider {
         }
     }
 
-    /** الوقت في Excel كسر من اليوم (0.5 = الظهر). */
+    /** A time in Excel is a fraction of a day (0.5 = noon). */
     private static double fractionOfDay(LocalTime time) {
         return time.toSecondOfDay() / SECONDS_PER_DAY;
     }
 
     /**
-     * الـ styles بتتعمل مرة واحدة للملف كله، مش لكل خلية:
-     * Excel بيقف عند 64,000 style وبيرفض يفتح الملف لو اتعدّاهم.
+     * Creates the styles once for the whole file, not once per cell:
+     * Excel stops at 64,000 styles and refuses to open a file that has more.
      */
     private Styles createStyles(Workbook workbook) {
         Font headerFont = workbook.createFont();
@@ -680,11 +700,13 @@ public final class ExcelReportProvider implements ReportProvider {
     }
 
     /**
-     * اسم الورقة من العنوان، بقواعد Excel (اللي POI بيرمي {@code IllegalArgumentException} لو اتكسرت، فكان
-     * التقرير كله بيقع بسبب عنوان): الحروف {@code \ / * [ ] : ?} وحروف التحكم بتبقى مسافة، والفاصلة العليا
-     * والمسافات بتتشال من الطرفين ({@code 'Q1' sales} ← {@code Q1' sales})، والاسم 31 حرف بالكتير. ولو ما
-     * فضلش اسم، أو فضل {@code History} اللي Excel حاجزه لنفسه (POI ما بيمنعهوش، بس Excel ما بيقبلهوش اسم
-     * ورقة)، الاسم {@link #DEFAULT_SHEET_NAME}. العنوان في الخلية نفسها زي ما هو.
+     * Derives the sheet name from the title, following Excel's rules (POI throws
+     * {@code IllegalArgumentException} when they are broken, so a title used to bring down the whole report): the
+     * characters {@code \ / * [ ] : ?} and control characters become a space, apostrophes and spaces are removed
+     * from both ends ({@code 'Q1' sales} becomes {@code Q1' sales}), and the name is at most 31 characters. If no
+     * name is left, or what is left is {@code History}, which Excel reserves for itself (POI does not block it, but
+     * Excel does not accept it as a sheet name), the name is {@link #DEFAULT_SHEET_NAME}. The title in the cell
+     * itself stays as it is.
      */
     private static String sheetName(String title) {
         if (title == null) return DEFAULT_SHEET_NAME;

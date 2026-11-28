@@ -17,7 +17,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * مستندات كتير في ملف PDF واحد ومهمة طباعة واحدة — كشف كل سواق عن الشهر، أو فواتير اليوم كلها.
+ * Many documents in one PDF file and one print job: each driver's statement for the month, or all of the day's
+ * invoices.
  *
  * <pre>{@code
  * List<PdfDocument> statements = drivers.stream()
@@ -25,21 +26,23 @@ import java.util.Objects;
  *         .toList();
  * PdfBatch batch = PdfBatch.of(statements);
  *
- * batch.save(Path.of("statements-2026-11.pdf"));   // ملف واحد
- * PdfPrinter.print(batch, printerName, 2);          // مهمة واحدة: الكشوف كلها، وبعدها الكشوف كلها تاني
+ * batch.save(Path.of("statements-2026-11.pdf"));   // one file
+ * PdfPrinter.print(batch, printerName, 2);          // one job: all the statements, then all of them again
  * }</pre>
  *
- * <p><b>كل مستند بصفحاته زي ما لو اتطبع لوحده:</b> ترويسته، وتذييل صفحاته، وترقيمه («صفحة 1 من 3» بيبدأ
- * من الأول في كل مستند). المستند الجديد دايمًا في صفحة جديدة، والمستندات بترتيبها في الدفعة.</p>
+ * <p><b>Each document keeps its pages as if printed alone:</b> its letterhead, its page footers and its page
+ * numbering («صفحة 1 من 3», "page 1 of 3", starts over in each document). A new document always starts on a new
+ * page, and the documents keep their order in the batch.</p>
  *
- * <p><b>الورقة:</b> مهمة الطباعة بتطلب ورقة واحدة من الطابعة، فكل المستندات لازم تتطبع على نفس الورقة:
- * نفس المقاس بالطول أو بالعرض (A4 مع A4 بالعرض ماشي — الصفحة العرضية بتتلف على الورقة)، أو نفس عرض
- * اللفة الحرارية. A4 مع A5، أو ورق مع لفة، أو لفة 80 مع لفة 58، بيفشل وقت كتابة الدفعة بـ
- * {@link ReportException}: اعمل دفعة لكل ورقة. على اللفة كل مستند إيصال لوحده، صفحة بطول المكتوب فيه،
- * فالطابعة اللي بتقص في آخر كل صفحة بتقص بين الإيصالات.</p>
+ * <p><b>Paper:</b> a print job asks the printer for one paper, so all documents must print on the same paper: the
+ * same size in portrait or landscape (A4 with landscape A4 is fine; the landscape page is rotated onto the sheet),
+ * or the same thermal roll width. A4 with A5, paper with a roll, or an 80 roll with a 58 roll fails with a
+ * {@link ReportException} when the batch is written: make one batch per paper. On a roll, each document is its own
+ * receipt, one page as long as its content, so a printer that cuts at the end of every page cuts between the
+ * receipts.</p>
  *
- * <p>الدفعة بتشيل المستندات نفسها مش نسخة منها: التعديل على مستند بعد {@link #of} بيظهر في اللي
- * بيتكتب بعده. زي {@link PdfDocument}، مش آمنة للاستخدام من أكتر من thread.</p>
+ * <p>The batch holds the documents themselves, not copies: a change to a document after {@link #of} shows up in
+ * anything written after it. Like {@link PdfDocument}, it is not thread-safe.</p>
  */
 public final class PdfBatch {
 
@@ -49,16 +52,16 @@ public final class PdfBatch {
         this.documents = documents;
     }
 
-    /** @throws IllegalArgumentException لو مفيش مستندات */
+    /** @throws IllegalArgumentException if there are no documents */
     public static PdfBatch of(PdfDocument... documents) {
         Objects.requireNonNull(documents, "documents");
         return of(Arrays.asList(documents));
     }
 
     /**
-     * المستندات بترتيب الـ collection.
+     * The documents, in the order of the collection.
      *
-     * @throws IllegalArgumentException لو مفيش مستندات
+     * @throws IllegalArgumentException if there are no documents
      */
     public static PdfBatch of(Collection<PdfDocument> documents) {
         Objects.requireNonNull(documents, "documents");
@@ -72,17 +75,17 @@ public final class PdfBatch {
         return new PdfBatch(List.copyOf(kept));
     }
 
-    /** المستندات بترتيبها. */
+    /** The documents, in order. */
     public List<PdfDocument> documents() {
         return documents;
     }
 
-    /** ورقة أول مستند: الورقة اللي الدفعة بتتطبع عليها، والباقيين لازم يتطبعوا على نفسها. */
+    /** The first document's paper: the batch prints on it, and the others must print on the same paper. */
     public Paper paper() {
         return documents.getFirst().paper();
     }
 
-    /** الدفعة كبايتات PDF. */
+    /** The batch as PDF bytes. */
     public byte[] toBytes() throws ReportException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         writeTo(out);
@@ -90,10 +93,10 @@ public final class PdfBatch {
     }
 
     /**
-     * يكتب الدفعة في {@code out} ولا يقفله.
+     * Writes the batch to {@code out} and does not close it.
      *
-     * @throws ReportException لو المستندات مش على نفس الورقة، أو مستند منهم ما اتبناش (الرسالة فيها رقمه في
-     *                         الدفعة، والخطأ الأصلي سببها)
+     * @throws ReportException if the documents are not on the same paper, or one of them could not be built (the
+     *                         message gives its number in the batch, and the original error is the cause)
      */
     public void writeTo(OutputStream out) throws ReportException {
         Objects.requireNonNull(out, "out");
@@ -129,9 +132,10 @@ public final class PdfBatch {
     }
 
     /**
-     * المستند رقم {@code index} كبايتات. الخطأ بيقول رقمه في الدفعة (من 1) وبيشيل الخطأ الأصلي: في دفعة 40 كشف،
-     * «الشعار مش صورة» من غير رقم ما بيقولش أنهي كشف. نفس النوع بيفضل — {@link ReportException} أو
-     * {@link IllegalArgumentException} (هوامش ما بتسيبش مكان) — زي ما المستند لوحده بيرميه.
+     * Document number {@code index} as bytes. The error gives its number in the batch (from 1) and carries the
+     * original error: in a batch of 40 statements, "the logo is not an image" without a number does not say which
+     * statement. The type stays the same as the document alone would throw: {@link ReportException} or
+     * {@link IllegalArgumentException} (margins that leave no room).
      */
     private byte[] build(int index) throws ReportException {
         String which = "Document " + (index + 1) + " of " + documents.size() + " in the batch";
@@ -144,7 +148,7 @@ public final class PdfBatch {
         }
     }
 
-    /** يحفظ الدفعة في ملف، وينشئ المجلدات الناقصة في مساره. */
+    /** Saves the batch to a file, and creates any missing folders on its path. */
     public void save(Path file) throws ReportException {
         Objects.requireNonNull(file, "file");
         byte[] bytes = toBytes();
@@ -158,7 +162,7 @@ public final class PdfBatch {
         }
     }
 
-    /** كل المستندات على ورقة أول مستند: الطابعة بتتطلب منها ورقة واحدة للمهمة كلها. */
+    /** All documents on the first document's paper: the printer is asked for one paper for the whole job. */
     private void checkOneSheet() throws ReportException {
         Paper first = paper();
         for (int i = 1; i < documents.size(); i++) {
@@ -171,7 +175,7 @@ public final class PdfBatch {
         }
     }
 
-    /** نفس الورقة في الطابعة: نفس المقاس بالطول أو بالعرض، أو لفتين بنفس العرض. */
+    /** The same paper in the printer: the same size in portrait or landscape, or two rolls of the same width. */
     static boolean sameSheet(Paper a, Paper b) {
         if (a.roll() || b.roll()) {
             return a.roll() && b.roll() && Math.abs(a.width() - b.width()) < 1f;

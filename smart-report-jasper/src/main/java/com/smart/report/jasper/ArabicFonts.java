@@ -19,43 +19,52 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Font extension بيدّي خط JasperReports الافتراضي حروفًا عربية: في القالب اللي ما بيسمّيش خطًا، الحروف العربية
- * بتترسم بـ Noto Naskh Arabic وكل حرف تاني بيفضل زي ما كان بالظبط. متسجّلة في
- * {@code jasperreports_extension.properties}.
+ * A font extension that gives the JasperReports default font Arabic letters: in a template that names no font,
+ * Arabic letters are drawn with Noto Naskh Arabic, and every other character stays exactly as it was. Registered
+ * in {@code jasperreports_extension.properties}.
  *
- * <p><b>ليه:</b> الـ PDF بيرسم كل حرف من خط مضمَّن. القالب اللي ما بيسمّيش خطًا بياخد {@value #JASPER_DEFAULT_FONT}،
- * واللي بيترسم في الـ PDF بـ Helvetica: ما فيهوش عربي، فالحروف كانت بتختفي من غير أي خطأ.</p>
+ * <p><b>Why:</b> the PDF draws each character from an embedded font. A template that names no font gets
+ * {@value #JASPER_DEFAULT_FONT}, which is drawn in the PDF with Helvetica. Helvetica has no Arabic, so the letters
+ * disappeared without any error.</p>
  *
- * <p><b>إزاي:</b> مجموعة خطوط (font set) اسمها {@value #JASPER_DEFAULT_FONT}، فالنص اللي خطه
- * {@value #JASPER_DEFAULT_FONT} بيتقسّم: كل حرف بياخد أول عائلة في المجموعة بتقول إنها بتعرف ترسمه
- * ({@link Font#canDisplay(int)}). الأولى Noto Naskh Arabic وبتقول إنها بتعرف الحروف العربية بس
- * ({@link #isArabic(int)})، والباقي بياخد عائلات {@value #JASPER_DEFAULT_FONT} اللي بعدها، وهي خط JasperReports
- * الافتراضي نفسه: القياس بخط Java المنطقي SansSerif زي الأول، والـ PDF بخط العنصر (Helvetica) وترميزه زي الأول.
- * عائلة لكل وزن (عادي، عريض، مائل، عريض مائل) فيها الوجه ده بس، عشان JasperReports يلاقي الوزن في الوجه نفسه
- * وما يسمّكش الحرف بنفسه.</p>
+ * <p><b>How:</b> a font set named {@value #JASPER_DEFAULT_FONT}, so text in the {@value #JASPER_DEFAULT_FONT}
+ * font is split: each character takes the first family in the set that says it can draw it
+ * ({@link Font#canDisplay(int)}). The first is Noto Naskh Arabic, which says it can draw Arabic letters only
+ * ({@link #isArabic(int)}). The rest go to the {@value #JASPER_DEFAULT_FONT} families after it, which are the
+ * JasperReports default font itself: measurement uses the Java logical font SansSerif, as before, and the PDF uses
+ * the element's font (Helvetica) and its encoding, as before. There is one family per weight (regular, bold,
+ * italic, bold italic) holding only that face, so JasperReports finds the weight in the face itself and does not
+ * fake it by thickening the character.</p>
  *
- * <p><b>ليه مش Noto لكل النص:</b> سطر Noto Naskh طوله حوالي 1.7 من حجم الخط (مكان للتشكيل)، و JasperReports
- * ما بيطبعش نصًا أول سطر فيه أطول من خانته. قالب إنجليزي بخانات على قد Helvetica كان هيفقد نصه في كل الصيغ.
- * والفلترة بالـ script اللي JasperReports بيوفّرها في المجموعات محتاجة ICU4J (حوالي 13 ميجا)، وكانت هتسيب الفاصلة
- * وعلامة الاستفهام العربية (حروف "مشتركة" في Unicode) لـ Helvetica اللي ما فيهوش عربي.</p>
+ * <p><b>Why not Noto for all text:</b> a Noto Naskh line is about 1.7 times the font size (room for diacritics),
+ * and JasperReports prints no text whose first line is taller than its box. An English template with boxes sized
+ * for Helvetica would lose its text in every format. The script filtering that JasperReports offers in font sets
+ * needs ICU4J (about 13 MB), and it would leave the Arabic comma and question mark ("common" characters in
+ * Unicode) to Helvetica, which has no Arabic.</p>
  */
 public final class ArabicFonts implements ExtensionsRegistryFactory {
 
-    /** الخط اللي JasperReports بيرجعله لما القالب ما يسمّيش خطًا ({@code net.sf.jasperreports.default.font.name}). */
+    /**
+     * The font JasperReports falls back to when a template names none
+     * ({@code net.sf.jasperreports.default.font.name}).
+     */
     static final String JASPER_DEFAULT_FONT = "SansSerif";
 
-    /** العائلة المخفية للحروف العربية. القالب ما بيسمّيهاش؛ بيسمّي "Noto Naskh Arabic" (fonts.xml). */
+    /** The hidden family for Arabic letters. A template does not name it; it names "Noto Naskh Arabic" (fonts.xml). */
     static final String ARABIC_LETTERS_FAMILY = "Noto Naskh Arabic (Arabic letters)";
 
     private static final String FONTS = "com/smart/report/jasper/fonts/";
 
-    /** الصيغ اللي بتكتب اسم الخط بدل ما ترسمه (HTML، DOCX...) بتكتب الاسم الحقيقي، و HTML معاه بدائل. */
+    /**
+     * Formats that write the font name instead of drawing it (HTML, DOCX...) write the real name, and HTML gets
+     * fallbacks with it.
+     */
     private static final String EXPORT_FONT = "Noto Naskh Arabic";
     private static final String HTML_EXPORT_FONT = "'Noto Naskh Arabic', Tahoma, Arial, sans-serif";
 
     /**
-     * كتل Unicode العربية: الحروف، والتشكيل، والأرقام الهندية، والفاصلة والفاصلة المنقوطة وعلامة الاستفهام
-     * والتطويل، وصور الحروف.
+     * The Arabic Unicode blocks: the letters, the diacritics, the Arabic-Indic digits, the comma, semicolon,
+     * question mark and tatweel, and the presentation forms.
      */
     private static final Set<Character.UnicodeBlock> ARABIC_BLOCKS = Set.of(
             Character.UnicodeBlock.ARABIC,
@@ -127,14 +136,14 @@ public final class ArabicFonts implements ExtensionsRegistryFactory {
         return member;
     }
 
-    /** حرف من كتل Unicode العربية. الحرف اللي ما لوش كتلة (U+2FE0 مثلًا) مش عربي. */
+    /** A character from the Arabic Unicode blocks. A character with no block (U+2FE0, for example) is not Arabic. */
     static boolean isArabic(int codePoint) {
         Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
         // Set.of بيرمي NullPointerException لو اتسأل عن null
         return block != null && ARABIC_BLOCKS.contains(block);
     }
 
-    /** ملف Noto Naskh بيقول إنه بيعرف الحروف العربية بس؛ القياس والرسم بيستخدموا الملف نفسه. */
+    /** The Noto Naskh file, claiming Arabic letters only; measuring and drawing use the same file. */
     private static final class ArabicLettersFace extends SimpleFontFace {
 
         private Font arabicOnly;
@@ -174,8 +183,9 @@ public final class ArabicFonts implements ExtensionsRegistryFactory {
     }
 
     /**
-     * خط Java المنطقي SansSerif بالوزن ده، للقياس زي ما JasperReports بيقيس النص اللي ما لوش خط. من غير ملف ولا
-     * اسم PDF، فالـ PDF بيرجع لخط العنصر نفسه ({@code pdfFontName}، و Helvetica لو ما سمّاش).
+     * The Java logical font SansSerif in this weight, for measuring the way JasperReports measures text with no
+     * font. It has no file and no PDF name, so the PDF falls back to the element's own font ({@code pdfFontName},
+     * and Helvetica if it names none).
      */
     private static final class DefaultFontFace extends SimpleFontFace {
 
@@ -193,12 +203,12 @@ public final class ArabicFonts implements ExtensionsRegistryFactory {
     }
 
     /**
-     * SansSerif باسم عائلته في المجموعة، ومن غير الحروف العربية.
+     * SansSerif under its family name in the set, and without the Arabic letters.
      *
-     * <p>الاسم: JasperReports بيعتبر أي وجه اسم عائلته في Java "SansSerif" هو الخط SansSerif نفسه، فكان هيلاقيه
-     * قبل المجموعة ويتخطّاها. الحروف: SansSerif في Java بيعرف يقيس العربي، و JasperReports بيدّي المقطع كله لأول
-     * خط بيعرف كل حروفه؛ من غير الاستثناء ده "أحمد علي" كانت هتروح كلها لـ SansSerif (عشان المسافة) وتترسم
-     * Helvetica.</p>
+     * <p>The name: JasperReports treats any face whose Java family name is "SansSerif" as the SansSerif font
+     * itself, so it would find it before the set and skip the set. The letters: Java's SansSerif can measure
+     * Arabic, and JasperReports gives the whole run to the first font that knows all its characters; without this
+     * exclusion, "أحمد علي" would all go to SansSerif (because of the space) and be drawn in Helvetica.</p>
      */
     private static final class DefaultFont extends Font {
 

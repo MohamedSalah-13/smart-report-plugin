@@ -3,7 +3,8 @@ package com.smart.report.pdf;
 import java.util.Objects;
 
 /**
- * شكل خلية في {@link PdfTable}: خط عريض، أو لون للنص. اللي ما اتحددش بياخد شكل صفه (العادي أو صف الإجمالي).
+ * The style of one cell in a {@link PdfTable}: bold text, or a text colour. Anything not set takes the style of
+ * its row (a normal row or the totals row).
  *
  * <pre>{@code
  * CellStyle.bold()
@@ -12,10 +13,13 @@ import java.util.Objects;
  */
 public final class CellStyle {
 
-    /** الأحمر اللي {@link PdfTable#negativeInRed} بيستخدمه: غامق كفاية يتقري على الورق ويطلع رمادي غامق بالأبيض والأسود. */
+    /**
+     * The red that {@link PdfTable#negativeInRed} uses: dark enough to read on paper, and it prints as dark grey in
+     * black and white.
+     */
     public static final int RED = 0xC62828;
 
-    /** شكل الصف زي ما هو. */
+    /** The row style, unchanged. */
     public static final CellStyle PLAIN = new CellStyle(null, null);
 
     private final Boolean bold;
@@ -26,12 +30,12 @@ public final class CellStyle {
         this.color = color;
     }
 
-    /** خط عريض. */
+    /** Bold text. */
     public static CellStyle bold() {
         return new CellStyle(true, null);
     }
 
-    /** نص بلون {@code 0xRRGGBB}. */
+    /** Text in the colour {@code 0xRRGGBB}. */
     public static CellStyle color(int rgb) {
         return new CellStyle(null, check(rgb));
     }
@@ -51,17 +55,17 @@ public final class CellStyle {
         return rgb;
     }
 
-    /** الخط العريض لو اتحدد، أو شكل الصف. */
+    /** The bold setting if one was set, otherwise the row style. */
     boolean boldOr(boolean row) {
         return bold != null ? bold : row;
     }
 
-    /** اللون لو اتحدد، أو لون الصف. */
+    /** The colour if one was set, otherwise the row colour. */
     int colorOr(int row) {
         return color != null ? color : row;
     }
 
-    /** الاتنين مع بعض: اللي في {@code over} بيغلب. */
+    /** Both styles combined: what is set in {@code over} wins. */
     CellStyle under(CellStyle over) {
         if (over == null || over == PLAIN) {
             return this;

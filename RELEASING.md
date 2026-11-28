@@ -16,6 +16,9 @@ build does not catch it: 2.8.0 needed an upgrade note because `ColumnDefinition`
 the document font and the strict glyph mode are `PdfDocument.font(PdfFont)` and
 `PdfDocument.failOnMissingGlyphs(boolean)`, not components of `PdfStyle`.
 
+The Javadoc of the public API is in English (2.11.0), so the javadoc jar and an IDE read for everyone; internal
+`//` comments may stay in Arabic. A broken `{@link}` fails the build (doclint).
+
 ## Before the tag
 
 1. **Merge** the work into `master` through pull requests, with CI green.

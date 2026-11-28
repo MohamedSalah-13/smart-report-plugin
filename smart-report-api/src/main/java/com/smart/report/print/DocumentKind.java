@@ -5,8 +5,9 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
- * نوع مستند بيعرّفه البرنامج: إيصال بيع، فاتورة شراء، كشف حساب، سند... بمفتاح ثابت، واسم يتعرض في شاشة
- * الإعدادات، والأوراق اللي ينفع يتطبع عليها، وإعداده الافتراضي.
+ * A document kind that the program defines: a sales receipt, a purchase invoice, an account statement, a voucher...
+ * It has a fixed key, a label shown on the settings screen, the papers it can be printed on, and its default
+ * settings.
  *
  * <pre>{@code
  * DocumentKind receipt = DocumentKind.of("sale-receipt", "إيصال البيع",
@@ -31,11 +32,14 @@ public final class DocumentKind {
     }
 
     /**
-     * @param key      حروف إنجليزي وأرقام و {@code . _ -}، لحد 64 حرف: بيتحفظ بيه الإعداد، فما يتغيرش بين النسخ
-     * @param label    الاسم في شاشة الإعدادات، بلغة البرنامج
-     * @param defaults الإعداد لما مفيش محفوظ، أو لما المحفوظ ما يتقريش؛ ورقته لازم تكون من {@code papers}
-     * @param papers   أسماء الأوراق المسموحة، بالترتيب اللي يتعرض بيه، من غير تكرار
-     * @throws IllegalArgumentException لو المفتاح بحروف تانية، أو الاسم فاضي، أو مفيش أوراق، أو ورقة الافتراضي مش منهم
+     * @param key      English letters, digits and {@code . _ -}, up to 64 characters. The settings are saved under
+     *                 it, so do not change it between versions
+     * @param label    the label on the settings screen, in the program's language
+     * @param defaults the settings used when nothing is saved, or when the saved value cannot be read; its paper
+     *                 must be one of {@code papers}
+     * @param papers   the allowed paper names, in display order, without duplicates
+     * @throws IllegalArgumentException if the key has other characters, the label is blank, there are no papers,
+     *                                  or the default paper is not one of them
      */
     public static DocumentKind of(String key, String label, PrintProfile defaults, String... papers) {
         checkKey(key, "document kind key");
@@ -72,7 +76,7 @@ public final class DocumentKind {
         return label;
     }
 
-    /** الأوراق المسموحة بالترتيب. */
+    /** The allowed papers, in order. */
     public List<String> papers() {
         return papers;
     }
@@ -82,9 +86,9 @@ public final class DocumentKind {
     }
 
     /**
-     * يرفض الإعداد اللي ما ينفعش للنوع ده: ورقة مش من أوراقه.
+     * Rejects settings that do not fit this kind: a paper that is not one of its papers.
      *
-     * @throws IllegalArgumentException باسم الورقة والنوع
+     * @throws IllegalArgumentException naming the paper and the kind
      */
     public void check(PrintProfile profile) {
         Objects.requireNonNull(profile, "profile");

@@ -3,23 +3,24 @@ package com.smart.report.pdf;
 import java.util.Objects;
 
 /**
- * يرسم {@link Invoice} جاهزًا: صفحة بشكل من {@link InvoiceLayout} على A4 أو A5، أو إيصال على لفة 80 / 58 مم.
+ * Draws a finished {@link Invoice}: a page in one of the {@link InvoiceLayout} layouts on A4 or A5, or a receipt
+ * on an 80 / 58 mm roll.
  *
  * <pre>{@code
  * PdfDocument page = InvoicePdf.of(invoice, Paper.A5, InvoiceLayout.MODERN);
- * PdfDocument receipt = InvoicePdf.of(invoice, Paper.ROLL_80, InvoiceLayout.MODERN);   // على اللفة: إيصال
+ * PdfDocument receipt = InvoicePdf.of(invoice, Paper.ROLL_80, InvoiceLayout.MODERN);   // on a roll: a receipt
  * }</pre>
  *
- * <p>بيرجع {@link PdfDocument} عادي، فالبرنامج يقدر يزوّد عليه (علامة مائية، {@code ReportLook}) قبل
- * {@code toBytes()}. الجدول الطويل بيتقسم على صفحات ورأسه بيتكرر، والاسم الطويل بيلتف على سطرين من غير ما خطه
- * يصغر.</p>
+ * <p>Returns a plain {@link PdfDocument}, so the program can add to it (a watermark, {@code ReportLook}) before
+ * {@code toBytes()}. A long table splits across pages and its header repeats, and a long name wraps onto two lines
+ * without its font getting smaller.</p>
  */
 public final class InvoicePdf {
 
     private InvoicePdf() {
     }
 
-    /** الفاتورة على الورقة: صفحة بالشكل ده، أو إيصال لو الورقة لفة. */
+    /** The invoice on the paper: a page in this layout, or a receipt if the paper is a roll. */
     public static PdfDocument of(Invoice invoice, Paper paper, InvoiceLayout layout) {
         Objects.requireNonNull(invoice, "invoice");
         Objects.requireNonNull(paper, "paper");
@@ -126,8 +127,8 @@ public final class InvoicePdf {
     }
 
     /**
-     * الإيصال على اللفة: اسم الصنف في سطر لوحده بعرض اللفة تقريبًا (بيلتف ومايصغرش)، وتحته الكمية × السعر وإجمالي
-     * السطر؛ السطرين ما بيتفرقوش.
+     * The receipt on a roll: the item name on a line of its own, about the width of the roll (it wraps and does
+     * not shrink), with quantity × price and the line total under it. The two lines never separate.
      */
     private static PdfDocument receipt(Invoice invoice, Paper paper) {
         PdfDocument document = start(invoice, paper);

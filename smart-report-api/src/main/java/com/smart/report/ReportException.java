@@ -1,9 +1,9 @@
 package com.smart.report;
 
 /**
- * يُرمى عند فشل توليد أي نوع تقرير (PDF / Excel / Jasper): قالب غير موجود، بيانات غير صالحة،
- * خطأ IO أثناء الكتابة... استبدال RuntimeException العامة بهذا النوع يسمح للمشاريع المستهلكة
- * بالتعامل مع أخطاء توليد التقارير بشكل مميز عن أي أخطاء runtime أخرى.
+ * Thrown when generating any report type (PDF / Excel / Jasper) fails: a missing template, invalid data,
+ * an IO error while writing, and so on. Using this type instead of a plain RuntimeException lets consuming
+ * projects handle report generation errors separately from any other runtime errors.
  */
 public class ReportException extends Exception {
 

@@ -1,31 +1,31 @@
 package com.smart.report.fx;
 
 /**
- * كلام نافذة المعاينة. {@link #arabic()} و{@link #english()} جاهزين، والبرنامج اللي ليه مصطلحاته
- * يبني نسخته.
+ * The preview window texts. {@link #arabic()} and {@link #english()} are ready to use; an application with its
+ * own terms builds its own copy.
  *
- * @param title       عنوان النافذة لو البرنامج ما حدّدش واحدًا
- * @param printer     عنوان اختيار الطابعة
- * @param paper       عنوان اختيار مقاس الورق
- * @param copies      عنوان عدد النسخ
- * @param print       زر الطباعة
- * @param savePdf     زر حفظ الملف
- * @param saveTitle   عنوان نافذة اختيار مكان الحفظ
- * @param pageOf      "صفحة %d من %d"
- * @param previous    تلميح زر الصفحة السابقة
- * @param next        تلميح زر الصفحة التالية
- * @param zoomIn      تلميح زر التكبير
- * @param zoomOut     تلميح زر التصغير
- * @param fitWidth    زر ملء العرض
- * @param fitPage     زر عرض الصفحة كاملة
- * @param landscape   وصف الورقة المقلوبة بالعرض فى قائمة المقاسات
- * @param preparing   والصفحة بتتجهّز
- * @param noPrinter   مفيش طابعة معرّفة على الجهاز
- * @param sent        "أُرسل إلى %s"
- * @param saved       "حُفظ فى %s"
- * @param printFailed الطباعة فشلت
- * @param saveFailed  الحفظ فشل
- * @param buildFailed المستند نفسه ما اتبناش
+ * @param title       the window title when the application does not set one
+ * @param printer     the label of the printer choice
+ * @param paper       the label of the paper size choice
+ * @param copies      the label of the number of copies
+ * @param print       the print button
+ * @param savePdf     the save-file button
+ * @param saveTitle   the title of the save dialog
+ * @param pageOf      "صفحة %d من %d" ("Page %d of %d")
+ * @param previous    the tooltip of the previous-page button
+ * @param next        the tooltip of the next-page button
+ * @param zoomIn      the tooltip of the zoom-in button
+ * @param zoomOut     the tooltip of the zoom-out button
+ * @param fitWidth    the fit-width button
+ * @param fitPage     the whole-page button
+ * @param landscape   the description of a paper turned to landscape in the size list
+ * @param preparing   shown while the page is being prepared
+ * @param noPrinter   no printer is set up on the computer
+ * @param sent        "أُرسل إلى %s" ("Sent to %s")
+ * @param saved       "حُفظ فى %s" ("Saved to %s")
+ * @param printFailed printing failed
+ * @param saveFailed  saving failed
+ * @param buildFailed the document itself was not built
  */
 public record PreviewTexts(String title, String printer, String paper, String copies,
                            String print, String savePdf, String saveTitle,

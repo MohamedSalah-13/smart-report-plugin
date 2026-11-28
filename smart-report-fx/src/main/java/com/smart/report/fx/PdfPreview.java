@@ -30,8 +30,8 @@ import java.util.function.UnaryOperator;
 import java.util.prefs.Preferences;
 
 /**
- * نافذة معاينة لمستند PDF (أو دفعة مستندات، {@link #of(PdfBatch)}): صفحاته كما هتتطبع، واختيار الطابعة
- * والمقاس وعدد النسخ، وزرّا الطباعة وحفظ الملف.
+ * A preview window for a PDF document (or a batch of documents, {@link #of(PdfBatch)}): its pages as they will
+ * print, a choice of printer, paper size and number of copies, and the print and save buttons.
  *
  * <pre>{@code
  * PdfPreview.of(paper -> StatementPdf.document(statement, companyName, paper))
@@ -43,25 +43,25 @@ import java.util.prefs.Preferences;
  *         .show(ownerWindow);
  * }</pre>
  *
- * <p>الدالة اللي بتبني المستند بتتنادى <b>خارج thread الواجهة</b>، مرة لكل مقاس ورق يختاره المستخدم:
- * ما تلمسش فيها أي عنصر JavaFX، واقرا بياناتك قبلها. {@link #show(Window)} و{@link #printOrShow(Window)}
- * نفسهم بيتنادوا من thread الواجهة.</p>
+ * <p>The function that builds the document is called <b>off the UI thread</b>, once for each paper size the user
+ * picks: do not touch any JavaFX node in it, and read your data before it. {@link #show(Window)} and
+ * {@link #printOrShow(Window)} themselves are called from the UI thread.</p>
  */
 public final class PdfPreview {
 
     private static final Logger log = LoggerFactory.getLogger(PdfPreview.class);
 
-    /** مكان المحفوظ في {@link Preferences}: تحته عقدة لكل مفتاح {@link #remember}. */
+    /** Where the saved choices live in {@link Preferences}: under it, one node per {@link #remember} key. */
     static final String PREFERENCES = "com/smart/report/preview/";
 
-    /** اللي بيتعاين: بايتات PDF على الورقة اللي المستخدم اختارها — مستند أو دفعة. */
+    /** What is previewed: the PDF bytes on the paper the user picked, for a document or a batch. */
     interface Source {
         byte[] pdf(Paper paper) throws ReportException;
     }
 
     /**
-     * بايتات PDF مبنية على الورقة اللي المستخدم اختارها، من أي مكان: تقرير Jasper، أو مكتبة تانية. بتتنادى خارج
-     * thread الواجهة ({@link #ofPdf(PdfBytes)}).
+     * PDF bytes built on the paper the user picked, from any source: a Jasper report, or another library. It is
+     * called off the UI thread ({@link #ofPdf(PdfBytes)}).
      */
     @FunctionalInterface
     public interface PdfBytes {
@@ -77,14 +77,14 @@ public final class PdfPreview {
     PreviewTexts texts;
     boolean rightToLeft;
     String rememberKey;
-    /** الطابعة اللي النافذة بتفتح عليها لو موجودة؛ {@code null} = المحفوظة ثم الافتراضية. */
+    /** The printer the window opens on, if it exists; {@code null} = the saved one, then the default. */
     String printer;
     int copies = 1;
-    /** سطر فوق الصفحة من البرنامج؛ {@code null} = مفيش. */
+    /** A line from the application above the page; {@code null} = none. */
     String notice;
-    /** مستند أو دفعة جاهزين: الورقة بتاعتهم، ومقاس الإعداد ما بيغيرهاش. */
+    /** A ready document or batch: its own paper, which the profile's paper size does not change. */
     boolean fixedPaper;
-    /** الطابعات ونافذة الحفظ؛ الاختبارات بتبدّلها. */
+    /** The printers and the save dialog; tests replace it. */
     PreviewSystem system = PreviewSystem.REAL;
 
     private PdfPreview(Source source, boolean rightToLeft) {
@@ -92,7 +92,7 @@ public final class PdfPreview {
         this.rightToLeft = rightToLeft;
     }
 
-    /** معاينة مستند جاهز على ورقته؛ النافذة باتجاه المستند ولا تعرض اختيار مقاس. */
+    /** Previews a ready document on its paper; the window takes the document's direction and offers no size choice. */
     public static PdfPreview of(PdfDocument document) {
         Objects.requireNonNull(document, "document");
         PdfPreview preview = new PdfPreview(paper -> document.toBytes(), document.rightToLeft());
@@ -102,8 +102,9 @@ public final class PdfPreview {
     }
 
     /**
-     * معاينة دفعة جاهزة ({@link PdfBatch}) على ورقتها: كل مستنداتها ورا بعض زي ما هتتطبع، والطباعة مهمة
-     * واحدة. النافذة باتجاه أول مستند ولا تعرض اختيار مقاس.
+     * Previews a ready batch ({@link PdfBatch}) on its paper: all its documents one after another, as they will
+     * print, and printing is a single job. The window takes the first document's direction and offers no size
+     * choice.
      */
     public static PdfPreview of(PdfBatch batch) {
         Objects.requireNonNull(batch, "batch");
@@ -114,8 +115,8 @@ public final class PdfPreview {
     }
 
     /**
-     * معاينة دفعة بتتبني لكل مقاس ورق، زي {@link #of(Function)}: كشوف كل السواقين، والمستخدم يختار A4 أو
-     * A5 من النافذة. الدالة بتتنادى خارج thread الواجهة.
+     * Previews a batch that is built for each paper size, like {@link #of(Function)}: the statements of all
+     * drivers, for example, with the user picking A4 or A5 in the window. The function is called off the UI thread.
      */
     public static PdfPreview ofBatch(Function<Paper, PdfBatch> batch) {
         Objects.requireNonNull(batch, "batch");
@@ -127,9 +128,9 @@ public final class PdfPreview {
     }
 
     /**
-     * معاينة مستند بيتبني لكل مقاس ورق: المستخدم بيغيّر المقاس من النافذة والمعاينة بتتبني من جديد.
-     * المقاسات المعروضة A4 و A5 إلا لو {@link #papers(Paper...)} حدّد غيرها، والنافذة عربية لو لغة
-     * الجهاز عربية إلا لو {@link #rightToLeft(boolean)} حدّد غير كده.
+     * Previews a document that is built for each paper size: the user changes the size in the window and the
+     * preview is rebuilt. The sizes offered are A4 and A5 unless {@link #papers(Paper...)} sets others, and the
+     * window is Arabic when the computer's language is Arabic, unless {@link #rightToLeft(boolean)} says otherwise.
      */
     public static PdfPreview of(Function<Paper, PdfDocument> document) {
         Objects.requireNonNull(document, "document");
@@ -141,11 +142,12 @@ public final class PdfPreview {
     }
 
     /**
-     * معاينة PDF جاهز من أي مكان: تقرير Jasper ({@code ReportService.generate(ReportType.PDF, ...)} أو
-     * {@code JasperReportProvider.pdf(jasperPrint)})، أو ملف اتقرا. الورقة من مقاس أول صفحة: A4 أو A5 (بالطول أو
-     * بالعرض) لو هي، وإلا مقاسها زي ما هو. النافذة عربية لو لغة الجهاز عربية إلا لو {@link #rightToLeft} قال غير كده.
+     * Previews a ready PDF from any source: a Jasper report ({@code ReportService.generate(ReportType.PDF, ...)} or
+     * {@code JasperReportProvider.pdf(jasperPrint)}), or a file that was read. The paper comes from the first page's
+     * size: A4 or A5 (portrait or landscape) if it is one of them, otherwise its size as it is. The window is Arabic
+     * when the computer's language is Arabic, unless {@link #rightToLeft} says otherwise.
      *
-     * @throws IllegalArgumentException لو البايتات مش PDF بيتقري أو مفيهوش صفحات
+     * @throws IllegalArgumentException if the bytes are not a readable PDF or it has no pages
      */
     public static PdfPreview ofPdf(byte[] pdf) {
         Objects.requireNonNull(pdf, "pdf");
@@ -157,8 +159,9 @@ public final class PdfPreview {
     }
 
     /**
-     * معاينة PDF بيتبني لكل ورقة يختارها المستخدم، من أي مكان (تقرير Jasper بيتملى على المقاس مثلًا). المقاسات A4
-     * و A5 إلا لو {@link #papers} حدد غيرها. الدالة بتتنادى خارج thread الواجهة.
+     * Previews a PDF that is built for each paper the user picks, from any source (a Jasper report filled for the
+     * size, for example). The sizes are A4 and A5 unless {@link #papers} sets others. The function is called off
+     * the UI thread.
      */
     public static PdfPreview ofPdf(PdfBytes pdf) {
         Objects.requireNonNull(pdf, "pdf");
@@ -168,7 +171,7 @@ public final class PdfPreview {
         return preview;
     }
 
-    /** ورقة أول صفحة: A4 أو A5 بالطول أو بالعرض لو قريبة منهم بنقطتين، وإلا مقاسها. */
+    /** The first page's paper: A4 or A5, portrait or landscape, if within two points of it, otherwise its size. */
     static Paper paperOf(byte[] pdf) {
         try (com.smart.report.pdf.PdfPages pages = com.smart.report.pdf.PdfPages.open(pdf)) {
             if (pages.count() == 0) {
@@ -187,7 +190,7 @@ public final class PdfPreview {
         }
     }
 
-    /** المقاسات اللي المستخدم يختار منها؛ مقاس واحد = بلا اختيار. */
+    /** The sizes the user can pick from; a single size = no choice. */
     public PdfPreview papers(Paper... choices) {
         if (choices == null || choices.length == 0) {
             throw new IllegalArgumentException("At least one paper is required.");
@@ -199,22 +202,23 @@ public final class PdfPreview {
         return this;
     }
 
-    /** المقاس اللي المعاينة بتفتح عليه؛ من غيره آخر مقاس اتحفظ ({@link #remember}) ثم أول المقاسات. */
+    /** The size the preview opens on; without it, the last saved size ({@link #remember}), then the first size. */
     public PdfPreview paper(Paper initial) {
         this.paper = Objects.requireNonNull(initial, "paper");
         return this;
     }
 
-    /** عنوان النافذة. */
+    /** The window title. */
     public PdfPreview title(String title) {
         this.title = title;
         return this;
     }
 
     /**
-     * الاسم المقترح للملف عند «حفظ PDF». الحروف اللي ما تنفعش في اسم ملف على Windows ({@code \ / : * ? " < > |}
-     * وحروف التحكم) بتبقى {@code -}، والنقط والمسافات في آخره بتتشال، واسم جهاز محجوز ({@code CON}،
-     * {@code COM1}...) بياخد {@code _} قبله. فعنوان زي {@code "فاتورة 12/2026"} يتحفظ من غير ما البرنامج ينضفه.
+     * The suggested file name for «حفظ PDF» ("Save PDF"). Characters that are not allowed in a Windows file name
+     * ({@code \ / : * ? " < > |} and control characters) become {@code -}, trailing periods and spaces are removed,
+     * and a reserved device name ({@code CON}, {@code COM1}...) gets a {@code _} in front. So a title such as
+     * {@code "فاتورة 12/2026"} is saved without the application having to clean it.
      */
     public PdfPreview fileName(String name) {
         String safe = safeFileName(name);
@@ -227,7 +231,7 @@ public final class PdfPreview {
     private static final java.util.regex.Pattern RESERVED =
             java.util.regex.Pattern.compile("(?i)(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])(\\..*)?");
 
-    /** اسم ملف يقبله Windows ولينكس؛ فاضي لو ما فضلش فيه حاجة. */
+    /** A file name that Windows and Linux accept; empty when nothing is left of it. */
     static String safeFileName(String name) {
         if (name == null) {
             return "";
@@ -247,15 +251,15 @@ public final class PdfPreview {
     }
 
     /**
-     * الطابعة اللي النافذة بتفتح عليها لو متعرّفة على الجهاز؛ من غيرها (أو لو مش موجودة) المحفوظة بـ
-     * {@link #remember}، ثم الافتراضية.
+     * The printer the window opens on, if it is installed on the computer; without it (or if it is not there),
+     * the one saved with {@link #remember}, then the default.
      */
     public PdfPreview printer(String name) {
         this.printer = name == null || name.isBlank() ? null : name;
         return this;
     }
 
-    /** عدد النسخ اللي النافذة بتفتح عليه، من 1 لـ 99. */
+    /** The number of copies the window opens with, from 1 to 99. */
     public PdfPreview copies(int count) {
         if (count < 1 || count > PrintProfile.MAX_COPIES) {
             throw new IllegalArgumentException("Copies must be between 1 and " + PrintProfile.MAX_COPIES + ": " + count);
@@ -264,35 +268,38 @@ public final class PdfPreview {
         return this;
     }
 
-    /** سطر رسالة من البرنامج فوق الصفحة: «نسخة للعميل»، أو سبب فتح المعاينة؛ {@code null} أو فاضي = مفيش. */
+    /**
+     * A message line from the application above the page: «نسخة للعميل» ("Customer copy"), or why the preview
+     * opened; {@code null} or empty = none.
+     */
     public PdfPreview notice(String text) {
         this.notice = text == null || text.isBlank() ? null : text;
         return this;
     }
 
-    /** اتجاه النافذة ولغة كلامها (عربي / إنجليزي) لو {@link #texts} ما اتحددش. */
+    /** The window direction, and the language of its texts (Arabic / English) when {@link #texts} is not set. */
     public PdfPreview rightToLeft(boolean value) {
         this.rightToLeft = value;
         return this;
     }
 
-    /** كلام النافذة بمصطلحات البرنامج. */
+    /** The window texts, in the application's own terms. */
     public PdfPreview texts(PreviewTexts texts) {
         this.texts = Objects.requireNonNull(texts, "texts");
         return this;
     }
 
     /**
-     * يحفظ آخر طابعة ومقاس اختارهم المستخدم ويفتح عليهم المرة الجاية. المفتاح بيفرّق بين أنواع
-     * المستندات في البرنامج ("statement"، "invoice"...): المكتب بيطبع كل نوع على نفس الطابعة. ومعاه
-     * {@link #printOrShow(Window)} بتطبع على الطابعة المحفوظة من غير نافذة.
+     * Saves the last printer and size the user picked, and opens on them next time. The key tells the
+     * application's document types apart ("statement", "invoice"...): an office prints each type on the same
+     * printer. With it, {@link #printOrShow(Window)} prints on the saved printer without a window.
      */
     public PdfPreview remember(String key) {
         this.rememberKey = key == null || key.isBlank() ? null : key;
         return this;
     }
 
-    /** ملف CSS بتاع البرنامج، عشان أزرار النافذة تبقى بشكله. */
+    /** The application's CSS file, so the window's buttons match its look. */
     public PdfPreview stylesheet(String url) {
         if (url != null && !url.isBlank()) {
             stylesheets.add(url);
@@ -304,12 +311,12 @@ public final class PdfPreview {
         return texts != null ? texts : rightToLeft ? PreviewTexts.arabic() : PreviewTexts.english();
     }
 
-    /** عقدة المحفوظ لمفتاح {@link #remember}، أو {@code null} من غيره. */
+    /** The saved-choices node for the {@link #remember} key, or {@code null} without one. */
     Preferences remembered() {
         return rememberKey == null ? null : Preferences.userRoot().node(PREFERENCES + rememberKey);
     }
 
-    /** المقاس المطلوب صراحة، ثم المحفوظ من آخر مرة، ثم أول المقاسات. */
+    /** The size asked for explicitly, then the one saved last time, then the first size. */
     Paper startingPaper(Preferences remembered) {
         if (paper != null && papers.contains(paper)) {
             return paper;
@@ -328,38 +335,40 @@ public final class PdfPreview {
         return papers.get(0);
     }
 
-    /** الاسم اللي المقاس بيتحفظ بيه، و{@link Paper#parse} بيقراه. */
+    /** The name the size is saved under, which {@link Paper#parse} reads. */
     static String paperKey(Paper value) {
         return value.isLandscape() ? value.name() + "-landscape" : value.name();
     }
 
     /**
-     * يفتح النافذة فوق {@code owner} (أو مستقلة لو {@code null}) ويرجّعها. النافذة مش بتحجز
-     * البرنامج: المستخدم يقدر يسيبها مفتوحة ويكمل شغله.
+     * Opens the window over {@code owner} (or on its own when {@code null}) and returns it. The window does not
+     * block the application: the user can leave it open and keep working.
      */
     public Stage show(Window owner) {
         return new PreviewWindow(this, owner).show();
     }
 
     /**
-     * يطبع على طول على الطابعة اللي المستخدم طبع عليها آخر مرة من النافذة، ومن غيرها يفتح النافذة زي
-     * {@link #show(Window)}: الكاشير يختار الطابعة مرة واحدة والإيصالات اللي بعدها تطلع من غير نافذة.
+     * Prints straight away on the printer the user last printed on from the window; without one, opens the window
+     * like {@link #show(Window)}. A cashier picks the printer once, and the receipts after that print without a
+     * window.
      *
      * <ul>
-     *   <li>من غير {@link #remember(String)}، أو لو مفيش طابعة محفوظة، أو المحفوظة اتشالت من الجهاز:
-     *       النافذة بتتفتح والنتيجة {@link PrintOutcome.Shown}. الطابعة اللي المستخدم يطبع عليها منها
-     *       بتتحفظ للمرة الجاية.</li>
-     *   <li>غير كده نسخة واحدة بتتبعت للطابعة المحفوظة على المقاس اللي النافذة كانت هتفتح عليه
-     *       ({@link #paper(Paper)}، ثم آخر مقاس اتطبع، ثم أول المقاسات)، والنتيجة
-     *       {@link PrintOutcome.Sent}. المقاس ده بيتحفظ كآخر مقاس اتطبع.</li>
-     *   <li>لو المستند ما اتبناش أو الطابعة رفضت المهمة، النتيجة {@link PrintOutcome.Failed}
-     *       و<b>النافذة ما بتتفتحش</b>: نافذة بتطلع لوحدها وسط البيعة اللي بعدها بتاخد الكيبورد من
-     *       الكاشير. البرنامج يقول للمستخدم، ويقدر يفتح النافذة بنفسه بـ {@link #show(Window)}.</li>
+     *   <li>Without {@link #remember(String)}, or when no printer is saved, or the saved one was removed from the
+     *       computer: the window opens and the result is {@link PrintOutcome.Shown}. The printer the user prints on
+     *       from it is saved for next time.</li>
+     *   <li>Otherwise one copy is sent to the saved printer, on the size the window would have opened on
+     *       ({@link #paper(Paper)}, then the last printed size, then the first size), and the result is
+     *       {@link PrintOutcome.Sent}. That size is saved as the last printed size.</li>
+     *   <li>If the document was not built or the printer rejected the job, the result is
+     *       {@link PrintOutcome.Failed} and <b>the window does not open</b>: a window that pops up by itself during
+     *       the next sale takes the keyboard from the cashier. The application tells the user, and can open the
+     *       window itself with {@link #show(Window)}.</li>
      * </ul>
      *
-     * <p>بتتنادى من thread الواجهة وبترجع على طول: سؤال الطابعات وبناء المستند والطباعة على thread
-     * جانبي. النتيجة بتكمل على thread الواجهة، فاللي بيستناها يقدر يلمس عناصر البرنامج. ما بتكملش
-     * باستثناء أبدًا إلا لخطأ مش متوقع ({@link Error}).</p>
+     * <p>Called from the UI thread, and returns at once: listing the printers, building the document and printing
+     * run on a background thread. The result completes on the UI thread, so whoever waits for it can touch the
+     * application's nodes. It never completes exceptionally except for an unexpected error ({@link Error}).</p>
      */
     public CompletableFuture<PrintOutcome> printOrShow(Window owner) {
         CompletableFuture<PrintOutcome> outcome = new CompletableFuture<>();
@@ -411,8 +420,8 @@ public final class PdfPreview {
     }
 
     /**
-     * يطلّع المستند زي ما إعداد نوعه بيقول ({@link PrintSettings#profile}، مقري دلوقتي، فتغيير في شاشة الإعدادات
-     * بيوصل لشاشة مفتوحة من قبله).
+     * Outputs the document as its type's profile says ({@link PrintSettings#profile}, read now, so a change in the
+     * settings screen reaches a screen that was opened before it).
      *
      * @see #print(PrintSettings, String, UnaryOperator, Window)
      */
@@ -421,27 +430,29 @@ public final class PdfPreview {
     }
 
     /**
-     * يطلّع المستند زي ما إعداد نوعه بيقول، بعد تغيير لمرة واحدة ما بيتحفظش:
-     * {@code profile -> profile.withMode(OutputMode.PREVIEW)} لزر «معاينة» جنب «طباعة»، أو
-     * {@code profile -> profile.withPaper("A4")}.
+     * Outputs the document as its type's profile says, after a one-time change that is not saved:
+     * {@code profile -> profile.withMode(OutputMode.PREVIEW)} for a «معاينة» ("Preview") button next to «طباعة»
+     * ("Print"), or {@code profile -> profile.withPaper("A4")}.
      *
      * <ul>
-     *   <li>{@link OutputMode#PRINT}: النسخ على طابعة الإعداد (الدور بيتحول لاسمها دلوقتي، ومن غير طابعة للدور
-     *       الافتراضية)، والنتيجة {@link PrintResult.Printed}. لو الطابعة دي مش متعرّفة على الجهاز النافذة بتفتح
-     *       وفوق الصفحة سطر بيقول كده، والنتيجة {@link PrintResult.Shown}: <b>المستند ما بيتبعتش لطابعة تانية
-     *       من غير ما المستخدم يختار.</b></li>
-     *   <li>{@link OutputMode#PREVIEW}: النافذة على ورقة الإعداد وطابعته ونسخه.</li>
-     *   <li>{@link OutputMode#SAVE_PDF}: نافذة اختيار مكان الحفظ بالاسم من {@link #fileName}، والنتيجة
-     *       {@link PrintResult.Saved} أو {@link PrintResult.Cancelled}.</li>
-     *   <li>{@link OutputMode#ASK}: سؤال بتلات اختيارات، وبعدين زي اللي اتختار؛ القفل = {@link PrintResult.Cancelled}.</li>
+     *   <li>{@link OutputMode#PRINT}: the copies go to the profile's printer (a role is resolved to its printer
+     *       name now; a role with no printer means the default), and the result is {@link PrintResult.Printed}. If
+     *       that printer is not installed on the computer, the window opens with a line above the page that says
+     *       so, and the result is {@link PrintResult.Shown}: <b>the document is not sent to another printer without
+     *       the user choosing.</b></li>
+     *   <li>{@link OutputMode#PREVIEW}: the window on the profile's paper, printer and copies.</li>
+     *   <li>{@link OutputMode#SAVE_PDF}: a dialog to choose where to save, with the name from {@link #fileName}, and
+     *       the result is {@link PrintResult.Saved} or {@link PrintResult.Cancelled}.</li>
+     *   <li>{@link OutputMode#ASK}: a question with three choices, then as chosen; closing it =
+     *       {@link PrintResult.Cancelled}.</li>
      * </ul>
      *
-     * <p>المستند اللي بيتبني لكل ورقة بيتبني على ورقة الإعداد، والنافذة بتعرض أوراق النوع؛ المستند الجاهز
-     * ({@link #of(PdfDocument)}) بيفضل على ورقته. البناء والطباعة والكتابة خارج thread الواجهة، والنتيجة بتكمل
-     * عليه. بتتنادى من thread الواجهة.</p>
+     * <p>A document built for each paper is built on the profile's paper, and the window offers the type's papers;
+     * a ready document ({@link #of(PdfDocument)}) stays on its own paper. Building, printing and writing run off
+     * the UI thread, and the result completes on it. Called from the UI thread.</p>
      *
-     * @throws IllegalArgumentException لو النوع مش معرّف، أو التغيير طلّع ورقة النوع ما بياخدهاش أو اسم ورقة
-     *                                  ما يتقريش
+     * @throws IllegalArgumentException if the type is not defined, or the change produced a paper the type does
+     *                                  not take or a paper name that cannot be read
      */
     public CompletableFuture<PrintResult> print(PrintSettings settings, String kind,
                                                 UnaryOperator<PrintProfile> override, Window owner) {
@@ -485,7 +496,7 @@ public final class PdfPreview {
         };
     }
 
-    /** يكتب الملف في المكان اللي المستخدم اختاره، من غير نافذة معاينة. */
+    /** Writes the file where the user chose, without a preview window. */
     private CompletableFuture<PrintResult> saveTo(Window owner, Paper target) {
         FileChooser chooser = new FileChooser();
         chooser.setTitle(resolvedTexts().saveTitle());
@@ -517,8 +528,8 @@ public final class PdfPreview {
     }
 
     /**
-     * يطبع على {@code name} (أو الافتراضية لو {@code null}) لو متعرّفة على الجهاز؛ غير كده يفتح النافذة بسطر
-     * بيقول ليه، وما بيبعتش لطابعة تانية.
+     * Prints on {@code name} (or the default when {@code null}) if it is installed on the computer; otherwise opens
+     * the window with a line that says why, and does not send to another printer.
      */
     private CompletableFuture<PrintResult> printTo(Window owner, String name, Paper target, int count,
                                                    PrintTexts words) {

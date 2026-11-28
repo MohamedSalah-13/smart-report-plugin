@@ -1,11 +1,11 @@
 package com.smart.report.pdf;
 
-/** متى يُكتب رقم الصفحة في أسفلها ("صفحة 1 من 3" / "Page 1 of 3"). */
+/** When the page number is printed at the bottom of the page ("صفحة 1 من 3" / "Page 1 of 3"). */
 public enum PageNumbers {
-    /** لا ترقيم. */
+    /** No page numbers. */
     NONE,
-    /** الافتراضي: يُكتب فقط لو المستند أكتر من صفحة. */
+    /** The default: printed only when the document has more than one page. */
     WHEN_SEVERAL,
-    /** يُكتب دائمًا، حتى على الصفحة الواحدة. */
+    /** Always printed, even on a single page. */
     ALWAYS
 }

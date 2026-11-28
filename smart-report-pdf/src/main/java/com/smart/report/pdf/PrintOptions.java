@@ -3,27 +3,28 @@ package com.smart.report.pdf;
 import java.util.Objects;
 
 /**
- * طلبات مهمة الطباعة غير الطابعة والورقة: عدد النسخ، ومدى الصفحات، والطباعة على الوجهين.
+ * Print job options other than the printer and the paper: the number of copies, the page range, and two-sided
+ * printing.
  *
  * <pre>{@code
  * PdfPrinter.print(pdf, printer, Paper.A4, PrintOptions.copies(2).pages(3, 5).duplex(PrintOptions.Duplex.LONG_EDGE));
  * }</pre>
  *
- * <p>الصنف immutable.</p>
+ * <p>The class is immutable.</p>
  */
 public final class PrintOptions {
 
-    /** الوجهين: الطابعة اللي ما بتطبعش على الوجهين بتطبع على وجه واحد. */
+    /** Two-sided printing: a printer that cannot print on both sides prints on one side. */
     public enum Duplex {
-        /** وجه واحد، حتى لو الطابعة افتراضيها الوجهين. */
+        /** One side, even if the printer defaults to two sides. */
         ONE_SIDED,
-        /** الوجهين، والورقة بتتقلب على الضلع الطويل: الكتاب والكشف الطولي. */
+        /** Both sides, flipping the sheet on the long edge: a book or a portrait statement. */
         LONG_EDGE,
-        /** الوجهين، والورقة بتتقلب على الضلع القصير: الصفحة بالعرض. */
+        /** Both sides, flipping the sheet on the short edge: a landscape page. */
         SHORT_EDGE
     }
 
-    /** نسخة واحدة، كل الصفحات، والوجهين زي افتراضي الطابعة. */
+    /** One copy, all pages, and two-sided printing as the printer's default. */
     public static final PrintOptions DEFAULT = new PrintOptions(1, 0, 0, null);
 
     private final int copies;
@@ -41,7 +42,7 @@ public final class PrintOptions {
         this.duplex = duplex;
     }
 
-    /** {@code count} نسخة، من 1 لـ {@value PdfPrinter#MAX_COPIES}. */
+    /** {@code count} copies, from 1 to {@value PdfPrinter#MAX_COPIES}. */
     public static PrintOptions copies(int count) {
         return new PrintOptions(count, 0, 0, null);
     }
@@ -51,9 +52,10 @@ public final class PrintOptions {
     }
 
     /**
-     * الصفحات من {@code first} لـ {@code last} بس، من 1. آخر أكبر من صفحات المستند = لحد آخره.
+     * Only the pages from {@code first} to {@code last}, counting from 1. A last page beyond the document's pages
+     * means up to its end.
      *
-     * @throws IllegalArgumentException لو {@code first} أقل من 1 أو {@code last} أقل منه
+     * @throws IllegalArgumentException if {@code first} is less than 1 or {@code last} is less than {@code first}
      */
     public PrintOptions pages(int first, int last) {
         if (first < 1 || last < first) {
@@ -62,12 +64,12 @@ public final class PrintOptions {
         return new PrintOptions(copies, first, last, duplex);
     }
 
-    /** كل الصفحات. */
+    /** All pages. */
     public PrintOptions allPages() {
         return new PrintOptions(copies, 0, 0, duplex);
     }
 
-    /** الوجهين؛ {@code null} = افتراضي الطابعة. */
+    /** Two-sided printing; {@code null} = the printer's default. */
     public PrintOptions duplex(Duplex value) {
         return new PrintOptions(copies, firstPage, lastPage, value);
     }
@@ -76,17 +78,17 @@ public final class PrintOptions {
         return copies;
     }
 
-    /** أول صفحة من 1، أو صفر = كل الصفحات. */
+    /** The first page, counting from 1, or zero = all pages. */
     public int firstPage() {
         return firstPage;
     }
 
-    /** آخر صفحة، أو صفر = كل الصفحات. */
+    /** The last page, or zero = all pages. */
     public int lastPage() {
         return lastPage;
     }
 
-    /** {@code null} = افتراضي الطابعة. */
+    /** {@code null} = the printer's default. */
     public Duplex duplex() {
         return duplex;
     }
@@ -96,10 +98,10 @@ public final class PrintOptions {
     }
 
     /**
-     * يقرا مدى صفحات زي ما المستخدم بيكتبه: {@code "3"}، {@code "2-5"}، {@code "2–5"}، بأرقام لاتيني أو عربي؛ فاضي =
-     * كل الصفحات.
+     * Reads a page range as the user types it: {@code "3"}, {@code "2-5"}, {@code "2–5"}, in Latin or Arabic
+     * digits; empty = all pages.
      *
-     * @throws IllegalArgumentException لو مش رقم أو مدى صحيح من 1 لـ {@code pageCount}
+     * @throws IllegalArgumentException if it is not a number or a valid range from 1 to {@code pageCount}
      */
     public PrintOptions pages(String range, int pageCount) {
         String text = range == null ? "" : range.strip();
