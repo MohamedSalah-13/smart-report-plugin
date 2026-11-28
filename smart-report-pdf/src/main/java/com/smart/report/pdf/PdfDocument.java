@@ -79,6 +79,10 @@ public final class PdfDocument {
     record BarcodeBlock(BarcodeSymbol symbol, float height, Align align) implements Block {
     }
 
+    /** @param height طول الخطوط بالنقطة، من غير الأرقام المكتوبة تحتها */
+    record Ean13Block(Ean13Symbol symbol, float height, Align align) implements Block {
+    }
+
     /** الجزء اللي بعده يبدأ في صفحة جديدة؛ القواعد في {@link #pageBreak()}. */
     record PageBreakBlock() implements Block {
     }
@@ -88,6 +92,9 @@ public final class PdfDocument {
 
     /** طول خطوط الباركود لو ما اتحدّدش: 12 مم، بيتقرا بقارئ اليد من غير ما ياخد مكان كتير في الإيصال. */
     static final float DEFAULT_BARCODE_MM = 12f;
+
+    /** طول خطوط EAN-13 لو ما اتحدّدش: 15 مم، قريب من حجم المنتجات (22.85 مم بالأرقام في الحجم الكامل). */
+    static final float DEFAULT_EAN13_MM = 15f;
 
     private static final float POINTS_PER_MM = 72f / 25.4f;
 
@@ -326,6 +333,34 @@ public final class PdfDocument {
             throw new IllegalArgumentException("The barcode height must be a positive number of millimetres.");
         }
         return add(new BarcodeBlock(BarcodeSymbol.encode(text), heightMm * POINTS_PER_MM,
+                align == null ? Align.CENTER : align));
+    }
+
+    /**
+     * باركود EAN-13 في منتصف السطر، خطوطه بطول 15 مم وتحتها الـ 13 رقم: الباركود اللي على المنتجات.
+     *
+     * @param digits 12 رقم (خانة التحقق بتتحسب) أو 13 (خانتها بتتراجع)
+     * @throws IllegalArgumentException لو مش 12 أو 13 رقم، أو خانة التحقق غلط
+     * @see #ean13(String, float, Align)
+     */
+    public PdfDocument ean13(String digits) {
+        return ean13(digits, DEFAULT_EAN13_MM, Align.CENTER);
+    }
+
+    /**
+     * باركود EAN-13 مرسوم خطوطًا متجهة: أضيق خط 0.33 مم (الحجم الأساسي)، والخطوط الحارسة أطول من الباقي، والأرقام
+     * تحتها زي المنتجات، وأول رقم في المنطقة الفاضية على الشمال. لو ما كفّاش السطر الخطوط بتضيق لحد 0.264 مم (80%
+     * من الحجم، أقل ما المواصفة بتسمح بيه)، وبعدها كتابة المستند بتفشل بـ {@link ReportException}. ومع
+     * {@link #printerDpi} كل خط عدد صحيح من نقط الطابعة.
+     *
+     * @param heightMm طول الخطوط بالمليمتر، من غير الأرقام
+     * @throws IllegalArgumentException لو مش 12 أو 13 رقم، أو خانة التحقق غلط، أو الطول مش موجب
+     */
+    public PdfDocument ean13(String digits, float heightMm, Align align) {
+        if (!(heightMm > 0) || Float.isInfinite(heightMm)) {
+            throw new IllegalArgumentException("The barcode height must be a positive number of millimetres.");
+        }
+        return add(new Ean13Block(Ean13Symbol.encode(digits), heightMm * POINTS_PER_MM,
                 align == null ? Align.CENTER : align));
     }
 

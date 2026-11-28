@@ -191,6 +191,14 @@ What each part is:
   Every bar and QR module then is a whole number of printer dots on the dot grid; without it a 0.33 mm bar is
   2.64 dots and the driver makes bars uneven. A symbol that cannot fit with at least 2 dots (and 0.25 mm for bars)
   throws a `ReportException` from `toBytes`/`save`.
+- **EAN-13** (product barcodes, from `v2.11.0`): `document.ean13("622100012345")` (12 digits, check digit
+  computed; 13 digits are verified and a wrong check digit is rejected).
+- **Item labels** (from `v2.11.0`): `PdfLabels.roll(widthMm, heightMm).across(2, gapMm)` or
+  `PdfLabels.sheet(Paper.A4, columns, rows).margins(topMm, sideMm)`, then
+  `add(PdfLabels.Item.of(name, priceText, barcode).withOldPrice(old), copies)` and `toBytes()`; print with
+  `PdfPrinter.print(bytes, printer, labels.paper(), 1)`. A valid 13-digit code prints as EAN-13, anything else as
+  Code 128. `longName(ELLIPSIS|SHRINK|HIDE)`, `offset(xMm, yMm)` per printer, `printerDpi(203)`. Skip units with
+  no barcode: `Item.of` refuses them.
 - A QR code or barcode **as an image**, for a screen or a web endpoint (from `v2.11.0`):
   `SymbolImage.qrPng(text, pixelsPerModule)`, `SymbolImage.barcodePng(text, pixelsPerModule, heightPixels)`, or
   `SymbolImage.qr(...)` / `barcode(...)` for a `BufferedImage`. Quiet zone included, black and white, whole pixels
