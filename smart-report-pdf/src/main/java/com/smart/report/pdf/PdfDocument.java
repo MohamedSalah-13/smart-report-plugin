@@ -547,7 +547,8 @@ public final class PdfDocument {
      * longer than the rest, the digits are under the bars as on products, and the first digit is in the blank
      * zone on the left. If it does not fit the line, the bars get narrower down to 0.264 mm (80% of the size, the
      * smallest the specification allows), and after that writing the document fails with a
-     * {@link ReportException}. With {@link #printerDpi}, every bar is a whole number of printer dots.
+     * {@link ReportException}. With {@link #printerDpi}, every bar is a whole number of printer dots, down to two
+     * dots and 0.25 mm (0.264 mm is not a whole number of dots at 203 dpi; two dots is what label printers print).
      *
      * @param heightMm the height of the bars in millimetres, without the digits
      * @throws IllegalArgumentException if not 12 or 13 digits, or the check digit is wrong, or the height is not

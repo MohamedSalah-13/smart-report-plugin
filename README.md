@@ -427,7 +427,9 @@ document.ean13("4006381333931", 15, Align.START); // 13 digits: the check digit 
 
 - 0.33 mm bars (the standard size) with the longer guard bars and the digits under them, the first digit in the
   left quiet zone. It narrows down to 0.264 mm (80%, the smallest the standard allows) to fit, then fails with a
-  `ReportException`. With `printerDpi` every bar is a whole number of printer dots.
+  `ReportException`. With `printerDpi` every bar is a whole number of printer dots, down to two dots and 0.25 mm
+  (v2.11.1): 0.264 mm is not a whole number of dots at 203 dpi, and two dots is what label printers print, so an
+  EAN-13 fits a 40 mm label.
 - A 13-digit number with a wrong check digit is rejected: a mistyped number would print another product's code.
 
 Item labels for a shop, on a label roll or an A4 label sheet:

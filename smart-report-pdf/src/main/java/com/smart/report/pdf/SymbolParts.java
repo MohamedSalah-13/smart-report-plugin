@@ -199,6 +199,14 @@ final class SymbolParts {
     static final float MIN_EAN_MODULE = 0.264f * POINTS_PER_MM;
 
     /**
+     * أقل عرض لخط EAN-13: 0.264 مم، ومع دقة طابعة 0.25 مم زي Code 128. على رأس 203 الـ 0.264 مش عدد صحيح من النقط،
+     * فكانت بتطلع 3 نقط (0.375 مم) والباركود ما يكفّيش ملصق 40 مم؛ ونقطتين (0.25 مم) هو اللي طابعات الملصقات بتطبعه.
+     */
+    static float minEanModule(float dot) {
+        return dot > 0 ? MIN_BAR_MODULE : MIN_EAN_MODULE;
+    }
+
+    /**
      * عرض أضيق خط لرمز عرضه {@code span} مربع في {@code width}: {@code natural} لو كفّى، وأضيق لحد {@code min}؛
      * ومع دقة طابعة ({@code dot} أكبر من صفر) عدد صحيح من النقط، الأقرب لـ {@code natural} ونقطتين على الأقل.
      *
@@ -289,7 +297,7 @@ final class SymbolParts {
     static Part ean13(PdfDocument.Ean13Block ean, Frame frame) throws IOException, ReportException {
         Ean13Symbol symbol = ean.symbol();
         int span = Ean13Symbol.QUIET_LEFT + Ean13Symbol.MODULES + Ean13Symbol.QUIET_RIGHT;
-        float module = fitModule(span, EAN_MODULE, MIN_EAN_MODULE, frame.width(), frame.dot(), frame.dpi(),
+        float module = fitModule(span, EAN_MODULE, minEanModule(frame.dot()), frame.width(), frame.dot(), frame.dpi(),
                 "The EAN-13 barcode " + symbol.digits());
         float digitSize = eanDigitSize(frame.text(), module, frame.style().bodySize() * 1.2f);
         EanDigits digits = EanDigits.of(frame.text(), symbol, digitSize);
