@@ -59,7 +59,7 @@ public interface PrintSettingsStore {
         };
     }
 
-    /** في الذاكرة بس، للاختبارات أو لبرنامج بيحفظ بنفسه بعدين ({@link #snapshot}). */
+    /** في الذاكرة بس، للاختبارات أو لبرنامج بيحفظ بنفسه بعدين ({@link InMemory#snapshot}). */
     static InMemory inMemory() {
         return new InMemory();
     }
