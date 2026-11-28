@@ -187,6 +187,10 @@ What each part is:
   and the place. English letters, digits and signs only (Arabic is rejected). The narrowest bar is 0.33 mm and
   narrows to 0.25 mm to fit; a code too long for the line even then makes `toBytes`/`save` throw a
   `ReportException` - keep codes short on a 58 mm roll (about 15 characters; digits pack two to a pattern).
+- **On a thermal printer, give the document its resolution** (from `v2.11.0`): `.printerDpi(203)` (or 300...).
+  Every bar and QR module then is a whole number of printer dots on the dot grid; without it a 0.33 mm bar is
+  2.64 dots and the driver makes bars uneven. A symbol that cannot fit with at least 2 dots (and 0.25 mm for bars)
+  throws a `ReportException` from `toBytes`/`save`.
 - A QR code or barcode **as an image**, for a screen or a web endpoint (from `v2.11.0`):
   `SymbolImage.qrPng(text, pixelsPerModule)`, `SymbolImage.barcodePng(text, pixelsPerModule, heightPixels)`, or
   `SymbolImage.qr(...)` / `barcode(...)` for a `BufferedImage`. Quiet zone included, black and white, whole pixels

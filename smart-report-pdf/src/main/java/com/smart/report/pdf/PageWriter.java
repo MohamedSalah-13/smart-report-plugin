@@ -160,7 +160,8 @@ final class PageWriter {
         watermark = Watermark.of(document.watermarkText(), document.watermarkColor(), text, paper, style.margin());
         newPage();
         try {
-            Frame frame = new Frame(text, style, rtl, left, right, width, freshRoom());
+            Frame frame = new Frame(text, style, rtl, left, right, width, freshRoom(), paper.height(),
+                    document.printerDpi());
             List<Part> parts = new ArrayList<>();
             for (PdfDocument.Block block : document.blocks()) {
                 parts.addAll(Parts.of(block, frame));
