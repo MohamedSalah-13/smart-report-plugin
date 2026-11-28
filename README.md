@@ -843,8 +843,19 @@ where the grand total's does, under the first column that is not totalled, follo
 keeps its column's format, like the grand total. A report with `groupBy` needs at least one `withTotal()` column, or
 it fails with a `ReportException`.
 
-There is no header row above each group: the group's column already shows the value on every row and the subtotal row
-names it, so a header row would only repeat it. Make the group's column the first column, and the label sits under it.
+Make the group's column the first column, and the label sits under it. Two options (v2.11.0), for both reports:
+
+```java
+.groupHeader(true)          // a line with the group's value above its rows
+.pageBreakPerGroup(true)    // each group starts on a new page: each customer's statement on its own
+```
+
+- In the PDF, `groupHeader` puts a heading with the value above each group, and each group gets its own table with
+  the column header under it; the heading never stays alone at the foot of a page. With `pageBreakPerGroup` each
+  group starts on a new page, and the grand total comes under the last group.
+- In Excel, `groupHeader` adds a bold row with the value (in the group's column, so the filter on that column keeps
+  it with its rows, or in the first column), and `pageBreakPerGroup` adds a printed page break after each subtotal.
+- Both need `groupBy`, or the report fails with a `ReportException`.
 
 In the PDF a subtotal row looks like the totals row, and it never starts a page on its own: when it does not fit under
 the last row of its group, that row moves to the next page with it, under the repeated header. The grand total of a
