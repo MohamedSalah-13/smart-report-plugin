@@ -137,6 +137,11 @@ What each part is:
   puts a PNG or JPEG beside it.
 - `title`, `subtitle` - centred. `heading` - a bold line over a section. `text` - a paragraph.
 - `field(label, value)` - "label: value"; consecutive fields sit two to a row.
+- **Ready-made documents** (from `v2.11.0`): for a sales/purchase invoice, a receipt, an account statement or
+  a voucher, fill `Invoice.builder(rtl)` (with `InvoiceLine.of(name, qty, price, total)`),
+  `AccountStatement.builder(rtl)` or `Voucher.builder(rtl)` with formatted text and call `toPdf(paper[, layout])`
+  instead of composing the document by hand. One `Invoice` prints on A4/A5 (`InvoiceLayout.ECONOMY`, `MODERN`,
+  `DETAILED`) or as a receipt on a roll. Compose with `PdfDocument` only when the paper differs from these.
 - **Negative amounts in red / a bold cell** (from `v2.11.0`): `table.negativeInRed(balanceColumn)` on a
   statement, or `table.cellStyle((row, column, text) -> ... ? CellStyle.bold() : CellStyle.PLAIN)`; the generic
   report takes `.parameter(PdfReportProvider.NEGATIVE_IN_RED, true)`. Do not prefix numbers with symbols to

@@ -118,6 +118,43 @@ byte[] pdf = document.toBytes();             // أو بايتات
   الأطول من تلت الصفحة بيترسم مرة واحدة بدل ما يتكرر في كل صفحة.
 - الأرقام السالبة، التواريخ، النسب، وأرقام التليفون بتتقرا زي ما اتكتبت جوّه الجملة العربية.
 
+### مستندات جاهزة: فاتورة، وإيصال، وكشف حساب، وسند
+
+بدل ما تركّب كل مستند من نداءات `PdfDocument`، املا نموذج بنص منسّق ومترجم، والمكتبة بترتّبه (v2.11.0):
+
+<div dir="ltr">
+
+```java
+Invoice invoice = Invoice.builder(true)                     // true = عربي
+        .letterhead("مؤسسة النور", "ت: 0100 000 0000")
+        .title("فاتورة بيع").number("1751").date("2026-11-28 10:30")
+        .field("العميل", "أحمد علي")
+        .line(InvoiceLine.of("مسمار 10 مم", "12", "2.50", "30.00").withCode("NL-10").withUnit("علبة"))
+        .total("الإجمالى", "30.00").total("الضريبة", "4.20").grandTotal("الصافى", "34.20")
+        .amountInWords(AmountInWords.arabic(net, AmountInWords.Currency.EGP))
+        .shopNote("البضاعة المباعة لا ترد بعد 14 يومًا")
+        .code(DocumentCode.DEFAULT.encode(1, 1751))
+        .build();
+
+invoice.toPdf(Paper.A4, InvoiceLayout.MODERN);      // ECONOMY (من غير تعبئة)، MODERN (ملوّن)، DETAILED (شبكة كاملة)
+invoice.toPdf(Paper.ROLL_80, InvoiceLayout.MODERN); // على اللفة بيبقى إيصال
+
+AccountStatement.builder(true) /* .field، .figure، .line(date, description, debit, credit, balance)، .closing */
+        .build().toPdf(Paper.A4);
+Voucher.builder(true) /* .title("سند قبض")، .party، .amount، .amountInWords، .purpose، .signatures */
+        .build().toPdf(Paper.A5);
+```
+
+</div>
+
+- نفس الفاتورة بتتطبع بالطريقتين: على صفحة بالشكل المختار، أو إيصال على لفة 80 أو 58 مم. في الإيصال اسم كل صنف في
+  سطر لوحده (بيلتف وما بيصغرش)، وتحته الكمية × السعر وإجمالي السطر؛ والسطرين ما بيتفرقوش.
+- `DETAILED` بيزوّد رقم السطر وكود الصنف لو موجود؛ وعمود الوحدة بيظهر في أي شكل لو في سطر ليه وحدة. الفاتورة الطويلة
+  بتتقسم على صفحات ورأس الجدول بيتكرر، وجملة المحل في أسفل كل صفحة.
+- كشف الحساب بيكتب الرصيد السالب بالأحمر؛ وعلى اللفة كل حركة في سطرين.
+- كل واحد بيرجّع `PdfDocument`، فتقدر تزوّد علامة مائية أو `ReportLook` أو `pdfA3` قبل `toBytes()`. عناوين الأعمدة
+  حسب اللغة وتتغير بـ `headers(...)`.
+
 ### التفقيط (`AmountInWords`)
 
 الإجمالي مكتوبًا بالحروف، زي ما بيتكتب في الفاتورة أو الإيصال:
