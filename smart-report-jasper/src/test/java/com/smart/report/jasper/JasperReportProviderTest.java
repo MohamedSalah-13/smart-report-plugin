@@ -100,4 +100,18 @@ class JasperReportProviderTest {
         assertThrows(ReportException.class,
                 () -> ReportService.generate(ReportType.JASPER, request("   ")));
     }
+
+    /** تقرير البرنامج ملاه بنفسه بيطلع PDF يتعاين أو يتطبع. */
+    @Test
+    void aFilledReportBecomesAPdf() throws Exception {
+        net.sf.jasperreports.engine.JasperReport report = net.sf.jasperreports.engine.JasperCompileManager.compileReport(
+                getClass().getClassLoader().getResourceAsStream("reports/employee.jrxml"));
+        net.sf.jasperreports.engine.JasperPrint print = net.sf.jasperreports.engine.JasperFillManager.fillReport(report,
+                new java.util.HashMap<>(java.util.Map.of("ReportTitle", "Employee Report")),
+                new net.sf.jasperreports.engine.data.JRBeanCollectionDataSource(EMPLOYEES));
+        byte[] pdf = JasperReportProvider.pdf(print);
+        assertTrue(new String(pdf, 0, 5, java.nio.charset.StandardCharsets.ISO_8859_1).startsWith("%PDF-"));
+        assertTrue(PdfText.of(pdf).text().contains("Ahmed Ali"), PdfText.of(pdf).text());
+        assertThrows(NullPointerException.class, () -> JasperReportProvider.pdf(null));
+    }
 }

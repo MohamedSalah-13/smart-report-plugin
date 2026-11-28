@@ -167,6 +167,21 @@ public final class JasperReportProvider implements ReportProvider {
         return resource;
     }
 
+    /**
+     * تقرير Jasper البرنامج ملاه بنفسه كـ PDF، بالخطوط العربية بتاعة الوحدة دي: عشان يتعاين في {@code PdfPreview.ofPdf}
+     * أو يتطبع بـ {@code PdfPrinter}.
+     *
+     * @throws ReportException لو التصدير فشل
+     */
+    public static byte[] pdf(JasperPrint print) throws ReportException {
+        java.util.Objects.requireNonNull(print, "print");
+        try {
+            return JasperExportManager.exportReportToPdf(print);
+        } catch (JRException e) {
+            throw new ReportException("Failed to export the Jasper report to PDF: " + e.getMessage(), e);
+        }
+    }
+
     private byte[] export(JasperPrint print, JasperExportFormat format) throws JRException, IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         switch (format) {

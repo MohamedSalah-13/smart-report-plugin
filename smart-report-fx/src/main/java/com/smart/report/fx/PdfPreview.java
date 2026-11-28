@@ -59,6 +59,15 @@ public final class PdfPreview {
         byte[] pdf(Paper paper) throws ReportException;
     }
 
+    /**
+     * بايتات PDF مبنية على الورقة اللي المستخدم اختارها، من أي مكان: تقرير Jasper، أو مكتبة تانية. بتتنادى خارج
+     * thread الواجهة ({@link #ofPdf(PdfBytes)}).
+     */
+    @FunctionalInterface
+    public interface PdfBytes {
+        byte[] build(Paper paper) throws ReportException;
+    }
+
     final Source source;
     final List<Paper> papers = new ArrayList<>();
     final List<String> stylesheets = new ArrayList<>();
@@ -129,6 +138,53 @@ public final class PdfPreview {
         preview.papers.add(Paper.A4);
         preview.papers.add(Paper.A5);
         return preview;
+    }
+
+    /**
+     * معاينة PDF جاهز من أي مكان: تقرير Jasper ({@code ReportService.generate(ReportType.PDF, ...)} أو
+     * {@code JasperReportProvider.pdf(jasperPrint)})، أو ملف اتقرا. الورقة من مقاس أول صفحة: A4 أو A5 (بالطول أو
+     * بالعرض) لو هي، وإلا مقاسها زي ما هو. النافذة عربية لو لغة الجهاز عربية إلا لو {@link #rightToLeft} قال غير كده.
+     *
+     * @throws IllegalArgumentException لو البايتات مش PDF بيتقري أو مفيهوش صفحات
+     */
+    public static PdfPreview ofPdf(byte[] pdf) {
+        Objects.requireNonNull(pdf, "pdf");
+        byte[] copy = pdf.clone();
+        PdfPreview preview = new PdfPreview(paper -> copy, "ar".equals(Locale.getDefault().getLanguage()));
+        preview.papers.add(paperOf(copy));
+        preview.fixedPaper = true;
+        return preview;
+    }
+
+    /**
+     * معاينة PDF بيتبني لكل ورقة يختارها المستخدم، من أي مكان (تقرير Jasper بيتملى على المقاس مثلًا). المقاسات A4
+     * و A5 إلا لو {@link #papers} حدد غيرها. الدالة بتتنادى خارج thread الواجهة.
+     */
+    public static PdfPreview ofPdf(PdfBytes pdf) {
+        Objects.requireNonNull(pdf, "pdf");
+        PdfPreview preview = new PdfPreview(pdf::build, "ar".equals(Locale.getDefault().getLanguage()));
+        preview.papers.add(Paper.A4);
+        preview.papers.add(Paper.A5);
+        return preview;
+    }
+
+    /** ورقة أول صفحة: A4 أو A5 بالطول أو بالعرض لو قريبة منهم بنقطتين، وإلا مقاسها. */
+    static Paper paperOf(byte[] pdf) {
+        try (com.smart.report.pdf.PdfPages pages = com.smart.report.pdf.PdfPages.open(pdf)) {
+            if (pages.count() == 0) {
+                throw new IllegalArgumentException("The PDF has no pages to preview.");
+            }
+            float width = pages.width(0);
+            float height = pages.height(0);
+            for (Paper known : new Paper[]{Paper.A4, Paper.A5, Paper.A4.landscape(), Paper.A5.landscape()}) {
+                if (Math.abs(known.width() - width) < 2 && Math.abs(known.height() - height) < 2) {
+                    return known;
+                }
+            }
+            return new Paper("PDF", width, height);
+        } catch (ReportException e) {
+            throw new IllegalArgumentException("Not a PDF that can be read: " + e.getMessage(), e);
+        }
     }
 
     /** المقاسات اللي المستخدم يختار منها؛ مقاس واحد = بلا اختيار. */
