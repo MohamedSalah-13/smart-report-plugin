@@ -566,9 +566,36 @@ document.style(PdfStyle.forPaper(Paper.A4)
         .withMargin(28f));
 
 document.style(PdfStyle.forPaper(Paper.A5).inkSaver());   // بلا أي تعبئة: خطوط بدل الخلفيات
+document.style(PdfStyle.forPaper(Paper.A4).withColorSet(ColorSet.NAVY));   // مجموعة ألوان جاهزة (v2.11.0)
 ```
 
 </div>
+
+**شكل التقارير اللي المحل بيختاره مرة** (v2.11.0). `ReportLook` فيه اللي شاشة «شكل التقارير» بتعرضه، وكل
+المستندات بتمشي عليه:
+
+<div dir="ltr">
+
+```java
+ReportLook look = ReportLook.decode(settings.get("report.look"))   // اللي اتحفظ، أو الافتراضي
+        .withColorSet(ColorSet.NAVY)                // GREY (الافتراضي)، NAVY، GREEN، MAROON، TEAL
+        .withInkSaver(false).withGrid(true).withStripes(false)
+        .withPageNumbers(PageNumberStyle.SLASH)     // «1 / 3» بدل «صفحة 1 من 3»
+        .withPrintedLine(true, true)                // «طُبع في 2026-11-28 10:30 بواسطة أحمد» تحت العنوان
+        .withPrePrinted(40)                         // ورق مطبوع عليه الترويسة: 40 مم فاضية فوق
+        .withTotalsFontSize(11);                    // صف الإجمالي بحجمه
+settings.put("report.look", look.encode());         // سطر نص واحد
+
+look.applyTo(document, currentUser.name());         // قبل toBytes()
+PdfPreview.of(look.sample(Paper.A4, true, "أحمد")).show(owner);   // معاينة حية في شاشة الإعدادات
+```
+
+</div>
+
+- `decode` بيقرا بتسامح: قيمة كتبتها نسخة تانية ما توقفش الطباعة، والجزء اللي ما يتقريش بياخد الافتراضي.
+- كل جزء خيار في المستند كمان: `PdfStyle.withColorSet`، و`PdfDocument.pageNumberStyle`، و`printedOn(time)`
+  و`printedBy(user)`، و`prePrinted(topMm)` (من غير ترويسة ولا شعار، والمسافة في كل صفحة) أو `plainPaper()`،
+  و`totalsFontSize(points)`. و`PdfStyle` مكوّناته زي ما هي، زي ما RELEASING.md بيطلب.
 
 ### الطباعة (`PdfPrinter`)
 

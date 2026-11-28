@@ -494,7 +494,31 @@ document.style(PdfStyle.forPaper(Paper.A4)
         .withMargin(28f));
 
 document.style(PdfStyle.forPaper(Paper.A5).inkSaver());   // no fills at all: rules instead of backgrounds
+document.style(PdfStyle.forPaper(Paper.A4).withColorSet(ColorSet.NAVY));   // a finished colour set (v2.11.0)
 ```
+
+**The look a shop sets once** (v2.11.0). `ReportLook` holds what a "report appearance" settings screen offers,
+and every document follows it:
+
+```java
+ReportLook look = ReportLook.decode(settings.get("report.look"))   // what was saved, or the default
+        .withColorSet(ColorSet.NAVY)                // GREY (default), NAVY, GREEN, MAROON, TEAL
+        .withInkSaver(false).withGrid(true).withStripes(false)
+        .withPageNumbers(PageNumberStyle.SLASH)     // "1 / 3" instead of "Page 1 of 3"
+        .withPrintedLine(true, true)                // "Printed on 2026-11-28 10:30 by Ahmed" under the title
+        .withPrePrinted(40)                         // paper with the letterhead already printed: 40 mm left free
+        .withTotalsFontSize(11);                    // the totals row in its own size
+settings.put("report.look", look.encode());         // one line of text
+
+look.applyTo(document, currentUser.name());         // before toBytes()
+PdfPreview.of(look.sample(Paper.A4, true, "أحمد")).show(owner);   // a live preview in the settings screen
+```
+
+- `decode` reads tolerantly: a value written by another version never stops a print, and a part that cannot be
+  read takes the default.
+- Each part is a document option of its own too: `PdfStyle.withColorSet`, `PdfDocument.pageNumberStyle`,
+  `printedOn(time)` and `printedBy(user)`, `prePrinted(topMm)` (no letterhead or logo, and the space on every page)
+  or `plainPaper()`, and `totalsFontSize(points)`. `PdfStyle` keeps its components, as RELEASING.md asks.
 
 ### Printing (`PdfPrinter`)
 

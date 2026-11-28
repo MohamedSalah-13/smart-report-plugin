@@ -274,6 +274,10 @@ Things that matter and are easy to get wrong:
 - A balance that can be negative is clearer in words ("زيادة مدفوعة") than with a minus sign, if the
   customer's paper writes it that way.
 
+When the program has a "report appearance" setting, keep a `ReportLook` (from `v2.11.0`): store
+`look.encode()`, read it with `ReportLook.decode(text)`, and call `look.applyTo(document, userName)` on every
+document. It covers the colour set, ink saver, grid, stripes, `1 / 3` page numbers, the printed-by line, pre-printed
+paper and the totals size; `look.sample(paper, rtl, user)` is the settings screen's live preview.
 Appearance, only when asked: `document.style(PdfStyle.forPaper(paper).withHeaderColors(0x2C3E50, 0xFFFFFF))`,
 `.withStripes(true)`, `.withGrid(false)`, `.withMargin(28f)`, or `.inkSaver()` for no fills at all. Without a
 style the page gets smaller type and margins on A5 by itself.

@@ -192,7 +192,7 @@ final class TablePart implements Part {
 
             private Piece piece(PdfTable.Row row) throws IOException, ReportException {
                 float bodySize = frame.style().bodySize();
-                float size = row.total() ? bodySize + table.totalSizeBoost() : bodySize;
+                float size = row.total() ? totalSize(table, frame) : bodySize;
                 boolean striped = frame.style().stripes() && index % 2 == 1;
                 if (!row.total()) {
                     index++;
@@ -280,7 +280,7 @@ final class TablePart implements Part {
     private static float[] columnWidths(PdfTable table, Frame frame) throws IOException, ReportException {
         List<PdfTable.Column> columns = table.columns();
         float bodySize = frame.style().bodySize();
-        float totalSize = bodySize + table.totalSizeBoost();
+        float totalSize = totalSize(table, frame);
         float[] weights = new float[columns.size()];
         for (int i = 0; i < weights.length; i++) {
             weights[i] = columns.get(i).weight();
@@ -296,6 +296,16 @@ final class TablePart implements Part {
     }
 
     /** يرفع أضيق عرض لكل عمود لعرض أطول كلمة في خليته مع حشوتها، بحد أقصى نصف عرض الجدول. */
+    /**
+     * حجم خط صف الإجمالي: {@link PdfDocument#totalsFontSize} لو اتحدد (في الجداول، مش الملخص اللي ليه حجمه)، وإلا خط
+     * الصفوف وزيادة الجدول.
+     */
+    private static float totalSize(PdfTable table, Frame frame) {
+        float body = frame.style().bodySize();
+        return frame.totalsSize() > 0 && table.totalSizeBoost() == 0 ? frame.totalsSize()
+                : body + table.totalSizeBoost();
+    }
+
     /** خط كل خلية في الصف: عريض في الإجمالي، إلا لو قاعدة {@link PdfTable#cellStyle} قالت غير كده. */
     private static boolean[] bolds(PdfTable table, PdfTable.Row row) {
         boolean[] bold = new boolean[row.cells().length];

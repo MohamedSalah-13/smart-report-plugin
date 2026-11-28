@@ -6,7 +6,7 @@ package com.smart.report.pdf;
  * الورقة ودقة الطابعة ({@link PdfDocument#printerDpi}، صفر = من غير)، عشان مربعات الرموز تقع على نقط الطابعة.
  */
 record Frame(Typesetter text, PdfStyle style, boolean rtl, float left, float right, float width, float freshRoom,
-             float pageHeight, int dpi) {
+             float pageHeight, int dpi, float totalsSize) {
 
     /** نقطة الطابعة بالـ point (1/72 بوصة)؛ صفر لو الدقة ما اتحددتش. */
     float dot() {

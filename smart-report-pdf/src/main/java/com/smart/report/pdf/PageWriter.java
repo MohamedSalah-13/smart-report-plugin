@@ -90,7 +90,7 @@ final class PageWriter {
         this.left = style.margin();
         this.right = paper.width() - style.margin();
         this.width = right - left;
-        this.top = paper.height() - style.margin();
+        this.top = paper.height() - style.margin() - document.prePrintedTop();
         // رقم الصفحة بيتكتب في الهامش السفلي، فالمحتوى بيقف قبله.
         float numbering = document.pageNumberMode() == PageNumbers.NONE ? 0 : style.smallSize() * LEADING;
         this.bottom = style.margin() + numbering;
@@ -162,10 +162,20 @@ final class PageWriter {
         newPage();
         try {
             Frame frame = new Frame(text, style, rtl, left, right, width, freshRoom(), paper.height(),
-                    document.printerDpi());
+                    document.printerDpi(), document.totalsFontSize());
             List<Part> parts = new ArrayList<>();
+            // سطر «طُبع في ... بواسطة ...» تحت أول عنوان، أو في أول المستند لو مفيش عنوان.
+            String printed = document.printedLine();
+            boolean hasTitle = document.blocks().stream().anyMatch(b -> b instanceof PdfDocument.TitleBlock);
+            if (printed != null && !hasTitle) {
+                parts.addAll(Parts.of(new PdfDocument.PrintedBlock(printed), frame));
+            }
             for (PdfDocument.Block block : document.blocks()) {
                 parts.addAll(Parts.of(block, frame));
+                if (printed != null && block instanceof PdfDocument.TitleBlock) {
+                    parts.addAll(Parts.of(new PdfDocument.PrintedBlock(printed), frame));
+                    printed = null;
+                }
             }
             // الورق الحراري صفحة واحدة بطول المحتوى: مفيش آخر صفحة يتنقل منها حاجة.
             Map<Integer, Integer> kept = paper.roll() ? Map.of() : signatureGroups(parts);
@@ -416,7 +426,7 @@ final class PageWriter {
         y = top;
         lowestReserved = Float.MAX_VALUE;
         pages++;
-        if (pages == 1 || document.letterheadOnEveryPage()) {
+        if (!document.prePrinted() && (pages == 1 || document.letterheadOnEveryPage())) {
             y = letterhead.draw(canvas, y);
         }
         pageTop = y;
@@ -460,7 +470,8 @@ final class PageWriter {
                     watermark.draw(canvas);
                 }
                 if (numbered) {
-                    String label = rtl ? "صفحة " + number + " من " + count : "Page " + number + " of " + count;
+                    String label = document.pageNumberStyleValue() == PageNumberStyle.SLASH ? number + " / " + count
+                            : rtl ? "صفحة " + number + " من " + count : "Page " + number + " of " + count;
                     canvas.text(text.line(label, label, false, size), size, style.mutedColor(), left, width,
                             Canvas.Side.CENTER, numberBaseline);
                 }
