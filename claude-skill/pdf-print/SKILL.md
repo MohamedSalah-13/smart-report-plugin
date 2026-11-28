@@ -56,7 +56,7 @@ above them, `v2.6.0`; `printOrShow` and the preview's Ctrl+P / Ctrl+S, `ZatcaQr.
 amounts in English words, and Arabic in Jasper PDFs `v2.7.1`; totals in the generic report, and the first line of
 Arabic in a Jasper box a little too short for it, `v2.8.0`; `pageBreak()`, `PdfBatch`, a font per document,
 `failOnMissingGlyphs` and the symbols drawn from Liberation Sans, `v2.9.0`; a generic Excel report whose
-title starts or ends with an apostrophe, `v2.9.1`. A program on an older tag that needs one of these
+title starts or ends with an apostrophe, `v2.9.1`; `watermark`, `v2.10.0`. A program on an older tag that needs one of these
 moves to the newest tag.
 
 ```xml
@@ -158,6 +158,13 @@ What each part is:
   and the page numbers carry on. On a thermal roll it does nothing (a receipt is one page). Several customers'
   or drivers' statements are **not** one document with breaks - their page numbers would run on from one to
   the next - but a `PdfBatch` (see "Variants").
+- `watermark("صورة")` - a large light word over the content of every page (from `v2.10.0`): «صورة» on a
+  copy of an invoice, «مسودة» or `DRAFT` before it is final, «ملغاة», «مدفوع», `COPY`. Use it where the old
+  program printed such a word or stamp, or kept a second "copy" print. `watermark(text, 0xC00000)` takes a
+  colour, drawn at 15% opacity so it stays light. It lies over everything, fills included, and the text under it
+  stays readable. It is diagonal on paper and horizontal, repeated down the receipt, on a roll; it shrinks to
+  fit, and a page with only the watermark is still empty. `null` or blank
+  means none, so `document.watermark(isCopy ? "صورة" : null)` is fine.
 - The amount in words, when the old paper had it ("فقط ... لا غير"):
   `document.text(AmountInWords.arabic(invoice.net(), AmountInWords.Currency.EGP))` (from
   `com.smart.report.util`, in `smart-report-api`, which `smart-report-pdf` brings). Ready currencies: `EGP`,

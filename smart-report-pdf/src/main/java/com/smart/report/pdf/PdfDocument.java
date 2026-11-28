@@ -104,6 +104,8 @@ public final class PdfDocument {
     private boolean letterheadOnEveryPage;
     private String pageFooter = "";
     private PageNumbers pageNumbers = PageNumbers.WHEN_SEVERAL;
+    private String watermark = "";
+    private int watermarkColor = Watermark.DEFAULT_COLOR;
 
     private PdfDocument(Paper paper, boolean rightToLeft) {
         this.paper = Objects.requireNonNull(paper, "paper");
@@ -175,6 +177,40 @@ public final class PdfDocument {
      */
     public PdfDocument pageFooter(String text) {
         this.pageFooter = text == null ? "" : text;
+        return this;
+    }
+
+    /**
+     * علامة مائية رمادية فاتحة في كل صفحة — «مسودة»، «صورة»، «ملغاة»، «مدفوع»، {@code DRAFT}، {@code COPY}:
+     * لنسخة الفاتورة وصورة المستند. {@code null} أو نص فاضي = من غير علامة.
+     *
+     * @see #watermark(String, int)
+     */
+    public PdfDocument watermark(String text) {
+        return watermark(text, Watermark.DEFAULT_COLOR);
+    }
+
+    /**
+     * علامة مائية في كل صفحة بلون {@code color} ({@code 0xRRGGBB}) شفاف — أحمر لـ «ملغاة» وأخضر لـ «مدفوع»
+     * مثلًا. {@code null} أو نص فاضي = من غير علامة.
+     *
+     * <ul>
+     *   <li>كبيرة ومايلة على قطر الصفحة في نصها، <b>فوق كل حاجة وبشفافية</b>: بتترسم بعد محتوى الصفحة، فما
+     *       بتستخباش تحت خلفية رأس الجدول أو الإجمالي أو صندوق الملخص، والنص اللي تحتها بيفضل مقروء. سطر واحد
+     *       بخط المستند ({@link #font(PdfFont)})، والعربي متشكّل ومن اليمين لليسار.</li>
+     *   <li>بتصغر على قد الورقة: الكلمة الطويلة والورق الصغير بيصغّروا الخط لحد ما العلامة تكفي جوه الهوامش.</li>
+     *   <li>على الورق الحراري ({@link Paper#roll()}) العلامة بالعرض مش مايلة، ومتكررة على طول الإيصال (نسخة
+     *       لكل حوالي مرة ونص عرض اللفة؛ الإيصال القصير نسخة واحدة في نصه)، عشان أي جزء من الإيصال يبان فيه.</li>
+     *   <li>عتامتها 15%: على الورق الأبيض الأسود رمادي فاتح والأحمر وردي فاتح، فاتحة حتى لو اللون غامق، وحبرها
+     *       قليل حتى مع {@link PdfStyle#inkSaver()}.</li>
+     *   <li>مش محتوى: ما بتغيرش مكان أي جزء ولا طول الإيصال، والصفحة اللي فيها العلامة بس فاضية، فالفاصل
+     *       ({@link #pageBreak()}) ما بيسيبش صفحة عشانها. ومحطوطة {@code /Artifact}، فالقارئ اللي بيحترمها بيسيبها
+     *       في النسخ والبحث. وفي {@link PdfBatch} كل مستند بعلامته.</li>
+     * </ul>
+     */
+    public PdfDocument watermark(String text, int color) {
+        this.watermark = text == null ? "" : text;
+        this.watermarkColor = color & 0xFFFFFF;
         return this;
     }
 
@@ -447,6 +483,14 @@ public final class PdfDocument {
 
     String pageFooterText() {
         return pageFooter;
+    }
+
+    String watermarkText() {
+        return watermark;
+    }
+
+    int watermarkColor() {
+        return watermarkColor;
     }
 
     /** المستند كبايتات PDF. */

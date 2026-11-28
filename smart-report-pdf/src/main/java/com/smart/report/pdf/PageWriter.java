@@ -27,6 +27,8 @@ import static com.smart.report.pdf.Typesetter.LEADING;
  *         ({@link #place(Piece, Piece, float)}).</li>
  *     <li>رأس الجزء (رأس الجدول) بيترسم فوق أول قطعة في كل صفحة، ومكانه محسوب معاها.</li>
  *     <li>الترويسة في أعلى الصفحة الأولى أو كل صفحة، وتذييل الصفحات ورقمها في الهامش السفلي ومكانهم محجوز.</li>
+ *     <li>العلامة المائية ({@link Watermark}) آخر حاجة في كل صفحة قبل رقمها وتذييلها، فوق المحتوى وشفافة،
+ *         ومش محتوى: بتترسم بعد ما كل قرارات الصفحات اتاخدت، فما بتأثرش على أي قرار منها.</li>
  *     <li>خانات التوقيع بتتنقل مع اللي بيتوقّع عليه ({@link Join}).</li>
  *     <li>الفاصل بيفتح صفحة، والصفحة اللي فتحها بتتشال لو ما اترسمش فيها حاجة.</li>
  *     <li>الورق الحراري صفحة واحدة بطول المحتوى: بيترسم مرة عشان يتقاس، وبعدين على ورقة بالطول ده
@@ -54,6 +56,8 @@ final class PageWriter {
     private final Letterhead letterhead;
     /** تذييل الصفحات متكسّرًا لسطوره، بيترسم في الآخر مع أرقام الصفحات. */
     private List<Typesetter.Line> pageFooter = List.of();
+    /** العلامة المائية مقاسة على الورقة، أو {@code null} = مفيش. */
+    private Watermark watermark;
 
     private float y;
     private int pages;
@@ -153,6 +157,7 @@ final class PageWriter {
                 throw new IllegalArgumentException("The page footer leaves no room on the page for its content.");
             }
         }
+        watermark = Watermark.of(document.watermarkText(), document.watermarkColor(), text, paper, style.margin());
         newPage();
         try {
             Frame frame = new Frame(text, style, rtl, left, right, width, freshRoom());
@@ -177,7 +182,7 @@ final class PageWriter {
         } finally {
             canvas.close();
         }
-        numberPages();
+        finishPages();
     }
 
     /**
@@ -429,14 +434,15 @@ final class PageWriter {
     }
 
     /**
-     * رقم كل صفحة في منتصف هامشها السفلي، وتذييل الصفحات فوقه. بيتكتبوا في الآخر لأن الرقم بيقول عدد
-     * الصفحات كلها، وده ما بيتعرفش غير بعد رسم آخر صفحة.
+     * العلامة المائية فوق محتوى كل صفحة، ورقم كل صفحة في منتصف هامشها السفلي وتذييل الصفحات فوقه. بيتكتبوا في
+     * الآخر: العلامة فوق كل اللي اترسم في الصفحة، والرقم بيقول عدد الصفحات كلها، وده ما بيتعرفش غير بعد رسم آخر
+     * صفحة.
      */
-    private void numberPages() throws IOException, ReportException {
+    private void finishPages() throws IOException, ReportException {
         int count = pdf.getNumberOfPages();
         PageNumbers mode = document.pageNumberMode();
         boolean numbered = mode == PageNumbers.ALWAYS || mode == PageNumbers.WHEN_SEVERAL && count >= 2;
-        if (!numbered && pageFooter.isEmpty()) {
+        if (!numbered && pageFooter.isEmpty() && watermark == null) {
             return;
         }
         float size = style.smallSize();
@@ -448,6 +454,9 @@ final class PageWriter {
         for (int number = 1; number <= count; number++) {
             canvas.resume(pdf.getPage(number - 1));
             try {
+                if (watermark != null) {
+                    watermark.draw(canvas);
+                }
                 if (numbered) {
                     String label = rtl ? "صفحة " + number + " من " + count : "Page " + number + " of " + count;
                     canvas.text(text.line(label, label, false, size), size, style.mutedColor(), left, width,
