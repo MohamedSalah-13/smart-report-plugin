@@ -4,7 +4,11 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * التفقيط: المبلغ مكتوبًا بالحروف العربية كما في الفواتير والإيصالات.
@@ -28,8 +32,16 @@ import java.util.Objects;
  *     <li>المئات اللي بعدها واحد أو اثنان بالشكل المعتاد في الفواتير: «مائة وواحد جنيه».</li>
  * </ul>
  *
- * <p>«مائة» بالألف زي ما بتتكتب في الفواتير المصرية. المبلغ بيتقرّب لخانات العملة (النص لفوق)، والسالب
- * أو اللي من ألف مليار وأكتر بيرمي {@link IllegalArgumentException}. الصنف بلا حالة وآمن بين الـ threads.</p>
+ * <p>«مائة» بالألف زي ما بتتكتب في الفواتير المصرية. المبلغ بيتقرّب لخانات العملة (النص لفوق)، واللي من ألف
+ * مليار وأكتر بيرمي {@link IllegalArgumentException}. الصنف بلا حالة وآمن بين الـ threads.</p>
+ *
+ * <p><b>المبلغ السالب</b> (رصيد دائن مثلًا) بيرمي {@link IllegalArgumentException}، إلا مع {@link Negative}: الحروف
+ * بتتكتب للقيمة المطلقة، وقبلها أو بعدها الكلمة اللي البرنامج بيديها:</p>
+ *
+ * <pre>{@code
+ * AmountInWords.arabic(new BigDecimal("-150"), Currency.EGP, Negative.suffix("(دائن)"))
+ *     // فقط مائة وخمسون جنيهًا لا غير (دائن)
+ * }</pre>
  *
  * <p><b>بالإنجليزي</b> للفواتير اللي بلغتين، بعملة من {@link EnglishCurrency}:</p>
  *
@@ -40,8 +52,10 @@ import java.util.Objects;
  *     // Seven thousand two hundred Egyptian pounds and fifty piastres only
  * }</pre>
  *
- * <p>العملات الجاهزة بالاسمين: EGP وSAR وAED وKWD وUSD وQAR وBHD وOMR وJOD. خانات الكسر زي ISO 4217:
- * 3 للدينار الكويتي والبحريني والأردني والريال العماني، و2 للباقي.</p>
+ * <p>العملات الجاهزة بالاسمين: EGP وSAR وAED وKWD وUSD وQAR وBHD وOMR وJOD وSDG وGBP وYER وMAD وIQD وLYD وTND
+ * وDZD وSYP وLBP وTRY وEUR. خانات الكسر زي ISO 4217: 3 للدينار الكويتي والبحريني والأردني والعراقي والليبي
+ * والتونسي والريال العماني، و2 للباقي. و{@link Currency#forCode} و{@link EnglishCurrency#forCode} بيلاقوا العملة
+ * بكودها، وبيرجعوا فاضي للكود اللي مش معروف، فالبرنامج ما يطبعش سطر غلط.</p>
  */
 public final class AmountInWords {
 
@@ -112,6 +126,71 @@ public final class AmountInWords {
         public static final Currency JOD = new Currency(
                 new Noun("دينار", "ديناران", "دنانير", "دينارًا", false),
                 new Noun("فلس", "فلسان", "فلوس", "فلسًا", false), 3);
+        /** الجنيه السوداني: 100 قرش، بنفس كلمات {@link #EGP}. */
+        public static final Currency SDG = new Currency(
+                new Noun("جنيه", "جنيهان", "جنيهات", "جنيهًا", false),
+                new Noun("قرش", "قرشان", "قروش", "قرشًا", false), 2);
+        /** الجنيه الإسترليني: 100 بنس. */
+        public static final Currency GBP = new Currency(
+                new Noun("جنيه", "جنيهان", "جنيهات", "جنيهًا", false),
+                new Noun("بنس", "بنسان", "بنسات", "بنسًا", false), 2);
+        /** الريال اليمني: 100 فلس. */
+        public static final Currency YER = new Currency(
+                new Noun("ريال", "ريالان", "ريالات", "ريالًا", false),
+                new Noun("فلس", "فلسان", "فلوس", "فلسًا", false), 2);
+        /** الدرهم المغربي: 100 سنتيم. */
+        public static final Currency MAD = new Currency(
+                new Noun("درهم", "درهمان", "دراهم", "درهمًا", false),
+                new Noun("سنتيم", "سنتيمان", "سنتيمات", "سنتيمًا", false), 2);
+        /** الدينار العراقي: 1000 فلس. */
+        public static final Currency IQD = new Currency(
+                new Noun("دينار", "ديناران", "دنانير", "دينارًا", false),
+                new Noun("فلس", "فلسان", "فلوس", "فلسًا", false), 3);
+        /** الدينار الليبي: 1000 درهم. */
+        public static final Currency LYD = new Currency(
+                new Noun("دينار", "ديناران", "دنانير", "دينارًا", false),
+                new Noun("درهم", "درهمان", "دراهم", "درهمًا", false), 3);
+        /** الدينار التونسي: 1000 مليم. */
+        public static final Currency TND = new Currency(
+                new Noun("دينار", "ديناران", "دنانير", "دينارًا", false),
+                new Noun("مليم", "مليمان", "مليمات", "مليمًا", false), 3);
+        /** الدينار الجزائري: 100 سنتيم. */
+        public static final Currency DZD = new Currency(
+                new Noun("دينار", "ديناران", "دنانير", "دينارًا", false),
+                new Noun("سنتيم", "سنتيمان", "سنتيمات", "سنتيمًا", false), 2);
+        /** الليرة السورية: 100 قرش، والليرة مؤنثة: «ثلاث ليرات»، «إحدى عشرة ليرةً». */
+        public static final Currency SYP = new Currency(
+                new Noun("ليرة", "ليرتان", "ليرات", "ليرةً", true),
+                new Noun("قرش", "قرشان", "قروش", "قرشًا", false), 2);
+        /** الليرة اللبنانية: 100 قرش، بنفس كلمات {@link #SYP}. */
+        public static final Currency LBP = new Currency(
+                new Noun("ليرة", "ليرتان", "ليرات", "ليرةً", true),
+                new Noun("قرش", "قرشان", "قروش", "قرشًا", false), 2);
+        /** الليرة التركية: 100 قرش (كوروش)، بنفس كلمات {@link #SYP}. */
+        public static final Currency TRY = new Currency(
+                new Noun("ليرة", "ليرتان", "ليرات", "ليرةً", true),
+                new Noun("قرش", "قرشان", "قروش", "قرشًا", false), 2);
+        /** اليورو: 100 سنت. «يورو» ما بيتنوّنش: «أحد عشر يورو». */
+        public static final Currency EUR = new Currency(
+                new Noun("يورو", "يوروان", "يوروهات", "يورو", false),
+                new Noun("سنت", "سنتان", "سنتات", "سنتًا", false), 2);
+
+        private static final Map<String, Currency> BY_CODE = Map.ofEntries(
+                Map.entry("EGP", EGP), Map.entry("SAR", SAR), Map.entry("AED", AED), Map.entry("KWD", KWD),
+                Map.entry("USD", USD), Map.entry("QAR", QAR), Map.entry("BHD", BHD), Map.entry("OMR", OMR),
+                Map.entry("JOD", JOD), Map.entry("SDG", SDG), Map.entry("GBP", GBP), Map.entry("YER", YER),
+                Map.entry("MAD", MAD), Map.entry("IQD", IQD), Map.entry("LYD", LYD), Map.entry("TND", TND),
+                Map.entry("DZD", DZD), Map.entry("SYP", SYP), Map.entry("LBP", LBP), Map.entry("TRY", TRY),
+                Map.entry("EUR", EUR));
+
+        /**
+         * العملة الجاهزة بكود ISO 4217 ({@code "EGP"}، {@code "sar"})؛ فاضي للكود اللي مش معروف أو {@code null}،
+         * فالبرنامج يقرر: ما يطبعش السطر، أو يعرّف عملته بنفسه.
+         */
+        public static Optional<Currency> forCode(String isoCode) {
+            return isoCode == null ? Optional.empty()
+                    : Optional.ofNullable(BY_CODE.get(isoCode.strip().toUpperCase(Locale.ROOT)));
+        }
 
         public Currency {
             Objects.requireNonNull(unit, "unit");
@@ -158,6 +237,45 @@ public final class AmountInWords {
                 new EnglishCurrency("Omani rial", "Omani rials", "baisa", "baisa", 3);
         public static final EnglishCurrency JOD =
                 new EnglishCurrency("Jordanian dinar", "Jordanian dinars", "fils", "fils", 3);
+        public static final EnglishCurrency SDG =
+                new EnglishCurrency("Sudanese pound", "Sudanese pounds", "piastre", "piastres", 2);
+        public static final EnglishCurrency GBP =
+                new EnglishCurrency("pound sterling", "pounds sterling", "penny", "pence", 2);
+        public static final EnglishCurrency YER =
+                new EnglishCurrency("Yemeni rial", "Yemeni rials", "fils", "fils", 2);
+        public static final EnglishCurrency MAD =
+                new EnglishCurrency("Moroccan dirham", "Moroccan dirhams", "centime", "centimes", 2);
+        public static final EnglishCurrency IQD =
+                new EnglishCurrency("Iraqi dinar", "Iraqi dinars", "fils", "fils", 3);
+        public static final EnglishCurrency LYD =
+                new EnglishCurrency("Libyan dinar", "Libyan dinars", "dirham", "dirhams", 3);
+        public static final EnglishCurrency TND =
+                new EnglishCurrency("Tunisian dinar", "Tunisian dinars", "millime", "millimes", 3);
+        public static final EnglishCurrency DZD =
+                new EnglishCurrency("Algerian dinar", "Algerian dinars", "centime", "centimes", 2);
+        public static final EnglishCurrency SYP =
+                new EnglishCurrency("Syrian pound", "Syrian pounds", "piastre", "piastres", 2);
+        public static final EnglishCurrency LBP =
+                new EnglishCurrency("Lebanese pound", "Lebanese pounds", "piastre", "piastres", 2);
+        /** الليرة التركية: الجمع بالإنجليزي «lira» زي المفرد، والكسر «kuruş». */
+        public static final EnglishCurrency TRY =
+                new EnglishCurrency("Turkish lira", "Turkish lira", "kuruş", "kuruş", 2);
+        public static final EnglishCurrency EUR =
+                new EnglishCurrency("euro", "euros", "cent", "cents", 2);
+
+        private static final Map<String, EnglishCurrency> BY_CODE = Map.ofEntries(
+                Map.entry("EGP", EGP), Map.entry("SAR", SAR), Map.entry("AED", AED), Map.entry("KWD", KWD),
+                Map.entry("USD", USD), Map.entry("QAR", QAR), Map.entry("BHD", BHD), Map.entry("OMR", OMR),
+                Map.entry("JOD", JOD), Map.entry("SDG", SDG), Map.entry("GBP", GBP), Map.entry("YER", YER),
+                Map.entry("MAD", MAD), Map.entry("IQD", IQD), Map.entry("LYD", LYD), Map.entry("TND", TND),
+                Map.entry("DZD", DZD), Map.entry("SYP", SYP), Map.entry("LBP", LBP), Map.entry("TRY", TRY),
+                Map.entry("EUR", EUR));
+
+        /** العملة الجاهزة بكود ISO 4217؛ فاضي للكود اللي مش معروف أو {@code null}. */
+        public static Optional<EnglishCurrency> forCode(String isoCode) {
+            return isoCode == null ? Optional.empty()
+                    : Optional.ofNullable(BY_CODE.get(isoCode.strip().toUpperCase(Locale.ROOT)));
+        }
 
         public EnglishCurrency {
             if (unit == null || unit.isBlank() || units == null || units.isBlank()) {
@@ -171,6 +289,38 @@ public final class AmountInWords {
                 throw new IllegalArgumentException(
                         "A currency with fraction digits needs the fraction's singular and plural.");
             }
+        }
+    }
+
+    /**
+     * المبلغ السالب: الحروف للقيمة المطلقة، وقبلها {@code prefix} وبعدها {@code suffix} بمسافة. كلمة واحدة على الأقل
+     * لازم تتحدد، عشان السالب ما يتطبعش كأنه موجب. المبلغ اللي بيتقرّب لصفر بيتكتب «صفر» من غيرهم.
+     *
+     * @param prefix قبل النص كله: «سالب»، «Minus»؛ {@code null} أو فاضي = مفيش
+     * @param suffix بعد النص كله: «(دائن)»، «(credit)»؛ {@code null} أو فاضي = مفيش
+     */
+    public record Negative(String prefix, String suffix) {
+
+        public Negative {
+            prefix = prefix == null ? "" : prefix.strip();
+            suffix = suffix == null ? "" : suffix.strip();
+            if (prefix.isEmpty() && suffix.isEmpty()) {
+                throw new IllegalArgumentException("A negative amount needs a prefix or a suffix, such as «(دائن)».");
+            }
+        }
+
+        /** كلمة قبل المبلغ: {@code Negative.prefix("سالب")}. */
+        public static Negative prefix(String prefix) {
+            return new Negative(prefix, null);
+        }
+
+        /** كلمة بعد المبلغ: {@code Negative.suffix("(دائن)")}. */
+        public static Negative suffix(String suffix) {
+            return new Negative(null, suffix);
+        }
+
+        String around(String text) {
+            return (prefix.isEmpty() ? "" : prefix + " ") + text + (suffix.isEmpty() ? "" : " " + suffix);
         }
     }
 
@@ -199,6 +349,46 @@ public final class AmountInWords {
     /** المبلغ كما يُكتب في الفاتورة: «فقط ... لا غير». */
     public static String arabic(BigDecimal amount, Currency currency) {
         return "فقط " + arabicWords(amount, currency) + " لا غير";
+    }
+
+    /** زي {@link #arabic(BigDecimal, Currency)}، والمبلغ السالب بكلمة {@code negative} حوالين النص كله. */
+    public static String arabic(BigDecimal amount, Currency currency, Negative negative) {
+        Objects.requireNonNull(currency, "currency");
+        return signed(amount, currency.fractionDigits(), negative, value -> arabic(value, currency));
+    }
+
+    /** زي {@link #arabicWords(BigDecimal, Currency)}، والمبلغ السالب بكلمة {@code negative} حواليه. */
+    public static String arabicWords(BigDecimal amount, Currency currency, Negative negative) {
+        Objects.requireNonNull(currency, "currency");
+        return signed(amount, currency.fractionDigits(), negative, value -> arabicWords(value, currency));
+    }
+
+    /**
+     * زي {@link #english(BigDecimal, EnglishCurrency)}، والمبلغ السالب بكلمة {@code negative} حوالين النص كله، والحرف
+     * الكبير في أول النص كله: «Minus one hundred US dollars only».
+     */
+    public static String english(BigDecimal amount, EnglishCurrency currency, Negative negative) {
+        Objects.requireNonNull(currency, "currency");
+        String text = signed(amount, currency.fractionDigits(), negative,
+                value -> englishWords(value, currency) + " only");
+        return Character.toUpperCase(text.charAt(0)) + text.substring(1);
+    }
+
+    /** زي {@link #englishWords(BigDecimal, EnglishCurrency)}، والمبلغ السالب بكلمة {@code negative} حواليه. */
+    public static String englishWords(BigDecimal amount, EnglishCurrency currency, Negative negative) {
+        Objects.requireNonNull(currency, "currency");
+        return signed(amount, currency.fractionDigits(), negative, value -> englishWords(value, currency));
+    }
+
+    /** الحروف للقيمة المطلقة، والكلمة حواليها لو المبلغ سالب وما اتقرّبش لصفر. */
+    private static String signed(BigDecimal amount, int fractionDigits, Negative negative,
+                                 Function<BigDecimal, String> words) {
+        Objects.requireNonNull(amount, "amount");
+        Objects.requireNonNull(negative, "negative");
+        BigDecimal magnitude = amount.abs();
+        String text = words.apply(magnitude);
+        boolean zero = magnitude.setScale(fractionDigits, RoundingMode.HALF_UP).signum() == 0;
+        return amount.signum() < 0 && !zero ? negative.around(text) : text;
     }
 
     /** المبلغ بالحروف من غير «فقط» و«لا غير». */
@@ -255,7 +445,7 @@ public final class AmountInWords {
         Objects.requireNonNull(amount, "amount");
         if (amount.signum() < 0) {
             throw new IllegalArgumentException("The amount must not be negative: " + amount
-                    + ". Write its absolute value and say in the label whether it is owed.");
+                    + ". Pass a Negative, such as Negative.suffix(\"(credit)\"), to write it with a word of its own.");
         }
         BigDecimal rounded = amount.setScale(fractionDigits, RoundingMode.HALF_UP);
         BigDecimal whole = rounded.setScale(0, RoundingMode.DOWN);
