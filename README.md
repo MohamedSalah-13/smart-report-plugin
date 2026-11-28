@@ -1061,6 +1061,10 @@ library with. How a release is made, and what to do when JitPack cannot build on
 Each module also builds a sources jar and a javadoc jar (v2.11.0), so an IDE shows the documentation; a broken
 `{@link}` in a comment fails the build.
 
+What the tests cannot check (a real thermal printer cutting between copies, a cash drawer, a barcode read by a
+scanner, labels on real label paper) has a guided check to run by hand on your own devices:
+[docs/HARDWARE-CHECK.md](docs/HARDWARE-CHECK.md).
+
 The PDF tests read the **positions** of the drawn glyphs, not only the extracted text: direction faults
 (a column on the wrong side, a total under another column, the end of a sentence on the first line) do not
 show in the text.
