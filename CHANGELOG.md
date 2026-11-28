@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.9.1] - 2026-11-28
+
+### Changed
+- The PDF page layout was rewritten so that every part of a document follows the same page rules. Documents come
+  out exactly as before. (#30)
+
+### Fixed
+- A generic Excel report whose title starts or ends with an apostrophe (`'Q1' sales`) no longer fails: the sheet
+  name drops the apostrophes at its ends, and the title cell keeps them. (#29)
+
 ## [2.9.0] - 2026-11-27
 
 ### Added
