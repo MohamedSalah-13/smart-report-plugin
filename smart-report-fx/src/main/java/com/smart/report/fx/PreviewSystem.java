@@ -35,6 +35,12 @@ interface PreviewSystem {
         }
 
         @Override
+        public void print(byte[] pdf, String printer, Paper paper, com.smart.report.pdf.PrintOptions options)
+                throws ReportException {
+            PdfPrinter.print(pdf, printer, paper, options);
+        }
+
+        @Override
         public File chooseSaveFile(FileChooser chooser, Window owner) {
             return chooser.showSaveDialog(owner);
         }
@@ -47,6 +53,12 @@ interface PreviewSystem {
 
     /** بتتنادى خارج thread الواجهة. */
     void print(byte[] pdf, String printer, Paper paper, int copies) throws ReportException;
+
+    /** بمدى الصفحات والوجهين؛ النسخ المزيفة القديمة بتاخد النسخ بس. بتتنادى خارج thread الواجهة. */
+    default void print(byte[] pdf, String printer, Paper paper, com.smart.report.pdf.PrintOptions options)
+            throws ReportException {
+        print(pdf, printer, paper, options.copies());
+    }
 
     /** بتتنادى من thread الواجهة؛ {@code null} = المستخدم لغى. */
     File chooseSaveFile(FileChooser chooser, Window owner);

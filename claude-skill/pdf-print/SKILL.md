@@ -339,6 +339,8 @@ byte[] pdf = InvoicePdf.document(invoice, company, Paper.A5).toBytes();      // 
 
 List<String> printers = PdfPrinter.printerNames();
 PdfPrinter.print(document, printerName, copies);      // blank name = the system's default printer
+PdfPrinter.print(document, printerName,               // from v2.11.0: a page range and both sides
+        PrintOptions.copies(1).pages(2, 5).duplex(PrintOptions.Duplex.LONG_EDGE));
 ```
 
 `PdfPrinter.print` takes as long as the printer does: call it from a background thread and show failures

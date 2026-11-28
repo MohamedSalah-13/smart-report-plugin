@@ -457,12 +457,20 @@ Optional<String> preferred = PdfPrinter.defaultPrinter();
 
 PdfPrinter.print(document, printerName, 1);                 // the document on its own paper, one copy
 PdfPrinter.print(pdfBytes, printerName, Paper.A5, 2);       // or a ready PDF
+
+PdfPrinter.print(document, printerName,                     // pages 2 to 5, on both sides (v2.11.0)
+        PrintOptions.copies(1).pages(2, 5).duplex(PrintOptions.Duplex.LONG_EDGE));
 ```
 
 The printer is asked for the document's paper (A4 or A5) and pages are sent at their actual size. An empty
 `printerName` means the default printer. Copies of a document with more than one page come out as whole sets
 (1, 2, 3, 1, 2, 3). Printing takes its time, so call it off the UI thread. If the printer is not on the
 computer, a `ReportException` names it and lists the printers that are available.
+
+`PrintOptions` (v2.11.0) also takes a page range (a last page beyond the document means up to its end) and
+`Duplex.ONE_SIDED`, `LONG_EDGE` or `SHORT_EDGE`; without it the printer's own setting applies. A printer that
+cannot print on both sides prints on one. The preview window has the same two: a "Pages" field (`2-5`, empty for
+all) and a "Both sides" box, for paper that is not a roll.
 
 ### Several documents in one file and one print job (`PdfBatch`)
 
