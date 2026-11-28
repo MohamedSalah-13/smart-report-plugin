@@ -177,6 +177,27 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- The javadoc jar, next to the sources jar: the documentation of the public API for IDEs and for
+                 Maven Central. Missing comments are not errors; a broken {@link} is. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.12.0</version>
+                <configuration>
+                    <doclint>all,-missing</doclint>
+                    <quiet>true</quiet>
+                    <docencoding>UTF-8</docencoding>
+                    <charset>UTF-8</charset>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <!-- A program built against the baseline release must keep working with this jar dropped in its place:
                  a removed or changed public class, method, field or record component fails the build here.
                  Source-only breaks (an added interface method, say) do not. The parent pom has no jar and is skipped.
