@@ -102,4 +102,69 @@ class TotalsTest {
         assertEquals(-1, Totals.labelColumn(allTotalled), "كل الأعمدة متجمّعة: الصف من غير كلمة");
         assertFalse(Totals.any(ReportRequest.builder().addColumn("name", "Name").build()));
     }
+
+    // ===================== المجموعات (groupBy) =====================
+
+    @Test
+    void groupByIsOffUnlessAPropertyIsNamed() {
+        assertEquals(null, ReportRequest.builder().build().groupBy());
+        assertEquals(null, ReportRequest.builder().groupBy("  ").build().groupBy(), "نص فاضي = من غير مجموعات");
+        assertEquals(null, ReportRequest.builder().groupBy("customer").groupBy(null).build().groupBy());
+        assertEquals("customer", ReportRequest.builder().groupBy("customer").build().groupBy());
+    }
+
+    /** الكلمة: الافتراضي حسب الاتجاه وبعده القيمة، والقيمة الفاضية علامة بدل ما الكلمة تبقى زي الإجمالي الكلي. */
+    @Test
+    void subtotalLabelIsThePrefixAndTheGroupValue() {
+        ReportRequest<Object> plain = ReportRequest.builder().groupBy("customer").build();
+        assertEquals("إجمالى: أحمد", Totals.subtotalLabel(plain, "أحمد", true));
+        assertEquals("Total: Ahmed", Totals.subtotalLabel(plain, "Ahmed", false));
+        assertEquals("Total: —", Totals.subtotalLabel(plain, null, false));
+        assertEquals("إجمالى: —", Totals.subtotalLabel(plain, " ", true));
+
+        ReportRequest<Object> custom = ReportRequest.builder().groupBy("customer").subtotalLabel("مجموع ").build();
+        assertEquals("مجموع أحمد", Totals.subtotalLabel(custom, "أحمد", false), "كلام البرنامج بيغلب الافتراضي");
+        assertEquals("Ahmed", Totals.subtotalLabel(ReportRequest.builder().subtotalLabel("").build(), "Ahmed", false));
+
+        assertEquals("إجمالى: ", Totals.subtotalPrefix(plain, true), "الكلام لوحده، للـ Excel");
+        assertEquals("Total: ", Totals.subtotalPrefix(plain, false));
+        assertEquals("مجموع ", Totals.subtotalPrefix(custom, true));
+    }
+
+    /** المجموعة الجديدة بتبدأ لما القيمة تتغير؛ الأرقام العشرية بقيمتها، و{@code null} مجموعة زي أي قيمة. */
+    @Test
+    void sameGroupComparesValues() {
+        assertTrue(Totals.sameGroup("Ahmed", "Ahmed"));
+        assertFalse(Totals.sameGroup("Ahmed", "ahmed"));
+        assertTrue(Totals.sameGroup(new BigDecimal("1.0"), new BigDecimal("1.00")));
+        assertFalse(Totals.sameGroup(new BigDecimal("1.0"), new BigDecimal("1.01")));
+        assertTrue(Totals.sameGroup(null, null));
+        assertFalse(Totals.sameGroup(null, "Ahmed"));
+        assertFalse(Totals.sameGroup("Ahmed", null));
+        assertTrue(Totals.sameGroup(java.time.YearMonth.of(2026, 1), java.time.YearMonth.of(2026, 1)));
+    }
+
+    @Test
+    void groupColumnIsTheColumnOfThePropertyIfShown() {
+        ReportRequest.Builder<Object> builder = ReportRequest.builder()
+                .addColumn("date", "Date")
+                .addColumn("customer", "Customer")
+                .addColumn(ColumnDefinition.of("amount", "Amount").withTotal());
+        assertEquals(-1, Totals.groupColumn(builder.build()));
+        assertEquals(1, Totals.groupColumn(builder.groupBy("customer").build()));
+        assertEquals(-1, Totals.groupColumn(builder.groupBy("month").build()), "الخاصية مش لازم تكون عمود");
+    }
+
+    /** مجموعات من غير عمود متجمّع غلطة: بترمي بدل ما الخيار يتجاهل في صمت. */
+    @Test
+    void groupsNeedATotalledColumn() throws Exception {
+        Totals.checkGroups(ReportRequest.builder().addColumn("name", "Name").build());
+        Totals.checkGroups(ReportRequest.builder().groupBy("customer")
+                .addColumn(ColumnDefinition.of("amount", "Amount").withTotal()).build());
+
+        com.smart.report.ReportException thrown = assertThrows(com.smart.report.ReportException.class,
+                () -> Totals.checkGroups(ReportRequest.builder().groupBy("customer").addColumn("name", "Name").build()));
+        assertTrue(thrown.getMessage().contains("groupBy(\"customer\")")
+                && thrown.getMessage().contains("withTotal()"), thrown.getMessage());
+    }
 }

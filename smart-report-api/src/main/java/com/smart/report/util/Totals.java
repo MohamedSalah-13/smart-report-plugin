@@ -30,6 +30,9 @@ import java.util.concurrent.atomic.LongAdder;
  *         بترمي {@link IllegalArgumentException}، والتقرير بيقول اسم العمود ورقم الصف: الإجمالي اللي
  *         بيتخطى قيمة في صمت بيطلع رقم غلط محدش هياخد باله منه.</li>
  * </ul>
+ *
+ * <p>الإجمالي الفرعي تحت كل مجموعة ({@link ReportRequest.Builder#groupBy}) بنفس القواعد: {@link #sameGroup} بيقول
+ * المجموعة بتبدأ فين، و{@link #subtotalLabel} كلمتها.</p>
  */
 public final class Totals {
 
@@ -37,6 +40,16 @@ public final class Totals {
     public static final String ARABIC_LABEL = "الإجمالى";
     /** كلمة صف الإجمالي في التقرير الإنجليزي، لو البرنامج ما حددش غيرها. */
     public static final String ENGLISH_LABEL = "Total";
+
+    /**
+     * الكلام اللي قبل قيمة المجموعة في صف الإجمالي الفرعي في التقرير العربي ({@link ReportRequest.Builder#groupBy}):
+     * «إجمالى: أحمد».
+     */
+    public static final String ARABIC_SUBTOTAL_LABEL = "إجمالى: ";
+    /** الكلام اللي قبل قيمة المجموعة في صف الإجمالي الفرعي في التقرير الإنجليزي: «Total: Ahmed». */
+    public static final String ENGLISH_SUBTOTAL_LABEL = "Total: ";
+    /** مكان قيمة المجموعة في كلمة صفها لو القيمة فاضية ({@code null} أو نص فاضي). */
+    public static final String NO_GROUP_VALUE = "—";
 
     private Totals() {}
 
@@ -71,6 +84,65 @@ public final class Totals {
             }
         }
         return -1;
+    }
+
+    /**
+     * كلمة صف الإجمالي الفرعي: الكلام اللي البرنامج حدده ({@link ReportRequest.Builder#subtotalLabel}) لو موجود،
+     * وإلا {@link #ARABIC_SUBTOTAL_LABEL} أو {@link #ENGLISH_SUBTOTAL_LABEL} حسب الاتجاه، وبعده قيمة المجموعة
+     * زي ما بتظهر في التقرير — أو {@link #NO_GROUP_VALUE} لو فاضية، فالكلمة ما تتلخبطش مع كلمة الإجمالي الكلي.
+     *
+     * @param groupValue قيمة المجموعة نص بتنسيق التقرير؛ {@code null} أو فاضي = مفيش قيمة
+     */
+    public static String subtotalLabel(ReportRequest<?> request, String groupValue, boolean rightToLeft) {
+        return subtotalPrefix(request, rightToLeft)
+                + (groupValue == null || groupValue.isBlank() ? NO_GROUP_VALUE : groupValue);
+    }
+
+    /**
+     * الكلام اللي قبل قيمة المجموعة لوحده: اللي البرنامج حدده ({@link ReportRequest.Builder#subtotalLabel}) لو موجود،
+     * وإلا {@link #ARABIC_SUBTOTAL_LABEL} أو {@link #ENGLISH_SUBTOTAL_LABEL} حسب الاتجاه — للتقرير اللي بيكتب القيمة في
+     * خلية لوحدها (الـ Excel).
+     */
+    public static String subtotalPrefix(ReportRequest<?> request, boolean rightToLeft) {
+        return request.subtotalLabel() != null ? request.subtotalLabel()
+                : rightToLeft ? ARABIC_SUBTOTAL_LABEL : ENGLISH_SUBTOTAL_LABEL;
+    }
+
+    /**
+     * هل الصفين في نفس المجموعة؟ نفس القيمة ({@link Object#equals})، والأرقام العشرية بقيمتها: {@code 1.0}
+     * و{@code 1.00} ({@link BigDecimal}) مجموعة واحدة. {@code null} مع {@code null} مجموعة واحدة.
+     */
+    public static boolean sameGroup(Object previous, Object current) {
+        if (previous instanceof BigDecimal a && current instanceof BigDecimal b) {
+            return a.compareTo(b) == 0;
+        }
+        return java.util.Objects.equals(previous, current);
+    }
+
+    /** مكان عمود المجموعة في الأعمدة لو الخاصية واحد منها، وإلا {@code -1}. */
+    public static int groupColumn(ReportRequest<?> request) {
+        if (request.groupBy() == null) {
+            return -1;
+        }
+        for (int i = 0; i < request.columns().size(); i++) {
+            if (request.groupBy().equals(request.columns().get(i).fieldName())) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * المجموعات محتاجة حاجة تتجمع: {@link ReportRequest.Builder#groupBy} من غير ولا عمود متجمّع كان هيطلع صفوف
+     * كلام من غير أرقام، فبيرمي بدل ما يتجاهل الخيار في صمت.
+     *
+     * @throws ReportException لو في مجموعات ومفيش عمود {@link ColumnDefinition#withTotal()}
+     */
+    public static void checkGroups(ReportRequest<?> request) throws ReportException {
+        if (request.groupBy() != null && !any(request)) {
+            throw new ReportException("groupBy(\"" + request.groupBy() + "\") puts a subtotal under each group, so"
+                    + " at least one column needs withTotal().");
+        }
     }
 
     /**

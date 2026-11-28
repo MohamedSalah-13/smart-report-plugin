@@ -28,8 +28,12 @@ final class TablePart implements Part {
     /** بيتشال من عرض الخلية فوق حشوتها: حدّاها ونقطة احتياط. */
     private static final float SLACK = 1f;
     private static final float GRID_WIDTH = 0.5f;
+    /** خطّي الإجمالي الكلي تحت إجماليات فرعية: سُمك كل خط والمسافة بينهم. */
+    private static final float GRAND_RULE = 0.6f;
+    private static final float GRAND_GAP = 1.8f;
 
-    private enum RowKind { HEADER, NORMAL, TOTAL }
+    /** {@code GRAND}: الإجمالي الكلي تحت إجماليات فرعية ({@link PdfTable#grandTotal}). */
+    private enum RowKind { HEADER, NORMAL, TOTAL, GRAND }
 
     /** صف جدول اتقاس: سطور كل خلية وارتفاع الصف. */
     private record RowLayout(List<List<Typesetter.Line>> cells, float height, float size, boolean split) {
@@ -154,6 +158,8 @@ final class TablePart implements Part {
             private boolean headerLeft = once != null;
             /** ترتيب الصف بين الصفوف العادية، للتظليل المتبادل. */
             private int index;
+            /** الصف الجاي لو اتقرا عشان نعرف هل بيتنقل مع اللي قبله. */
+            private PdfTable.Row ahead;
 
             @Override
             public Piece next() throws IOException, ReportException {
@@ -161,20 +167,93 @@ final class TablePart implements Part {
                     headerLeft = false;
                     return once;
                 }
-                if (!rows.hasNext()) {
+                PdfTable.Row row = take();
+                if (row == null) {
                     return null;
                 }
-                PdfTable.Row row = rows.next();
+                // الإجمالي الفرعي قطعة واحدة مع الصف اللي فوقه، فما بينزلش لوحده في أول صفحة.
+                Piece piece = piece(row);
+                for (PdfTable.Row following = take(); following != null; following = take()) {
+                    if (!following.withPrevious()) {
+                        ahead = following;
+                        break;
+                    }
+                    piece = new Together(piece, piece(following));
+                }
+                return piece;
+            }
+
+            private PdfTable.Row take() {
+                PdfTable.Row row = ahead != null ? ahead : rows.hasNext() ? rows.next() : null;
+                ahead = null;
+                return row;
+            }
+
+            private Piece piece(PdfTable.Row row) throws IOException, ReportException {
                 float bodySize = frame.style().bodySize();
                 float size = row.total() ? bodySize + table.totalSizeBoost() : bodySize;
                 boolean striped = frame.style().stripes() && index % 2 == 1;
                 if (!row.total()) {
                     index++;
                 }
-                return new Row(layout(row.cells(), row.total(), size), row.total() ? RowKind.TOTAL : RowKind.NORMAL,
+                RowKind kind = row.grand() ? RowKind.GRAND : row.total() ? RowKind.TOTAL : RowKind.NORMAL;
+                return new Row(layout(row.cells(), row.total(), size), kind,
                         striped);
             }
         };
+    }
+
+    /**
+     * قطعتين ورا بعض بيتنقلوا مع بعض: آخر صف في مجموعة وإجماليها الفرعي. لو الاتنين أطول من صفحة بيتقسموا على
+     * سطورهم، وآخر سطر في الصف بينزل مع الإجمالي لو الإجمالي ما كفّاهوش الباقي.
+     */
+    private record Together(Piece above, Piece below) implements Piece {
+
+        @Override
+        public float height() {
+            return above.height() + below.height();
+        }
+
+        @Override
+        public void draw(Canvas canvas, float top) throws IOException {
+            above.draw(canvas, top);
+            below.draw(canvas, top - above.height());
+        }
+
+        private int aboveLines() {
+            return Math.max(1, above.lineCount());
+        }
+
+        @Override
+        public int lineCount() {
+            return aboveLines() + Math.max(1, below.lineCount());
+        }
+
+        @Override
+        public int fitting(float room) {
+            if (room < above.height()) {
+                return Math.min(above.fitting(room), aboveLines() - 1);
+            }
+            int below = this.below.fitting(room - above.height());
+            return below >= Math.max(1, this.below.lineCount()) ? lineCount() : aboveLines() - 1;
+        }
+
+        @Override
+        public Piece slice(int from, int to) {
+            int split = aboveLines();
+            if (to <= split) {
+                return part(above, from, to, split);
+            }
+            if (from >= split) {
+                return part(below, from - split, to - split, lineCount() - split);
+            }
+            return new Together(part(above, from, split, split), part(below, 0, to - split, lineCount() - split));
+        }
+
+        /** القطعة كلها زي ما هي لو السطور كلها منها، فالصف اللي ما اتقسمش بيترسم زي الأول بالظبط. */
+        private static Piece part(Piece piece, int from, int to, int lines) {
+            return from == 0 && to >= lines ? piece : piece.slice(from, to);
+        }
     }
 
     /** الرأس قطعة واحدة ما بتتقسمش: رأس جدول فاضي بيترسم كله في مكان واحد. */
@@ -299,7 +378,7 @@ final class TablePart implements Part {
 
             int fill = switch (kind) {
                 case HEADER -> style.headerFill();
-                case TOTAL -> style.totalsFill();
+                case TOTAL, GRAND -> style.totalsFill();
                 case NORMAL -> striped ? style.stripeFill() : PdfStyle.WHITE;
             };
             if (fill != PdfStyle.WHITE) {
@@ -310,7 +389,7 @@ final class TablePart implements Part {
 
             int color = switch (kind) {
                 case HEADER -> style.headerText();
-                case TOTAL -> style.totalsText();
+                case TOTAL, GRAND -> style.totalsText();
                 case NORMAL -> style.textColor();
             };
             for (int i = 0; i < row.cells().size(); i++) {
@@ -338,9 +417,18 @@ final class TablePart implements Part {
             // بلا تعبئة (توفير الحبر): الرأس بخط سميك تحته، والإجمالي بخطين فوقه وتحته.
             if (fill == PdfStyle.WHITE && kind != RowKind.NORMAL) {
                 canvas.rule(tableLeft, tableLeft + tableWidth, top - height, color, 1.2f);
-                if (kind == RowKind.TOTAL) {
+                if (kind == RowKind.TOTAL || kind == RowKind.GRAND) {
                     canvas.rule(tableLeft, tableLeft + tableWidth, top, color, 1.2f);
                 }
+            }
+            // الإجمالي الكلي تحت إجماليات فرعية بنفس شكلها: خط سميك فوقه وخطين تحته (بلا تعبئة الخطوط دي موجودة
+            // أصلًا، فبيتزوّد الخط التاني بس).
+            if (kind == RowKind.GRAND) {
+                if (fill != PdfStyle.WHITE) {
+                    canvas.rule(tableLeft, tableLeft + tableWidth, top, color, 1.2f);
+                    canvas.rule(tableLeft, tableLeft + tableWidth, top - height, color, GRAND_RULE);
+                }
+                canvas.rule(tableLeft, tableLeft + tableWidth, top - height + GRAND_GAP, color, GRAND_RULE);
             }
         }
     }

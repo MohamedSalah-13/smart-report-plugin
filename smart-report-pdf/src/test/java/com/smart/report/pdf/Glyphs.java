@@ -157,24 +157,38 @@ final class Glyphs {
         return start < 0 ? null : glyphs.get(start);
     }
 
+    /** أول حرف في كل ظهور للكلمة، في كل الصفحات بترتيب رسمها: رقم بيتكرر في صف وفي إجماليه. */
+    List<Glyph> every(String token) {
+        List<Glyph> found = new ArrayList<>();
+        for (int i = 0; i < glyphs.size(); i++) {
+            if (startsAt(i, token)) {
+                found.add(glyphs.get(i));
+            }
+        }
+        return found;
+    }
+
     /** مكان أول حرف في أول ظهور للكلمة في الصفحة، أو {@code -1}. */
     private int start(String token, int page) {
         for (int i = 0; i < glyphs.size(); i++) {
-            if (glyphs.get(i).page() != page) {
-                continue;
-            }
-            StringBuilder run = new StringBuilder();
-            for (int k = i; k < glyphs.size() && run.length() < token.length(); k++) {
-                Glyph glyph = glyphs.get(k);
-                if (glyph.page() != page || Math.abs(glyph.y() - glyphs.get(i).y()) > 0.5f) {
-                    break;
-                }
-                run.append(glyph.text());
-            }
-            if (run.toString().equals(token)) {
+            if (glyphs.get(i).page() == page && startsAt(i, token)) {
                 return i;
             }
         }
         return -1;
+    }
+
+    /** هل الكلمة مرسومة من الحرف {@code i}، في نفس صفحته وسطره؟ */
+    private boolean startsAt(int i, String token) {
+        int page = glyphs.get(i).page();
+        StringBuilder run = new StringBuilder();
+        for (int k = i; k < glyphs.size() && run.length() < token.length(); k++) {
+            Glyph glyph = glyphs.get(k);
+            if (glyph.page() != page || Math.abs(glyph.y() - glyphs.get(i).y()) > 0.5f) {
+                break;
+            }
+            run.append(glyph.text());
+        }
+        return run.toString().equals(token);
     }
 }

@@ -375,11 +375,18 @@ has not been on a real printer yet; the old one usually had.
   decimal it shows; `null` adds nothing), with the label `الإجمالى` (`Total` in a left-to-right report) under the first
   column that is not summed; `.totalsLabel("...")` on the request changes it. A value that is not a number in
   a summed column fails with a `ReportException` naming the column and row. Do not add the total as a fake data
-  row. Use `PdfDocument` instead as soon as the page needs fields, a summary or more than one table.
+  row. For a subtotal under each group (from `v2.10.0`) - a statement by customer or by month - add
+  `.groupBy("customer")` to the request and pass the data already sorted by that property: a new group starts
+  wherever the value changes, under it comes a row `إجمالى: <value>` (`Total: <value>`; `.subtotalLabel("...")`
+  changes the words) with each summed column in its format, and the grand total stays at the end. In the PDF the
+  subtotal never starts a page alone: the last row of its group moves with it. It needs a `withTotal()` column.
+  Do not insert subtotal rows into the data yourself. Use `PdfDocument` instead as soon as the page needs fields, a summary or more than one table.
 - **The same list as Excel** - add `smart-report-excel` and ask for `ReportType.EXCEL`. It applies each
   column's format (as an Excel format, so numbers stay numbers) and alignment, and ignores the weight. A
   `withTotal()` column gets a bold totals row, one empty row below the data, holding a real `SUM` formula with
-  its computed value, outside the filter. That total is Excel's own `double` arithmetic over the stored cells,
+  its computed value, outside the filter. With `groupBy` (from `v2.10.0`) every group gets a subtotal row with
+  `=SUBTOTAL(9, ...)`, and the grand total becomes `=SUBTOTAL(9, ...)` too, so it does not count the subtotals
+  twice and follows the header filter. That total is Excel's own `double` arithmetic over the stored cells,
   so it can differ from the exact PDF total in the last digits of a `float` or a number past ~15 digits; for
   two-decimal money they match. A date
   pattern Excel would show differently - `hh` without `a`, `HH` with `a`, `k`, or a time zone `z` - fails
