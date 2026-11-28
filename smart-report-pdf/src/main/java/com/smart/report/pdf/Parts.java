@@ -65,6 +65,7 @@ final class Parts {
             case PdfDocument.QrBlock qr -> List.of(SymbolParts.qrCode(qr, frame));
             case PdfDocument.BarcodeBlock barcode -> List.of(SymbolParts.barcode(barcode, frame));
             case PdfDocument.Ean13Block ean -> List.of(SymbolParts.ean13(ean, frame));
+            case PdfDocument.ImageBlock image -> List.of(ImageParts.image(image, frame));
             case PdfDocument.PageBreakBlock ignored -> List.of(PAGE_BREAK);
         };
     }

@@ -469,6 +469,33 @@ codes.parse(scannedText)                            // Optional[Scanned[type=1, 
 - `DocumentCode.of(firstDigit, numberDigits)` لشكل تاني. الافتراضي بيبدأ بـ 2، فهو كمان EAN-13 صحيح في النطاق
   20–29 اللي GS1 سايباه للاستخدام جوّه المحل، وما بيطابقش باركود منتج حقيقي أبدًا.
 
+### شكل الخلية، وصورة في جسم المستند (`CellStyle` و`image`)
+
+رصيد سالب بالأحمر، وخلية بخط عريض، وختم أو توقيع (v2.11.0):
+
+<div dir="ltr">
+
+```java
+document.table(t -> t.column("التاريخ", 2).column("البيان", 3).column("الرصيد", 2, Align.END)
+        .rows(lines, l -> new String[]{l.date(), l.note(), l.balance()})
+        .negativeInRed(2)                                       // العمود 2؛ من غير رقم = كل الأعمدة
+        .cellStyle((row, column, text) -> text.startsWith("مرتجع") ? CellStyle.bold() : CellStyle.PLAIN));
+
+document.image(stampPng, 35, Align.END);                       // عرض 35 مم، والطول من الصورة
+document.image(Path.of("signature.png"), 40, Align.START);
+```
+
+</div>
+
+- المبلغ السالب رقم قبله أو بعده `-` أو `−`، أو بين قوسين (`(1,200.00)`). التاريخ زي `2026-11-02` مش سالب. صفوف
+  البيانات والإجمالي بتاخد الشكل، والرأس لأ.
+- `cellStyle(rule)` بياخد الصف (من صفر، والإجمالي معاهم)، والعمود (من صفر بالترتيب المنطقي)، والنص، وبيرجع
+  `CellStyle.bold()` أو `CellStyle.color(0xRRGGBB)` أو الاتنين (`.andBold()`) أو `CellStyle.PLAIN`. أكتر من قاعدة
+  بيتجمعوا بالترتيب.
+- تقرير PDF العام: `.parameter(PdfReportProvider.NEGATIVE_IN_RED, true)`.
+- الصورة (PNG أو JPEG؛ شفافية PNG بتفضل، فالختم ما بيغطيش اللي تحته) ما بتتقسمش: بتتنقل كلها للصفحة الجاية، وبتصغر
+  بنفس شكلها لو أعرض من السطر أو أطول من صفحة.
+
 ### الشكل (`PdfStyle`)
 
 من غير تحديد، الشكل بيتاخد حسب الورقة (`PdfStyle.forPaper`): خط وهوامش أصغر على A5. للتعديل:

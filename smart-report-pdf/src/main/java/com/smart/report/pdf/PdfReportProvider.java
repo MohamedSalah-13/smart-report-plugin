@@ -71,6 +71,11 @@ public final class PdfReportProvider implements ReportProvider {
      * {@link ReportException} بدل ما يتطبع {@code ?} ({@link PdfDocument#failOnMissingGlyphs(boolean)}).
      */
     public static final String FAIL_ON_MISSING_GLYPHS = "smart.report.pdf.failOnMissingGlyphs";
+    /**
+     * مفتاح في {@code ReportRequest.parameters()}: {@code Boolean.TRUE} = المبالغ السالبة بالأحمر في كل الأعمدة
+     * ({@link PdfTable#negativeInRed}): كشف حساب برصيد دائن مثلًا.
+     */
+    public static final String NEGATIVE_IN_RED = "smart.report.pdf.negativeInRed";
 
     @Override
     public ReportType type() {
@@ -134,6 +139,9 @@ public final class PdfReportProvider implements ReportProvider {
         }
 
         PdfTable table = PdfTable.create();
+        if (isTrue(request.parameters().get(NEGATIVE_IN_RED))) {
+            table.negativeInRed();
+        }
         for (int i = 0; i < count; i++) {
             ColumnDefinition column = columns.get(i);
             // العمود المتجمّع أرقام بس (غير كده بيرمي فوق)، فمجموعه تحت أرقامه حتى من غير بيانات.

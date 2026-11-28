@@ -2,6 +2,7 @@ package com.smart.report.pdf;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 
 /**
@@ -23,11 +24,27 @@ public final class PdfTable {
      * @param withPrevious الصف بيتنقل مع اللي قبله لصفحة جديدة: الإجمالي الفرعي مع آخر صف في مجموعته
      * @param grand        الإجمالي الكلي تحت إجماليات فرعية، بشكل يفرّقه عنها
      */
-    record Row(String[] cells, boolean total, boolean withPrevious, boolean grand) {
+    record Row(int index, String[] cells, boolean total, boolean withPrevious, boolean grand) {
+    }
+
+    /**
+     * قاعدة شكل الخلايا: بتتسأل لكل خلية في صفوف البيانات والإجمالي (مش الرأس)، وبترجع {@link CellStyle#PLAIN}
+     * للخلية اللي تفضل زي صفها.
+     */
+    @FunctionalInterface
+    public interface CellRule {
+
+        /**
+         * @param row    رقم الصف من صفر بترتيب الإضافة، صفوف الإجمالي معاهم
+         * @param column رقم العمود من صفر بالترتيب المنطقي (أول عمود اتضاف)
+         * @param text   نص الخلية زي ما اتكتب
+         */
+        CellStyle style(int row, int column, String text);
     }
 
     private final List<Column> columns = new ArrayList<>();
     private final List<Row> rows = new ArrayList<>();
+    private final List<CellRule> rules = new ArrayList<>();
     private boolean headerShown = true;
     private float totalSizeBoost;
 
@@ -65,7 +82,7 @@ public final class PdfTable {
 
     /** صف بيانات: خلية لكل عمود بالترتيب. الصف الأقصر بيتكمّل بخلايا فاضية، و{@code null} خلية فاضية. */
     public PdfTable row(String... cells) {
-        rows.add(new Row(fitted(cells), false, false, false));
+        rows.add(new Row(rows.size(), fitted(cells), false, false, false));
         return this;
     }
 
@@ -79,7 +96,7 @@ public final class PdfTable {
 
     /** صف إجمالي: بخط عريض على خلفية مميّزة، وخلاياه تحت أعمدتها بالظبط. */
     public PdfTable totals(String... cells) {
-        rows.add(new Row(fitted(cells), true, false, false));
+        rows.add(new Row(rows.size(), fitted(cells), true, false, false));
         return this;
     }
 
@@ -91,7 +108,7 @@ public final class PdfTable {
         if (rows.isEmpty()) {
             throw new IllegalStateException("A subtotal goes under the rows it adds up.");
         }
-        rows.add(new Row(fitted(cells), true, true, false));
+        rows.add(new Row(rows.size(), fitted(cells), true, true, false));
         return this;
     }
 
@@ -100,8 +117,56 @@ public final class PdfTable {
      * خطين زي إجمالي الدفاتر، فما يتلخبطش مع آخر إجمالي فرعي اللي فوقه على طول.
      */
     PdfTable grandTotal(String... cells) {
-        rows.add(new Row(fitted(cells), true, false, true));
+        rows.add(new Row(rows.size(), fitted(cells), true, false, true));
         return this;
+    }
+
+    /**
+     * شكل لخلايا بعينها: {@code (row, column, text) -> column == 2 && text.startsWith("-") ? CellStyle.color(0xC62828)
+     * : CellStyle.PLAIN}. أكتر من قاعدة بيتجمعوا بالترتيب، واللي بعدها بتغلب في اللي حددته.
+     */
+    public PdfTable cellStyle(CellRule rule) {
+        rules.add(Objects.requireNonNull(rule, "rule"));
+        return this;
+    }
+
+    /**
+     * المبالغ السالبة بالأحمر ({@link CellStyle#RED}) في الأعمدة دي (من صفر بالترتيب المنطقي)، أو في كل الأعمدة
+     * من غيرها. السالب: رقم في أوله {@code -} أو {@code −}، أو في آخره {@code -} ({@code 1,200.00-})، أو بين قوسين
+     * ({@code (1,200.00)}) زي الدفاتر.
+     */
+    public PdfTable negativeInRed(int... columns) {
+        int[] chosen = columns == null ? new int[0] : columns.clone();
+        return cellStyle((row, column, text) -> {
+            boolean wanted = chosen.length == 0;
+            for (int c : chosen) {
+                wanted |= c == column;
+            }
+            return wanted && negative(text) ? CellStyle.color(CellStyle.RED) : CellStyle.PLAIN;
+        });
+    }
+
+    /** نص رقم سالب: {@code -5}، {@code −5}، {@code 5-}، {@code (5)}، بأرقام لاتيني أو عربي. */
+    static boolean negative(String text) {
+        if (text == null) {
+            return false;
+        }
+        String value = text.strip();
+        if (value.length() < 2 || value.codePoints().noneMatch(Character::isDigit)) {
+            return false;
+        }
+        char first = value.charAt(0);
+        char last = value.charAt(value.length() - 1);
+        return first == '-' || first == '\u2212' || last == '-' || last == '\u2212' || first == '(' && last == ')';
+    }
+
+    /** شكل الخلية من القواعد كلها. */
+    CellStyle styleOf(Row row, int column) {
+        CellStyle style = CellStyle.PLAIN;
+        for (CellRule rule : rules) {
+            style = style.under(rule.style(row.index(), column, row.cells()[column]));
+        }
+        return style;
     }
 
     /** جدول بلا رأس — للملخصات (بيان وقيمته) مثلًا. */
