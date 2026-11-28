@@ -1,30 +1,30 @@
 package com.smart.report.pdf;
 
 /**
- * شكل الصفحة: الهوامش، أحجام الخط، والألوان. الألوان أرقام RGB ({@code 0xRRGGBB}).
+ * The look of the page: margins, font sizes and colours. Colours are RGB numbers ({@code 0xRRGGBB}).
  *
- * <p>الافتراضي ({@link #standard()}) هادئ ويصلح للطباعة أبيض وأسود: رأس الجدول رمادي فاتح بخط غامق،
- * وشبكة رفيعة حول الخلايا. {@link #forPaper(Paper)} بيصغّر الأحجام والهوامش للورق الضيّق (A5 طولي)،
- * وهو اللي {@link PdfDocument} بيستخدمه لو ما اتحدّدش شكل.</p>
+ * <p>The default ({@link #standard()}) is calm and suits black-and-white printing: a light grey table header
+ * with dark text, and a thin grid around the cells. {@link #forPaper(Paper)} makes the sizes and margins
+ * smaller for narrow paper (A5 portrait), and {@link PdfDocument} uses it when no style is set.</p>
  *
- * @param margin       هامش الصفحة من كل جهة، بالنقطة
- * @param titleSize    حجم العنوان
- * @param subtitleSize حجم العنوان الفرعي
- * @param headingSize  حجم عنوان القسم (فوق جدول مثلًا)
- * @param bodySize     حجم نص الصفوف والفقرات
- * @param headerSize   حجم رأس الجدول
- * @param smallSize    حجم التذييل ورقم الصفحة وسطور الترويسة
- * @param textColor    لون النص
- * @param mutedColor   لون النص الثانوي (العنوان الفرعي، التذييل)
- * @param accentColor  لون الخط تحت الترويسة
- * @param headerFill   خلفية رأس الجدول؛ الأبيض معناه بلا تعبئة وخط سميك تحته
- * @param headerText   لون نص رأس الجدول
- * @param totalsFill   خلفية صف الإجمالي؛ الأبيض معناه بلا تعبئة وخطان فوقه وتحته
- * @param totalsText   لون نص صف الإجمالي
- * @param stripeFill   خلفية الصفوف المتبادلة
- * @param ruleColor    لون خطوط الجدول
- * @param grid         شبكة كاملة حول كل خلية، أو خط أفقي تحت كل صف فقط
- * @param stripes      تلوين كل صف تانٍ
+ * @param margin       the page margin on each side, in points
+ * @param titleSize    the title size
+ * @param subtitleSize the subtitle size
+ * @param headingSize  the size of a section heading (above a table, for example)
+ * @param bodySize     the size of row and paragraph text
+ * @param headerSize   the size of the table header
+ * @param smallSize    the size of the footer, the page number and the letterhead lines
+ * @param textColor    the text colour
+ * @param mutedColor   the colour of secondary text (the subtitle, the footer)
+ * @param accentColor  the colour of the line under the letterhead
+ * @param headerFill   the table header background; white means no fill and a thick line under it
+ * @param headerText   the table header text colour
+ * @param totalsFill   the totals row background; white means no fill and two lines, above and below it
+ * @param totalsText   the totals row text colour
+ * @param stripeFill   the background of the alternating rows
+ * @param ruleColor    the colour of the table lines
+ * @param grid         a full grid around every cell, or only a horizontal line under each row
+ * @param stripes      shade every second row
  */
 public record PdfStyle(float margin,
                        float titleSize, float subtitleSize, float headingSize,
@@ -37,7 +37,7 @@ public record PdfStyle(float margin,
 
     static final int WHITE = 0xFFFFFF;
 
-    /** أصغر حجم خط يفضل مقروءًا على الورق. */
+    /** The smallest font size that stays readable on paper. */
     public static final float MIN_FONT_SIZE = 6f;
 
     public PdfStyle {
@@ -51,7 +51,7 @@ public record PdfStyle(float margin,
         }
     }
 
-    /** الشكل الافتراضي، مقاس على A4. */
+    /** The default style, sized for A4. */
     public static PdfStyle standard() {
         return new PdfStyle(36f,
                 16f, 11f, 11f,
@@ -63,7 +63,7 @@ public record PdfStyle(float margin,
                 true, false);
     }
 
-    /** الشكل الافتراضي مناسبًا لمقاس الورقة: أصغر على الورق الضيّق، وبهامش أقل على الورق القصير. */
+    /** The default style fitted to the paper size: smaller on narrow paper, with a smaller margin on short paper. */
     public static PdfStyle forPaper(Paper paper) {
         PdfStyle style = standard();
         if (paper.roll()) {
@@ -76,7 +76,7 @@ public record PdfStyle(float margin,
         return Math.min(paper.width(), paper.height()) < 450f ? style.withMargin(26f) : style;
     }
 
-    /** كل أحجام الخط مضروبة في {@code factor}، ولا تنزل عن {@link #MIN_FONT_SIZE}. */
+    /** All font sizes multiplied by {@code factor}, never below {@link #MIN_FONT_SIZE}. */
     public PdfStyle scaled(float factor) {
         return new PdfStyle(margin,
                 scale(titleSize, factor), scale(subtitleSize, factor), scale(headingSize, factor),
@@ -107,7 +107,10 @@ public record PdfStyle(float margin,
                 stripeFill, ruleColor, grid, value);
     }
 
-    /** خلفية رأس الجدول ولون نصه — مثلًا {@code withHeaderColors(0x2C3E50, 0xFFFFFF)} لرأس غامق. */
+    /**
+     * The table header background and text colour, for example {@code withHeaderColors(0x2C3E50, 0xFFFFFF)} for a
+     * dark header.
+     */
     public PdfStyle withHeaderColors(int fill, int text) {
         return new PdfStyle(margin, titleSize, subtitleSize, headingSize, bodySize, headerSize, smallSize,
                 textColor, mutedColor, accentColor, fill, text, totalsFill, totalsText,
@@ -127,8 +130,8 @@ public record PdfStyle(float margin,
     }
 
     /**
-     * مجموعة ألوان جاهزة متناسقة: رأس الجدول، وصف الإجمالي، والخط تحت الترويسة، والصفوف المتبادلة، وخطوط الجدول؛
-     * الأحجام والهوامش زي ما هي.
+     * A ready set of matching colours: the table header, the totals row, the line under the letterhead, the
+     * alternating rows and the table lines. The sizes and margins stay as they are.
      */
     public PdfStyle withColorSet(ColorSet set) {
         java.util.Objects.requireNonNull(set, "set");
@@ -137,7 +140,10 @@ public record PdfStyle(float margin,
                 set.totalsText(), set.stripe(), set.rule(), grid, stripes);
     }
 
-    /** توفير الحبر: بلا أي تعبئة — الرأس والإجمالي بخطوط بدل الخلفيات، ولا صفوف ملوّنة. */
+    /**
+     * Saves ink: no fill at all. The header and the totals use lines instead of backgrounds, and no rows are
+     * shaded.
+     */
     public PdfStyle inkSaver() {
         return new PdfStyle(margin, titleSize, subtitleSize, headingSize, bodySize, headerSize, smallSize,
                 textColor, mutedColor, accentColor, WHITE, textColor, WHITE, textColor,

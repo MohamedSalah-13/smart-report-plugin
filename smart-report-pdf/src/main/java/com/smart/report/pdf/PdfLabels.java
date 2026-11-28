@@ -15,12 +15,12 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * ملصقات أصناف: اسم الصنف، وسعره (وجنبه سعر قديم مشطوب لو في عرض)، وباركوده؛ على لفة ملصقات (ملصق أو اتنين في
- * العرض) أو على ورقة ملصقات A4 صفوف وأعمدة.
+ * Item labels: the item name, its price (with a struck-through old price beside it during an offer), and its
+ * barcode. Prints on a label roll (one or two labels across) or on an A4 label sheet in rows and columns.
  *
  * <pre>{@code
- * PdfLabels labels = PdfLabels.roll(40, 25)                      // ملصق 40 × 25 مم
- *         .across(2, 2)                                            // اتنين جنب بعض، بينهم 2 مم
+ * PdfLabels labels = PdfLabels.roll(40, 25)                      // a 40 × 25 mm label
+ *         .across(2, 2)                                            // two side by side, 2 mm apart
  *         .rightToLeft(true)
  *         .printerDpi(203);
  * for (Unit unit : units) {
@@ -28,36 +28,38 @@ import java.util.Objects;
  * }
  * PdfPrinter.print(labels.toBytes(), printerName, labels.paper(), 1);
  *
- * PdfLabels sheet = PdfLabels.sheet(Paper.A4, 3, 8).margins(8, 4); // 24 ملصق في الورقة
+ * PdfLabels sheet = PdfLabels.sheet(Paper.A4, 3, 8).margins(8, 4); // 24 labels per sheet
  * }</pre>
  *
- * <p><b>الباركود:</b> 13 رقم بخانة تحقق صحيحة بيترسم EAN-13 بأرقامه تحته؛ أي كود تاني Code 128، فالماسح بيقرا نفس
- * النص المحفوظ في البرنامج بالظبط. الخطوط بتضيق لحد أقل حجم بيتقري لو الملصق ضيق، وبعدها {@link #toBytes()}
- * بيفشل بـ {@link ReportException} فيها الصنف، بدل ملصق ما بيتقريش. ومع {@link #printerDpi} كل خط عدد صحيح من
- * نقط الطابعة.</p>
+ * <p><b>Barcode:</b> 13 digits with a valid check digit are drawn as EAN-13 with the digits underneath. Any other
+ * code is drawn as Code 128, so the scanner reads exactly the text stored in the program. On a narrow label the bars
+ * shrink down to the smallest readable size; below that, {@link #toBytes()} fails with a {@link ReportException}
+ * that names the item, instead of producing a label nobody can scan. With {@link #printerDpi}, every bar is a whole
+ * number of printer dots.</p>
  *
- * <p><b>الاسم الطويل:</b> {@link LongName#ELLIPSIS} (الافتراضي) بيقصه بـ «…»، و{@link LongName#SHRINK} بيصغّر خطه
- * لحد أصغر خط وبعدين بيقصه، و{@link LongName#HIDE} بيشيله.</p>
+ * <p><b>Long names:</b> {@link LongName#ELLIPSIS} (the default) cuts the name and ends it with «…».
+ * {@link LongName#SHRINK} shrinks the font down to the smallest size, then cuts. {@link LongName#HIDE} leaves the
+ * name out.</p>
  *
- * <p><b>المعايرة:</b> {@link #offset} بيزحزح كل حاجة بالمليمتر للطابعة اللي لفتها بتدخل مايلة شوية؛ احفظه مع الطابعة.
- * ورقة الملصقات صفحات بمقاس ثابت، مش مستند بيتقسم، فقواعد الصفحات في {@link PdfDocument} مالهاش دعوة بيها. الكائن
- * غير آمن من أكتر من thread.</p>
+ * <p><b>Calibration:</b> {@link #offset} shifts everything by millimetres, for a printer whose roll feeds in slightly
+ * askew; save it with the printer settings. A label sheet is a set of fixed-size pages, not a document that gets
+ * split into pages, so the page rules of {@link PdfDocument} do not apply to it. This object is not thread-safe.</p>
  */
 public final class PdfLabels {
 
     private static final float POINTS_PER_MM = 72f / 25.4f;
 
-    /** الاسم اللي ما كفّاش عرض الملصق. */
+    /** What happens to a name that does not fit the label width. */
     public enum LongName {
-        /** يتقص وفي آخره «…». */
+        /** The name is cut and ends with «…». */
         ELLIPSIS,
-        /** خطه بيصغر لحد {@link PdfStyle#MIN_FONT_SIZE}، وبعدها يتقص. */
+        /** The font shrinks down to {@link PdfStyle#MIN_FONT_SIZE}, then the name is cut. */
         SHRINK,
-        /** ما يتكتبش. */
+        /** The name is not printed. */
         HIDE
     }
 
-    /** ملصق صنف: الاسم والسعر نص جاهز بلغة البرنامج وتنسيقه. */
+    /** One item label. The name and the price are ready-made text, in the program's language and format. */
     public static final class Item {
         private final String name;
         private final String price;
@@ -79,16 +81,16 @@ public final class PdfLabels {
         }
 
         /**
-         * @param name  اسم الصنف
-         * @param price السعر منسّق: «15.00 ج.م»
-         * @param code  الباركود: 13 رقم EAN-13، أو أي كود ASCII (Code 128)
-         * @throws IllegalArgumentException لو الكود فاضي أو فيه حرف برّه ASCII
+         * @param name  the item name
+         * @param price the formatted price, for example «15.00 ج.م»
+         * @param code  the barcode: 13 digits for EAN-13, or any ASCII code (Code 128)
+         * @throws IllegalArgumentException if the code is blank or has a character outside ASCII
          */
         public static Item of(String name, String price, String code) {
             return new Item(name, price, null, code);
         }
 
-        /** سعر قبل العرض، بيتكتب مشطوب جنب السعر. */
+        /** The price before the offer, printed struck through beside the price. */
         public Item withOldPrice(String value) {
             return new Item(name, price, value, code);
         }
@@ -140,10 +142,10 @@ public final class PdfLabels {
     }
 
     /**
-     * لفة ملصقات: كل صف ملصقات صفحة بمقاسه، وطابعة الملصقات بتقف عند آخره.
+     * A label roll: each row of labels is one page of its own size, and the label printer stops at its end.
      *
-     * @param widthMm  عرض الملصق الواحد، من 15 مم
-     * @param heightMm طوله، من 10 مم
+     * @param widthMm  the width of one label, 15 mm or more
+     * @param heightMm its height, 10 mm or more
      */
     public static PdfLabels roll(float widthMm, float heightMm) {
         if (!(widthMm >= 15) || !(heightMm >= 10) || widthMm > 300 || heightMm > 300) {
@@ -154,7 +156,8 @@ public final class PdfLabels {
     }
 
     /**
-     * ورقة ملصقات: {@code columns × rows} على الورقة، ومقاس الملصق هو اللي فاضل بعد {@link #margins} و{@link #gaps}.
+     * A label sheet: {@code columns × rows} labels on the sheet. The label size is whatever space is left after
+     * {@link #margins} and {@link #gaps}.
      */
     public static PdfLabels sheet(Paper paper, int columns, int rows) {
         Objects.requireNonNull(paper, "paper");
@@ -167,7 +170,7 @@ public final class PdfLabels {
         return new PdfLabels(paper, 0, 0, columns, rows);
     }
 
-    /** على اللفة: كام ملصق جنب بعض في العرض (1 لـ 4)، والمسافة بينهم بالمليمتر. */
+    /** On a roll: how many labels sit side by side across the roll (1 to 4), and the gap between them in mm. */
     public PdfLabels across(int count, float gapMm) {
         if (sheet != null) {
             throw new IllegalStateException("across is for a roll; a sheet has columns.");
@@ -180,7 +183,7 @@ public final class PdfLabels {
         return this;
     }
 
-    /** على الورقة: الهامش فوق وتحت، وعلى الجنبين، بالمليمتر. */
+    /** On a sheet: the top and bottom margin, and the side margins, in mm. */
     public PdfLabels margins(float topMm, float sideMm) {
         if (sheet == null) {
             throw new IllegalStateException("margins are for a sheet.");
@@ -193,7 +196,7 @@ public final class PdfLabels {
         return this;
     }
 
-    /** على الورقة: المسافة بين الأعمدة وبين الصفوف، بالمليمتر. */
+    /** On a sheet: the gap between columns and between rows, in mm. */
     public PdfLabels gaps(float betweenColumnsMm, float betweenRowsMm) {
         if (sheet == null) {
             throw new IllegalStateException("gaps are for a sheet; a roll takes its gap in across.");
@@ -206,7 +209,10 @@ public final class PdfLabels {
         return this;
     }
 
-    /** معايرة الطابعة: كل حاجة بتتزحزح يمين ({@code xMm} موجب) ولتحت ({@code yMm} موجب)، لحد 10 مم. */
+    /**
+     * Printer calibration: shifts everything right (positive {@code xMm}) and down (positive {@code yMm}), up to
+     * 10 mm.
+     */
     public PdfLabels offset(float xMm, float yMm) {
         if (!(Math.abs(xMm) <= 10) || !(Math.abs(yMm) <= 10)) {
             throw new IllegalArgumentException("The offset is at most 10 mm each way: " + xMm + ", " + yMm);
@@ -216,7 +222,7 @@ public final class PdfLabels {
         return this;
     }
 
-    /** اتجاه الاسم والسعر (عربي من غيره). */
+    /** The direction of the name and the price (Arabic or not). */
     public PdfLabels rightToLeft(boolean value) {
         this.rightToLeft = value;
         return this;
@@ -232,7 +238,7 @@ public final class PdfLabels {
         return this;
     }
 
-    /** الأرقام أو الكود تحت الخطوط. */
+    /** The digits or the code under the bars. */
     public PdfLabels showDigits(boolean value) {
         this.showDigits = value;
         return this;
@@ -243,7 +249,7 @@ public final class PdfLabels {
         return this;
     }
 
-    /** دقة الطابعة، زي {@link PdfDocument#printerDpi}: كل خط عدد صحيح من نقطها. صفر = من غير. */
+    /** Printer resolution, as in {@link PdfDocument#printerDpi}: every bar is a whole number of its dots. 0 = off. */
     public PdfLabels printerDpi(int dpi) {
         if (dpi != 0 && (dpi < 72 || dpi > 2400)) {
             throw new IllegalArgumentException("The printer resolution must be between 72 and 2400 dpi, or 0: " + dpi);
@@ -252,18 +258,18 @@ public final class PdfLabels {
         return this;
     }
 
-    /** خط الملصقات بدل الخط العام. */
+    /** A font for the labels instead of the global font. */
     public PdfLabels font(PdfFont value) {
         this.font = value;
         return this;
     }
 
-    /** ملصق واحد للصنف. */
+    /** One label for the item. */
     public PdfLabels add(Item item) {
         return add(item, 1);
     }
 
-    /** {@code copies} ملصق للصنف، ورا بعض. */
+    /** {@code copies} labels for the item, one after another. */
     public PdfLabels add(Item item, int copies) {
         Objects.requireNonNull(item, "item");
         if (copies < 1 || copies > 10_000) {
@@ -275,12 +281,12 @@ public final class PdfLabels {
         return this;
     }
 
-    /** عدد الملصقات. */
+    /** The number of labels. */
     public int count() {
         return items.size();
     }
 
-    /** مقاس الصفحة: الورقة، أو صف ملصقات اللفة. */
+    /** The page size: the sheet, or one row of labels on the roll. */
     public Paper paper() {
         if (sheet != null) {
             return sheet;
@@ -289,7 +295,7 @@ public final class PdfLabels {
                 + Math.round(labelHeight / POINTS_PER_MM), across * labelWidth + (across - 1) * gapX, labelHeight);
     }
 
-    /** الملصقات في الصفحة الواحدة. */
+    /** The labels on one page. */
     int perPage() {
         return sheet != null ? columns * rows : across;
     }
@@ -303,7 +309,8 @@ public final class PdfLabels {
     }
 
     /**
-     * @throws ReportException لو مفيش ملصقات، أو الملصق أصغر من الباركود بتاعه، أو حرف مش في أي خط مع الوضع الصارم
+     * @throws ReportException if there are no labels, a label is smaller than its barcode, or, in strict mode, a
+     *                         character is in no font
      */
     public byte[] toBytes() throws ReportException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -356,7 +363,7 @@ public final class PdfLabels {
         }
     }
 
-    /** بيرسم ملصق في خانته. */
+    /** Draws one label in its cell. */
     private final class LabelPainter {
         private final Typesetter text;
         private final Canvas canvas;
@@ -397,7 +404,7 @@ public final class PdfLabels {
             barcode(item, left + pad, inner, y - pad * 0.5f, top - height + pad);
         }
 
-        /** السعر عريض، وجنبه القديم مشطوب لو في مكان؛ الاتنين في نص الملصق. */
+        /** The price in bold, with the old price struck through beside it if it fits; both centred on the label. */
         private float price(Item item, float left, float inner, float y) throws IOException, ReportException {
             Typesetter.Line now = text.line(item.price(), item.price(), true, priceSize);
             Typesetter.Line before = item.oldPrice().isEmpty() ? null
@@ -492,7 +499,7 @@ public final class PdfLabels {
 
         private record Fitted(Typesetter.Line line, float size) {}
 
-        /** الاسم في سطر واحد حسب {@link #longName}؛ {@code null} = ما يتكتبش. */
+        /** The name on one line, according to {@link #longName}; {@code null} = not printed. */
         private Fitted fitName(String name, float inner) throws IOException, ReportException {
             float size = nameSize;
             Typesetter.Line line = text.line(name, name, false, size);

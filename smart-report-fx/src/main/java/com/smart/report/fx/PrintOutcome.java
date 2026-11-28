@@ -4,8 +4,8 @@ import com.smart.report.pdf.Paper;
 import javafx.stage.Stage;
 
 /**
- * نتيجة {@link PdfPreview#printOrShow(javafx.stage.Window)}: المستند اتبعت للطابعة، أو فشل، أو نافذة
- * المعاينة اتفتحت بداله.
+ * The result of {@link PdfPreview#printOrShow(javafx.stage.Window)}: the document was sent to the printer, or it
+ * failed, or the preview window opened instead.
  *
  * <pre>{@code
  * preview.printOrShow(owner).thenAccept(outcome -> {
@@ -19,21 +19,21 @@ import javafx.stage.Stage;
  */
 public sealed interface PrintOutcome {
 
-    /** اتبعتت نسخة واحدة للطابعة المحفوظة على {@code paper}. */
+    /** One copy was sent to the saved printer on {@code paper}. */
     record Sent(String printer, Paper paper) implements PrintOutcome {
     }
 
     /**
-     * الطابعة المحفوظة موجودة على الجهاز لكن المستند ما اتبعتش: الدالة اللي بتبنيه رمت، أو الطابعة
-     * رفضت المهمة. <b>النافذة ما بتتفتحش</b>؛ البرنامج يقول للمستخدم، ويقدر يفتحها بـ
-     * {@link PdfPreview#show(javafx.stage.Window)} عشان يختار طابعة تانية.
+     * The saved printer is on the computer but the document was not sent: the function that builds it threw, or
+     * the printer rejected the job. <b>The window does not open</b>; the application tells the user, and can open
+     * it with {@link PdfPreview#show(javafx.stage.Window)} so the user can pick another printer.
      *
-     * @param reason رسالته إنجليزي للسجل، مش للمستخدم
+     * @param reason its message is in English, for the log, not for the user
      */
     record Failed(String printer, Paper paper, Exception reason) implements PrintOutcome {
     }
 
-    /** مفيش طابعة محفوظة، أو المحفوظة مش متعرّفة على الجهاز تاني: اتفتحت نافذة المعاينة. */
+    /** No printer is saved, or the saved one is no longer installed on the computer: the preview window opened. */
     record Shown(Stage window) implements PrintOutcome {
     }
 }

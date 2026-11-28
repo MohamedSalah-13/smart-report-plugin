@@ -9,20 +9,20 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * إعداد طباعة نوع مستند: الورقة، وطريقة الإخراج، والطابعة، وعدد النسخ.
+ * The print settings of a document kind: the paper, the output mode, the printer, and the number of copies.
  *
  * <pre>{@code
  * PrintProfile receipt = PrintProfile.of("80mm", OutputMode.PRINT, PrinterTarget.role("thermal"), 1);
  * PrintProfile copy = receipt.withCopies(2);
  * }</pre>
  *
- * <p>الورقة باسمها زي ما {@code Paper.parse} في smart-report-pdf بيقراه ({@code "A4"}، {@code "A5-landscape"}،
- * {@code "80mm"})، عشان الوحدة دي ما تعتمدش على PDFBox. الصنف immutable؛ و {@link #encode()} و {@link #decode}
- * بيحوّلوه لنص يتحفظ في إعدادات البرنامج.</p>
+ * <p>The paper is given by name, as {@code Paper.parse} in smart-report-pdf reads it ({@code "A4"},
+ * {@code "A5-landscape"}, {@code "80mm"}), so this module does not depend on PDFBox. The class is immutable;
+ * {@link #encode()} and {@link #decode} turn it into text and back, to save it in the program's settings.</p>
  */
 public final class PrintProfile {
 
-    /** أكتر عدد نسخ، زي {@code PdfPrinter.MAX_COPIES}. */
+    /** The maximum number of copies, the same as {@code PdfPrinter.MAX_COPIES}. */
     public static final int MAX_COPIES = 99;
 
     private final String paper;
@@ -45,7 +45,7 @@ public final class PrintProfile {
     }
 
     /**
-     * @throws IllegalArgumentException لو الورقة فاضية أو النسخ برّه 1..{@value #MAX_COPIES}
+     * @throws IllegalArgumentException if the paper is blank or the copies are outside 1..{@value #MAX_COPIES}
      */
     public static PrintProfile of(String paper, OutputMode mode, PrinterTarget printer, int copies) {
         return new PrintProfile(paper, mode, printer, copies);
@@ -84,8 +84,8 @@ public final class PrintProfile {
     }
 
     /**
-     * الإعداد كنص سطر واحد: {@code paper=A5;mode=preview;printer=role:thermal;copies=2}. القيم بترميز URL، فاسم
-     * طابعة فيه {@code ;} أو {@code =} بيرجع زي ما هو.
+     * The settings as one line of text: {@code paper=A5;mode=preview;printer=role:thermal;copies=2}. The values are
+     * URL-encoded, so a printer name that contains {@code ;} or {@code =} comes back unchanged.
      */
     public String encode() {
         String target = switch (printer) {
@@ -98,10 +98,11 @@ public final class PrintProfile {
     }
 
     /**
-     * يقرا {@link #encode()} بتسامح: القيمة اللي مكتوبة بنسخة تانية من البرنامج ما توقفش الطباعة أبدًا. أي جزء
-     * ما يتقريش، أو ورقة مش من ورق النوع، بياخد قيمته من {@link DocumentKind#defaults()}؛ والأجزاء المجهولة
-     * بتتجاهل. {@code null} أو نص فاضي = الإعداد الافتراضي كله. ({@link PrintSettings#profile} كمان بيرجّع الدور
-     * اللي البرنامج ما بقاش بيعرّفه للافتراضي.)
+     * Reads {@link #encode()} leniently: a value written by another version of the program never stops printing.
+     * Any part that cannot be read, or a paper that is not one of the kind's papers, takes its value from
+     * {@link DocumentKind#defaults()}; unknown parts are ignored. {@code null} or a blank string = all the default
+     * settings. ({@link PrintSettings#profile} also falls back to the default for a role the program no longer
+     * defines.)
      */
     public static PrintProfile decode(String text, DocumentKind kind) {
         Objects.requireNonNull(kind, "kind");

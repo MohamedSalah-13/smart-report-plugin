@@ -11,7 +11,7 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * التفقيط: المبلغ مكتوبًا بالحروف العربية كما في الفواتير والإيصالات.
+ * Amount in words («التفقيط»): the amount written out in Arabic words, as on invoices and receipts.
  *
  * <pre>{@code
  * AmountInWords.arabic(new BigDecimal("7200"), AmountInWords.Currency.EGP)
@@ -22,28 +22,32 @@ import java.util.function.Function;
  *     // ثلاث عشرة هللةً
  * }</pre>
  *
- * <p><b>القواعد:</b> المعدود بعد العدد بحالة الرفع، زي ما بيتكتب بعد «فقط»:</p>
+ * <p><b>Rules:</b> the counted noun after the number is in the nominative case, as it is written after «فقط»
+ * ("only"):</p>
  * <ul>
- *     <li>1 و 2 بصيغة المعدود نفسه: «جنيه واحد»، «جنيهان»، «ألف»، «ألفان».</li>
- *     <li>3 إلى 10 بالجمع، والعدد بعكس جنس المعدود: «ثلاثة جنيهات»، «ثلاث هللات».</li>
- *     <li>11 إلى 99 بالمفرد المنصوب: «أحد عشر جنيهًا»، «إحدى عشرة هللةً»، «خمسون قرشًا».</li>
- *     <li>المئة والألف ومضاعفاتهم بالمفرد المجرور، والمثنى بيتضاف فيفقد النون: «مائة جنيه»،
- *         «مائتا جنيه»، «ألفا جنيه»، «أحد عشر ألف جنيه».</li>
- *     <li>المئات اللي بعدها واحد أو اثنان بالشكل المعتاد في الفواتير: «مائة وواحد جنيه».</li>
+ *     <li>1 and 2 use the noun's own form: «جنيه واحد», «جنيهان», «ألف», «ألفان».</li>
+ *     <li>3 to 10 take the plural, and the number takes the opposite gender of the noun: «ثلاثة جنيهات»,
+ *         «ثلاث هللات».</li>
+ *     <li>11 to 99 take the accusative singular: «أحد عشر جنيهًا», «إحدى عشرة هللةً», «خمسون قرشًا».</li>
+ *     <li>Hundred, thousand and their multiples take the genitive singular, and the dual in a construct
+ *         (idafa) drops its final «ن»: «مائة جنيه», «مائتا جنيه», «ألفا جنيه», «أحد عشر ألف جنيه».</li>
+ *     <li>Hundreds followed by one or two use the form common on invoices: «مائة وواحد جنيه».</li>
  * </ul>
  *
- * <p>«مائة» بالألف زي ما بتتكتب في الفواتير المصرية. المبلغ بيتقرّب لخانات العملة (النص لفوق)، واللي من ألف
- * مليار وأكتر بيرمي {@link IllegalArgumentException}. الصنف بلا حالة وآمن بين الـ threads.</p>
+ * <p>«مائة» is spelled with an alif, as on Egyptian invoices. The amount is rounded to the currency's fraction
+ * digits (half up), and an amount of a thousand billion or more throws {@link IllegalArgumentException}. The
+ * class is stateless and thread-safe.</p>
  *
- * <p><b>المبلغ السالب</b> (رصيد دائن مثلًا) بيرمي {@link IllegalArgumentException}، إلا مع {@link Negative}: الحروف
- * بتتكتب للقيمة المطلقة، وقبلها أو بعدها الكلمة اللي البرنامج بيديها:</p>
+ * <p><b>A negative amount</b> (a credit balance, for example) throws {@link IllegalArgumentException}, except
+ * with {@link Negative}: the words are written for the absolute value, with the program's word before or after
+ * them:</p>
  *
  * <pre>{@code
  * AmountInWords.arabic(new BigDecimal("-150"), Currency.EGP, Negative.suffix("(دائن)"))
  *     // فقط مائة وخمسون جنيهًا لا غير (دائن)
  * }</pre>
  *
- * <p><b>بالإنجليزي</b> للفواتير اللي بلغتين، بعملة من {@link EnglishCurrency}:</p>
+ * <p><b>In English</b> for bilingual invoices, with a currency from {@link EnglishCurrency}:</p>
  *
  * <pre>{@code
  * AmountInWords.english(new BigDecimal("7200"), AmountInWords.EnglishCurrency.EGP)
@@ -52,23 +56,24 @@ import java.util.function.Function;
  *     // Seven thousand two hundred Egyptian pounds and fifty piastres only
  * }</pre>
  *
- * <p>العملات الجاهزة بالاسمين: EGP وSAR وAED وKWD وUSD وQAR وBHD وOMR وJOD وSDG وGBP وYER وMAD وIQD وLYD وTND
- * وDZD وSYP وLBP وTRY وEUR. خانات الكسر زي ISO 4217: 3 للدينار الكويتي والبحريني والأردني والعراقي والليبي
- * والتونسي والريال العماني، و2 للباقي. و{@link Currency#forCode} و{@link EnglishCurrency#forCode} بيلاقوا العملة
- * بكودها، وبيرجعوا فاضي للكود اللي مش معروف، فالبرنامج ما يطبعش سطر غلط.</p>
+ * <p>Ready-made currencies with both names: EGP, SAR, AED, KWD, USD, QAR, BHD, OMR, JOD, SDG, GBP, YER, MAD,
+ * IQD, LYD, TND, DZD, SYP, LBP, TRY and EUR. Fraction digits follow ISO 4217: 3 for the Kuwaiti, Bahraini,
+ * Jordanian, Iraqi, Libyan and Tunisian dinars and the Omani rial, and 2 for the rest.
+ * {@link Currency#forCode} and {@link EnglishCurrency#forCode} find a currency by its code and return empty for
+ * an unknown code, so the program does not print a wrong line.</p>
  */
 public final class AmountInWords {
 
     private AmountInWords() {}
 
     /**
-     * اسم معدود بصيغه الأربع.
+     * A counted noun in its four forms.
      *
-     * @param singular   المفرد: «جنيه»
-     * @param dual       المثنى المرفوع: «جنيهان»
-     * @param plural     الجمع بعد 3..10: «جنيهات»
-     * @param accusative المفرد المنصوب بعد 11..99: «جنيهًا»
-     * @param feminine   مؤنث («هللة»): بيغيّر صيغة العدد
+     * @param singular   the singular: «جنيه»
+     * @param dual       the nominative dual: «جنيهان»
+     * @param plural     the plural after 3..10: «جنيهات»
+     * @param accusative the accusative singular after 11..99: «جنيهًا»
+     * @param feminine   feminine («هللة»): changes the form of the number
      */
     public record Noun(String singular, String dual, String plural, String accusative, boolean feminine) {
 
@@ -80,18 +85,18 @@ public final class AmountInWords {
             }
         }
 
-        /** المثنى مضافًا: «مائتا»، «ألفا جنيه» — من غير النون. */
+        /** The dual in a construct (idafa): «مائتا», «ألفا جنيه», without the final «ن». */
         String dualInConstruct() {
             return dual.endsWith("ان") ? dual.substring(0, dual.length() - 1) : dual;
         }
     }
 
     /**
-     * عملة: الوحدة، وكسرها، وعدد خانات الكسر.
+     * A currency: the unit, its fraction, and the number of fraction digits.
      *
-     * @param unit           «جنيه»
-     * @param fraction       «قرش»؛ {@code null} لو {@code fractionDigits} صفر
-     * @param fractionDigits 2 للقرش والهللة، 3 للفلس الكويتي، 0 بلا كسر
+     * @param unit           «جنيه» (pound)
+     * @param fraction       «قرش» (piastre); {@code null} if {@code fractionDigits} is zero
+     * @param fractionDigits 2 for the piastre and the halala, 3 for the Kuwaiti fils, 0 for no fraction
      */
     public record Currency(Noun unit, Noun fraction, int fractionDigits) {
 
@@ -110,67 +115,70 @@ public final class AmountInWords {
         public static final Currency USD = new Currency(
                 new Noun("دولار", "دولاران", "دولارات", "دولارًا", false),
                 new Noun("سنت", "سنتان", "سنتات", "سنتًا", false), 2);
-        /** الريال القطري: 100 درهم. */
+        /** The Qatari riyal: 100 dirhams. */
         public static final Currency QAR = new Currency(
                 new Noun("ريال", "ريالان", "ريالات", "ريالًا", false),
                 new Noun("درهم", "درهمان", "دراهم", "درهمًا", false), 2);
-        /** الدينار البحريني: 1000 فلس، بنفس كلمات {@link #KWD}. */
+        /** The Bahraini dinar: 1000 fils, with the same words as {@link #KWD}. */
         public static final Currency BHD = new Currency(
                 new Noun("دينار", "ديناران", "دنانير", "دينارًا", false),
                 new Noun("فلس", "فلسان", "فلوس", "فلسًا", false), 3);
-        /** الريال العماني: 1000 بيسة، والبيسة مؤنثة: «ثلاث بيسات»، «إحدى عشرة بيسةً». */
+        /** The Omani rial: 1000 baisa; the baisa is feminine: «ثلاث بيسات», «إحدى عشرة بيسةً». */
         public static final Currency OMR = new Currency(
                 new Noun("ريال", "ريالان", "ريالات", "ريالًا", false),
                 new Noun("بيسة", "بيستان", "بيسات", "بيسةً", true), 3);
-        /** الدينار الأردني: المبالغ بتتكتب بثلاث خانات (1000 فلس)، بنفس كلمات {@link #KWD}. */
+        /**
+         * The Jordanian dinar: amounts are written with three digits (1000 fils), with the same words as
+         * {@link #KWD}.
+         */
         public static final Currency JOD = new Currency(
                 new Noun("دينار", "ديناران", "دنانير", "دينارًا", false),
                 new Noun("فلس", "فلسان", "فلوس", "فلسًا", false), 3);
-        /** الجنيه السوداني: 100 قرش، بنفس كلمات {@link #EGP}. */
+        /** The Sudanese pound: 100 piastres, with the same words as {@link #EGP}. */
         public static final Currency SDG = new Currency(
                 new Noun("جنيه", "جنيهان", "جنيهات", "جنيهًا", false),
                 new Noun("قرش", "قرشان", "قروش", "قرشًا", false), 2);
-        /** الجنيه الإسترليني: 100 بنس. */
+        /** The pound sterling: 100 pence. */
         public static final Currency GBP = new Currency(
                 new Noun("جنيه", "جنيهان", "جنيهات", "جنيهًا", false),
                 new Noun("بنس", "بنسان", "بنسات", "بنسًا", false), 2);
-        /** الريال اليمني: 100 فلس. */
+        /** The Yemeni rial: 100 fils. */
         public static final Currency YER = new Currency(
                 new Noun("ريال", "ريالان", "ريالات", "ريالًا", false),
                 new Noun("فلس", "فلسان", "فلوس", "فلسًا", false), 2);
-        /** الدرهم المغربي: 100 سنتيم. */
+        /** The Moroccan dirham: 100 centimes. */
         public static final Currency MAD = new Currency(
                 new Noun("درهم", "درهمان", "دراهم", "درهمًا", false),
                 new Noun("سنتيم", "سنتيمان", "سنتيمات", "سنتيمًا", false), 2);
-        /** الدينار العراقي: 1000 فلس. */
+        /** The Iraqi dinar: 1000 fils. */
         public static final Currency IQD = new Currency(
                 new Noun("دينار", "ديناران", "دنانير", "دينارًا", false),
                 new Noun("فلس", "فلسان", "فلوس", "فلسًا", false), 3);
-        /** الدينار الليبي: 1000 درهم. */
+        /** The Libyan dinar: 1000 dirhams. */
         public static final Currency LYD = new Currency(
                 new Noun("دينار", "ديناران", "دنانير", "دينارًا", false),
                 new Noun("درهم", "درهمان", "دراهم", "درهمًا", false), 3);
-        /** الدينار التونسي: 1000 مليم. */
+        /** The Tunisian dinar: 1000 millimes. */
         public static final Currency TND = new Currency(
                 new Noun("دينار", "ديناران", "دنانير", "دينارًا", false),
                 new Noun("مليم", "مليمان", "مليمات", "مليمًا", false), 3);
-        /** الدينار الجزائري: 100 سنتيم. */
+        /** The Algerian dinar: 100 centimes. */
         public static final Currency DZD = new Currency(
                 new Noun("دينار", "ديناران", "دنانير", "دينارًا", false),
                 new Noun("سنتيم", "سنتيمان", "سنتيمات", "سنتيمًا", false), 2);
-        /** الليرة السورية: 100 قرش، والليرة مؤنثة: «ثلاث ليرات»، «إحدى عشرة ليرةً». */
+        /** The Syrian pound (lira): 100 piastres; the lira is feminine: «ثلاث ليرات», «إحدى عشرة ليرةً». */
         public static final Currency SYP = new Currency(
                 new Noun("ليرة", "ليرتان", "ليرات", "ليرةً", true),
                 new Noun("قرش", "قرشان", "قروش", "قرشًا", false), 2);
-        /** الليرة اللبنانية: 100 قرش، بنفس كلمات {@link #SYP}. */
+        /** The Lebanese pound (lira): 100 piastres, with the same words as {@link #SYP}. */
         public static final Currency LBP = new Currency(
                 new Noun("ليرة", "ليرتان", "ليرات", "ليرةً", true),
                 new Noun("قرش", "قرشان", "قروش", "قرشًا", false), 2);
-        /** الليرة التركية: 100 قرش (كوروش)، بنفس كلمات {@link #SYP}. */
+        /** The Turkish lira: 100 kuruş («قرش»), with the same words as {@link #SYP}. */
         public static final Currency TRY = new Currency(
                 new Noun("ليرة", "ليرتان", "ليرات", "ليرةً", true),
                 new Noun("قرش", "قرشان", "قروش", "قرشًا", false), 2);
-        /** اليورو: 100 سنت. «يورو» ما بيتنوّنش: «أحد عشر يورو». */
+        /** The euro: 100 cents. «يورو» takes no tanween (no case ending): «أحد عشر يورو». */
         public static final Currency EUR = new Currency(
                 new Noun("يورو", "يوروان", "يوروهات", "يورو", false),
                 new Noun("سنت", "سنتان", "سنتات", "سنتًا", false), 2);
@@ -184,8 +192,8 @@ public final class AmountInWords {
                 Map.entry("EUR", EUR));
 
         /**
-         * العملة الجاهزة بكود ISO 4217 ({@code "EGP"}، {@code "sar"})؛ فاضي للكود اللي مش معروف أو {@code null}،
-         * فالبرنامج يقرر: ما يطبعش السطر، أو يعرّف عملته بنفسه.
+         * The ready-made currency for an ISO 4217 code ({@code "EGP"}, {@code "sar"}); empty for an unknown code or
+         * {@code null}, so the program decides: skip the line, or define its own currency.
          */
         public static Optional<Currency> forCode(String isoCode) {
             return isoCode == null ? Optional.empty()
@@ -204,18 +212,19 @@ public final class AmountInWords {
     }
 
     /**
-     * عملة بالإنجليزي، للمبلغ بالحروف الإنجليزية: «Seven thousand two hundred Egyptian pounds only». نوع منفصل عن
-     * {@link Currency} عشان الاسمين بيختلفوا من غير ما يتغيّر شكل {@code Currency}.
+     * A currency in English, for the amount in English words: «Seven thousand two hundred Egyptian pounds only».
+     * It is a separate type from {@link Currency}, so the two names can differ without changing the shape of
+     * {@code Currency}.
      *
      * <pre>{@code
      * new EnglishCurrency("Libyan dinar", "Libyan dinars", "dirham", "dirhams", 3)
      * }</pre>
      *
-     * @param unit           الوحدة مفردة: «Egyptian pound»
-     * @param units          الوحدة جمعًا: «Egyptian pounds»
-     * @param fraction       الكسر مفردًا: «piastre»؛ {@code null} لو {@code fractionDigits} صفر
-     * @param fractions      الكسر جمعًا: «piastres» (أو نفس المفرد: «fils»)
-     * @param fractionDigits خانات الكسر: 2، أو 3 للفلس والبيسة، أو 0
+     * @param unit           the unit in the singular: «Egyptian pound»
+     * @param units          the unit in the plural: «Egyptian pounds»
+     * @param fraction       the fraction in the singular: «piastre»; {@code null} if {@code fractionDigits} is zero
+     * @param fractions      the fraction in the plural: «piastres» (or the same as the singular: «fils»)
+     * @param fractionDigits the fraction digits: 2, or 3 for the fils and the baisa, or 0
      */
     public record EnglishCurrency(String unit, String units, String fraction, String fractions, int fractionDigits) {
 
@@ -257,7 +266,7 @@ public final class AmountInWords {
                 new EnglishCurrency("Syrian pound", "Syrian pounds", "piastre", "piastres", 2);
         public static final EnglishCurrency LBP =
                 new EnglishCurrency("Lebanese pound", "Lebanese pounds", "piastre", "piastres", 2);
-        /** الليرة التركية: الجمع بالإنجليزي «lira» زي المفرد، والكسر «kuruş». */
+        /** The Turkish lira: the English plural is «lira», the same as the singular, and the fraction is «kuruş». */
         public static final EnglishCurrency TRY =
                 new EnglishCurrency("Turkish lira", "Turkish lira", "kuruş", "kuruş", 2);
         public static final EnglishCurrency EUR =
@@ -271,7 +280,7 @@ public final class AmountInWords {
                 Map.entry("DZD", DZD), Map.entry("SYP", SYP), Map.entry("LBP", LBP), Map.entry("TRY", TRY),
                 Map.entry("EUR", EUR));
 
-        /** العملة الجاهزة بكود ISO 4217؛ فاضي للكود اللي مش معروف أو {@code null}. */
+        /** The ready-made currency for an ISO 4217 code; empty for an unknown code or {@code null}. */
         public static Optional<EnglishCurrency> forCode(String isoCode) {
             return isoCode == null ? Optional.empty()
                     : Optional.ofNullable(BY_CODE.get(isoCode.strip().toUpperCase(Locale.ROOT)));
@@ -293,11 +302,12 @@ public final class AmountInWords {
     }
 
     /**
-     * المبلغ السالب: الحروف للقيمة المطلقة، وقبلها {@code prefix} وبعدها {@code suffix} بمسافة. كلمة واحدة على الأقل
-     * لازم تتحدد، عشان السالب ما يتطبعش كأنه موجب. المبلغ اللي بيتقرّب لصفر بيتكتب «صفر» من غيرهم.
+     * A negative amount: the words are for the absolute value, with {@code prefix} before them and {@code suffix}
+     * after them, separated by a space. At least one word must be set, so a negative amount is not printed as if it
+     * were positive. An amount that rounds to zero is written as «صفر» ("zero") without them.
      *
-     * @param prefix قبل النص كله: «سالب»، «Minus»؛ {@code null} أو فاضي = مفيش
-     * @param suffix بعد النص كله: «(دائن)»، «(credit)»؛ {@code null} أو فاضي = مفيش
+     * @param prefix before the whole text: «سالب», «Minus»; {@code null} or empty = none
+     * @param suffix after the whole text: «(دائن)», «(credit)»; {@code null} or empty = none
      */
     public record Negative(String prefix, String suffix) {
 
@@ -309,12 +319,12 @@ public final class AmountInWords {
             }
         }
 
-        /** كلمة قبل المبلغ: {@code Negative.prefix("سالب")}. */
+        /** A word before the amount: {@code Negative.prefix("سالب")}. */
         public static Negative prefix(String prefix) {
             return new Negative(prefix, null);
         }
 
-        /** كلمة بعد المبلغ: {@code Negative.suffix("(دائن)")}. */
+        /** A word after the amount: {@code Negative.suffix("(دائن)")}. */
         public static Negative suffix(String suffix) {
             return new Negative(null, suffix);
         }
@@ -346,26 +356,29 @@ public final class AmountInWords {
             {"", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"};
     private static final String[] ENGLISH_SCALES = {"billion", "million", "thousand"};
 
-    /** المبلغ كما يُكتب في الفاتورة: «فقط ... لا غير». */
+    /** The amount as written on an invoice: «فقط ... لا غير» ("only ... nothing else"). */
     public static String arabic(BigDecimal amount, Currency currency) {
         return "فقط " + arabicWords(amount, currency) + " لا غير";
     }
 
-    /** زي {@link #arabic(BigDecimal, Currency)}، والمبلغ السالب بكلمة {@code negative} حوالين النص كله. */
+    /**
+     * Like {@link #arabic(BigDecimal, Currency)}, with the {@code negative} word around the whole text for a negative
+     * amount.
+     */
     public static String arabic(BigDecimal amount, Currency currency, Negative negative) {
         Objects.requireNonNull(currency, "currency");
         return signed(amount, currency.fractionDigits(), negative, value -> arabic(value, currency));
     }
 
-    /** زي {@link #arabicWords(BigDecimal, Currency)}، والمبلغ السالب بكلمة {@code negative} حواليه. */
+    /** Like {@link #arabicWords(BigDecimal, Currency)}, with the {@code negative} word around a negative amount. */
     public static String arabicWords(BigDecimal amount, Currency currency, Negative negative) {
         Objects.requireNonNull(currency, "currency");
         return signed(amount, currency.fractionDigits(), negative, value -> arabicWords(value, currency));
     }
 
     /**
-     * زي {@link #english(BigDecimal, EnglishCurrency)}، والمبلغ السالب بكلمة {@code negative} حوالين النص كله، والحرف
-     * الكبير في أول النص كله: «Minus one hundred US dollars only».
+     * Like {@link #english(BigDecimal, EnglishCurrency)}, with the {@code negative} word around the whole text for a
+     * negative amount, and the capital letter at the start of the whole text: «Minus one hundred US dollars only».
      */
     public static String english(BigDecimal amount, EnglishCurrency currency, Negative negative) {
         Objects.requireNonNull(currency, "currency");
@@ -374,13 +387,18 @@ public final class AmountInWords {
         return Character.toUpperCase(text.charAt(0)) + text.substring(1);
     }
 
-    /** زي {@link #englishWords(BigDecimal, EnglishCurrency)}، والمبلغ السالب بكلمة {@code negative} حواليه. */
+    /**
+     * Like {@link #englishWords(BigDecimal, EnglishCurrency)}, with the {@code negative} word around a negative amount.
+     */
     public static String englishWords(BigDecimal amount, EnglishCurrency currency, Negative negative) {
         Objects.requireNonNull(currency, "currency");
         return signed(amount, currency.fractionDigits(), negative, value -> englishWords(value, currency));
     }
 
-    /** الحروف للقيمة المطلقة، والكلمة حواليها لو المبلغ سالب وما اتقرّبش لصفر. */
+    /**
+     * The words for the absolute value, with the word around them if the amount is negative and does not round to
+     * zero.
+     */
     private static String signed(BigDecimal amount, int fractionDigits, Negative negative,
                                  Function<BigDecimal, String> words) {
         Objects.requireNonNull(amount, "amount");
@@ -391,7 +409,7 @@ public final class AmountInWords {
         return amount.signum() < 0 && !zero ? negative.around(text) : text;
     }
 
-    /** المبلغ بالحروف من غير «فقط» و«لا غير». */
+    /** The amount in words without «فقط» and «لا غير». */
     public static String arabicWords(BigDecimal amount, Currency currency) {
         Objects.requireNonNull(currency, "currency");
         Split split = split(amount, currency.fractionDigits());
@@ -409,8 +427,8 @@ public final class AmountInWords {
     }
 
     /**
-     * المبلغ بالإنجليزي كما يُكتب في الفاتورة: «Seven thousand two hundred Egyptian pounds only»، ومع الكسر
-     * «One thousand two hundred thirty-four Egyptian pounds and fifty piastres only».
+     * The amount in English as written on an invoice: «Seven thousand two hundred Egyptian pounds only», and with
+     * a fraction «One thousand two hundred thirty-four Egyptian pounds and fifty piastres only».
      */
     public static String english(BigDecimal amount, EnglishCurrency currency) {
         String words = englishWords(amount, currency);
@@ -418,8 +436,8 @@ public final class AmountInWords {
     }
 
     /**
-     * المبلغ بالإنجليزي من غير الحرف الكبير في أوله ولا «only»: «seven thousand two hundred Egyptian pounds».
-     * الأعداد بالشكل المعتاد في الفواتير والشيكات: «two hundred fifty»، و«and» بس قبل الكسر.
+     * The amount in English without the leading capital letter or «only»: «seven thousand two hundred Egyptian pounds».
+     * Numbers use the form common on invoices and cheques: «two hundred fifty», with «and» only before the fraction.
      */
     public static String englishWords(BigDecimal amount, EnglishCurrency currency) {
         Objects.requireNonNull(currency, "currency");
@@ -438,7 +456,7 @@ public final class AmountInWords {
         return String.join(" and ", parts);
     }
 
-    /** المبلغ بعد التقريب لخانات العملة: الوحدات، والكسر بعدد صحيح. */
+    /** The amount after rounding to the currency's digits: the units, and the fraction as a whole number. */
     private record Split(long units, int fraction) {}
 
     private static Split split(BigDecimal amount, int fractionDigits) {
@@ -456,7 +474,7 @@ public final class AmountInWords {
                 rounded.subtract(whole).movePointRight(fractionDigits).intValueExact());
     }
 
-    /** 1 إلى أقل من ألف مليار بالإنجليزي: «one million two hundred fifty thousand». */
+    /** 1 up to below a thousand billion, in English: «one million two hundred fifty thousand». */
     private static String englishNumber(long number) {
         int[] groups = {
                 (int) (number / 1_000_000_000L),
@@ -485,7 +503,7 @@ public final class AmountInWords {
         return ENGLISH_ONES[hundreds] + " hundred" + (rest > 0 ? " " + below : "");
     }
 
-    /** عدد صحيح أقل من ألف مليار ومعه معدوده. */
+    /** A whole number below a thousand billion, with its counted noun. */
     private static String whole(long number, Noun noun) {
         int[] groups = {
                 (int) (number / 1_000_000_000L),
@@ -517,9 +535,10 @@ public final class AmountInWords {
     }
 
     /**
-     * عدد من 1 إلى 999 ومعدوده.
+     * A number from 1 to 999 with its counted noun.
      *
-     * @param construct المعدود مضاف لاسم بعده (ألف قبل العملة): المفرد بدل المنصوب، والمثنى من غير نون
+     * @param construct the counted noun is in a construct with a noun after it (thousand before the currency): the
+     *                  singular instead of the accusative, and the dual without the final «ن»
      */
     private static String counted(int number, Noun noun, boolean construct) {
         boolean scale = noun == THOUSAND || noun == MILLION || noun == BILLION;
@@ -540,7 +559,7 @@ public final class AmountInWords {
         return words + " " + (construct ? noun.singular() : noun.accusative());
     }
 
-    /** 3..999 بالحروف؛ المئات المضافة لمعدودها ({@code rest == 0}): «مائتا». */
+    /** 3..999 in words; hundreds in a construct with their noun ({@code rest == 0}): «مائتا». */
     private static String belowThousand(int number, boolean feminine) {
         int hundreds = number / 100;
         int rest = number % 100;
@@ -553,7 +572,10 @@ public final class AmountInWords {
         return HUNDREDS[hundreds] + " و" + belowHundred(rest, feminine);
     }
 
-    /** 1..99 بالحروف بجنس المعدود: 3..10 بعكسه، و1 و2 و«عشر» في المركّب بنفسه. */
+    /**
+     * 1..99 in words, by the gender of the counted noun: 3..10 take the opposite gender, while 1, 2 and «عشر» in
+     * compound numbers take the same gender.
+     */
     private static String belowHundred(int number, boolean feminine) {
         String[] ones = feminine ? ONES_FOR_FEMININE : ONES_FOR_MASCULINE;
         if (number <= 10) {

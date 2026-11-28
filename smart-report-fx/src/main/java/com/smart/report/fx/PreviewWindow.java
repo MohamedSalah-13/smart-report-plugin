@@ -52,9 +52,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.prefs.Preferences;
 
 /**
- * نافذة المعاينة نفسها. بناء المستند ورسم الصفحات بيحصلوا على thread واحد جانبي بالترتيب، فالواجهة
- * ما بتتجمدش ومفيش رسمتين بيشتغلوا على نفس المستند في نفس الوقت؛ والطباعة على thread لوحدها
- * عشان الطابعة البطيئة ما توقفش تقليب الصفحات.
+ * The preview window itself. Building the document and drawing the pages happen in order on a single background
+ * thread, so the UI does not freeze and no two drawings work on the same document at the same time. Printing runs
+ * on its own thread, so a slow printer does not stop page turning.
  */
 final class PreviewWindow {
 
@@ -65,25 +65,27 @@ final class PreviewWindow {
     private static final double MIN_ZOOM = 0.25;
     private static final double MAX_ZOOM = 4;
     /**
-     * الإيصال بيتفتح بعرض النافذة لحد ضعف مقاسه: أكبر من كده خط الإيصال الضيّق بيبقى ضخم في نافذة
-     * عريضة، و«الصفحة كاملة» بتخلّي الإيصال الطويل شريط رفيع ما يتقريش.
+     * A receipt opens at the window width, up to twice its size: beyond that, the narrow receipt's font becomes
+     * huge in a wide window, and «الصفحة كاملة» ("Whole page") turns a long receipt into a thin strip that cannot
+     * be read.
      */
     private static final double ROLL_SCALE = 2;
     /**
-     * أكبر صورة بترسمها المعاينة للصفحة: ضلع 8192 بكسل (كروت شاشة كتير ما بتعرضش صورة أكبر في
-     * قطعة واحدة) وحوالي 16 مليون بكسل (64 ميجا). الإيصال الأطول بيترسم بدقة أقل ويتكبّر لنفس مقاسه
-     * على الشاشة؛ الطباعة والحفظ من الـ PDF نفسه فمش بيتأثروا.
+     * The largest image the preview draws for a page: a side of 8192 pixels (many graphics cards do not show a
+     * larger image in one piece) and about 16 million pixels (64 MB). A longer receipt is drawn at a lower
+     * resolution and scaled up to the same size on screen; printing and saving use the PDF itself, so they are not
+     * affected.
      */
     static final int MAX_IMAGE_SIDE = 8192;
     static final double MAX_IMAGE_PIXELS = 8192.0 * 2048;
-    /** Ctrl+P و Ctrl+S (⌘ على الماك): بيدوسوا زرّي الطباعة والحفظ، فالزر المقفول مفتاحه مقفول. */
+    /** Ctrl+P and Ctrl+S (⌘ on the Mac) press the print and save buttons, so a disabled button's key is disabled. */
     static final KeyCombination PRINT_KEY = new KeyCodeCombination(KeyCode.P, KeyCombination.SHORTCUT_DOWN);
     static final KeyCombination SAVE_KEY = new KeyCodeCombination(KeyCode.S, KeyCombination.SHORTCUT_DOWN);
 
-    /** {@code ROLL}: عرض الورق اللفة الافتراضي، لحد ما المستخدم يختار عرض بنفسه. */
+    /** {@code ROLL}: the default view for roll paper, until the user picks a view. */
     private enum Fit { PAGE, WIDTH, ROLL, NONE }
 
-    /** مستند اتبنى واتفتح: بايتاته للطباعة والحفظ، وصفحاته ومقاساتها للعرض. */
+    /** A built and opened document: its bytes for printing and saving, and its pages and their sizes for display. */
     private record Loaded(Paper paper, byte[] bytes, PdfPages pages, float[] widths, float[] heights) {
     }
 
@@ -96,11 +98,11 @@ final class PreviewWindow {
         thread.setDaemon(true);
         return thread;
     });
-    /** كل طلب رسم بياخد رقمًا؛ الرسمة اللي رقمها قديم بتتهمل. */
+    /** Each draw request gets a number; a drawing with an old number is dropped. */
     private final AtomicLong ticket = new AtomicLong();
     /**
-     * رقم لوحده لتحميل المستند. لو اشترك مع الرسم، أي إعادة رسم أثناء التحميل (تحجيم النافذة مثلًا)
-     * كانت تلغي المستند اللي بيتحمّل وتسيب النافذة فاضية.
+     * A separate number for loading the document. If it were shared with drawing, any redraw during loading
+     * (resizing the window, for example) would cancel the document being loaded and leave the window empty.
      */
     private final AtomicLong loadTicket = new AtomicLong();
 
@@ -124,12 +126,15 @@ final class PreviewWindow {
     private Loaded loaded;
     private int pageIndex;
     private Fit fit = Fit.PAGE;
-    /** المستخدم اختار تكبير أو ملء: بيفضل زي ما هو حتى لو غيّر الورق. */
+    /** The user picked a zoom or a fit: it stays as it is even when the paper changes. */
     private boolean viewChosen;
     private double zoom = 1;
     private boolean printing;
     private boolean closed;
-    /** القائمة اتسألت ورجعت فاضية: الرسالة دي بتفضل ظاهرة مهما اتحمّل المستند بعدها. */
+    /**
+     * The printer list was queried and came back empty: this message stays visible however often the document
+     * loads after that.
+     */
     private boolean noPrinters;
 
     PreviewWindow(PdfPreview setup, Window owner) {
@@ -328,8 +333,8 @@ final class PreviewWindow {
     // ===================== التحميل والرسم =====================
 
     /**
-     * قائمة الطابعات بتتسأل من النظام خارج thread الواجهة: مع طابعات الشبكة بتاخد ثواني. وعلى thread
-     * لوحدها مش thread الرسم، وإلا الصفحة الأولى تستنى الطابعات قبل ما تظهر.
+     * Asks the system for the printer list off the UI thread: with network printers it takes seconds. It runs on
+     * its own thread, not the drawing thread, or else the first page would wait for the printers before it shows.
      */
     private void loadPrinters() {
         Thread thread = new Thread(() -> {
@@ -401,7 +406,7 @@ final class PreviewWindow {
         });
     }
 
-    /** المستند القديم بيتقفل على نفس thread الرسم، بعد أي رسمة لسه شغالة عليه. */
+    /** Closes the old document on the drawing thread, after any drawing still working on it. */
     private void release(Loaded old) {
         if (old == null) {
             return;
@@ -446,7 +451,7 @@ final class PreviewWindow {
         render();
     }
 
-    /** بكسلات الشاشة لكل نقطة من الورقة، حسب وضع العرض. */
+    /** Screen pixels per point of paper, depending on the view mode. */
     private double scale() {
         if (loaded == null || fit == Fit.NONE) {
             return zoom;
@@ -466,8 +471,8 @@ final class PreviewWindow {
     }
 
     /**
-     * دقة رسم الصفحة (بكسل لكل نقطة): المطلوبة، لحد {@link PdfPages#MAX_SCALE} ولحد ما الصورة تفضل
-     * جوّه {@link #MAX_IMAGE_SIDE} و{@link #MAX_IMAGE_PIXELS}.
+     * The page drawing resolution (pixels per point): the one wanted, up to {@link PdfPages#MAX_SCALE} and as long
+     * as the image stays within {@link #MAX_IMAGE_SIDE} and {@link #MAX_IMAGE_PIXELS}.
      */
     static float renderScale(float width, float height, double wanted) {
         double bySide = MAX_IMAGE_SIDE / Math.max(width, height);
@@ -509,7 +514,7 @@ final class PreviewWindow {
         });
     }
 
-    /** بكسلات AWT لصورة JavaFX مباشرة، من غير وحدة javafx.swing. */
+    /** Copies AWT pixels straight into a JavaFX image, without the javafx.swing module. */
     static Image toFx(BufferedImage image) {
         int width = image.getWidth();
         int height = image.getHeight();

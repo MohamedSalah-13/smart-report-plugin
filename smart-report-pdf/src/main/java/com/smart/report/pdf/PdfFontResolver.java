@@ -13,31 +13,32 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * يحدّد خط TrueType يدعم Unicode لاستخدامه في تقارير الـ PDF العامة، لأن خطوط PDF المدمجة
- * (Standard 14 مثل Helvetica) بتدعم Latin-1 فقط فبترمي استثناء مع أي نص عربي.
+ * Finds a Unicode TrueType font for the generic PDF reports. The built-in PDF fonts (the Standard 14, such as
+ * Helvetica) support Latin-1 only, so they throw an exception on any Arabic text.
  *
- * <p>ترتيب البحث:</p>
+ * <p>Search order:</p>
  * <ol>
- *     <li>الخاصية {@code smart.report.pdf.font} (ومعها {@code smart.report.pdf.font.bold} اختياريًا):
- *         مسار ملف {@code .ttf} على القرص.</li>
- *     <li>مورد على الـ classpath باسم {@code fonts/report-font.ttf} (و{@code fonts/report-font-bold.ttf}):
- *         حطّه في {@code src/main/resources} لو عايز الـ jar يبقى مكتفيًا بذاته.</li>
- *     <li>الخط المضمَّن في المكتبة: Noto Naskh Arabic (عادي وعريض، رخصة SIL OFL) — فالناتج واحد
- *         على كل جهاز من غير أي إعداد.</li>
- *     <li>خطوط النظام المعروفة على Windows/Linux/macOS، لو الخط المضمَّن اتشال من الـ jar.</li>
+ *     <li>The property {@code smart.report.pdf.font} (with {@code smart.report.pdf.font.bold}, optional):
+ *         the path of a {@code .ttf} file on disk.</li>
+ *     <li>A classpath resource named {@code fonts/report-font.ttf} (and {@code fonts/report-font-bold.ttf}):
+ *         put it in {@code src/main/resources} if you want the jar to be self-contained.</li>
+ *     <li>The font bundled with the library: Noto Naskh Arabic (regular and bold, SIL OFL licence), so the
+ *         output is the same on every machine with no setup.</li>
+ *     <li>Known system fonts on Windows/Linux/macOS, if the bundled font was removed from the jar.</li>
  * </ol>
  *
- * <p>ده الخط العام للبرنامج كله؛ المستند اللي محتاج خطًا تاني بيحدّده لنفسه بـ
- * {@link PdfDocument#font(PdfFont)} من غير ما يأثر على باقي المستندات.</p>
+ * <p>This is the global font of the whole application. A document that needs another font sets its own with
+ * {@link PdfDocument#font(PdfFont)}, without affecting the other documents.</p>
  *
- * <p>الحرف اللي مش في خط المستند بيتدوّر عليه في خطين احتياطيين بالترتيب: Liberation Sans اللي جاي جوّه
- * PDFBox نفسه ({@link #symbolFallback()}) — فيه ² و ³ و ½ و ± و µ و ‰ و ≤ و ≥ اللي مش في Noto Naskh، وهو
- * هو على كل جهاز — وبعده خط النظام ({@link #systemFallback()}) للباقي.</p>
+ * <p>A character that is not in the document font is looked up in two fallback fonts, in order: Liberation Sans,
+ * which ships inside PDFBox itself ({@link #symbolFallback()}). It has ², ³, ½, ±, µ, ‰, ≤ and ≥, which Noto
+ * Naskh lacks, and it is the same on every machine. Then the system font ({@link #systemFallback()}) for the
+ * rest.</p>
  *
- * <p>لو مفيش أي خط اتلقى، المكتبة بترجع لـ Helvetica وبترمي {@link com.smart.report.ReportException}
- * برسالة واضحة أول ما يجيلها نص خارج Latin-1.</p>
+ * <p>If no font is found at all, the library falls back to Helvetica and throws
+ * {@link com.smart.report.ReportException} with a clear message as soon as it gets text outside Latin-1.</p>
  *
- * <p>بايتات الخط بتتقرأ مرة واحدة وتتخزّن، فمش بنقرأ الملف من القرص مع كل تقرير.</p>
+ * <p>The font bytes are read once and cached, so the file is not read from disk for every report.</p>
  */
 public final class PdfFontResolver {
 
@@ -51,11 +52,11 @@ public final class PdfFontResolver {
     static final String REGULAR_RESOURCE = "fonts/report-font.ttf";
     static final String BOLD_RESOURCE = "fonts/report-font-bold.ttf";
 
-    /** الخط المضمَّن، بجانب هذا الصنف في الـ jar. */
+    /** The bundled font, next to this class in the jar. */
     private static final String BUNDLED_REGULAR = "fonts/NotoNaskhArabic-Regular.ttf";
     private static final String BUNDLED_BOLD = "fonts/NotoNaskhArabic-Bold.ttf";
 
-    /** مرشحات خطوط النظام (عادي، عريض)، والأقدر على تغطية العربي أولًا. */
+    /** Candidate system fonts (regular, bold), with the best Arabic coverage first. */
     private static final List<String[]> SYSTEM_FONTS = List.of(
             // Windows
             new String[] {"C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"},
@@ -76,18 +77,18 @@ public final class PdfFontResolver {
     );
 
     /**
-     * Liberation Sans (رخصة SIL OFL) جوّه jar الـ PDFBox اللي المكتبة معتمدة عليه أصلًا، و PDFBox بيستخدمه
-     * لنفس الغرض: مش ملف خط زيادة في المكتبة.
+     * Liberation Sans (SIL OFL licence) inside the PDFBox jar, which the library already depends on. PDFBox uses
+     * it for the same purpose, so it is not an extra font file in the library.
      */
     private static final String SYMBOL_FONT = "/org/apache/pdfbox/resources/ttf/LiberationSans-Regular.ttf";
 
     private static final AtomicReference<Fonts> CACHE = new AtomicReference<>();
-    /** خط النظام الاحتياطي: مصفوفة فاضية معناها "اتدوّر عليه ومش موجود". */
+    /** The fallback system font. An empty array means "looked for and not found". */
     private static final AtomicReference<byte[]> FALLBACK = new AtomicReference<>();
-    /** خط الرموز الاحتياطي، والمصفوفة الفاضية بنفس المعنى. */
+    /** The fallback symbol font; an empty array has the same meaning. */
     private static final AtomicReference<byte[]> SYMBOLS = new AtomicReference<>();
 
-    /** بايتات الخط العادي والعريض، أو {@code null} في أي منهما لو مش متاح. */
+    /** The bytes of the regular and the bold font, or {@code null} in either one if it is not available. */
     public record Fonts(byte[] regular, byte[] bold) {
 
         public boolean available() {
@@ -95,7 +96,10 @@ public final class PdfFontResolver {
         }
     }
 
-    /** يرجّع بايتات الخط (من الكاش بعد أول نداء)؛ {@link Fonts#available()} تكون false لو مفيش خط. */
+    /**
+     * Returns the font bytes (from the cache after the first call); {@link Fonts#available()} is false if there
+     * is no font.
+     */
     public static Fonts resolve() {
         Fonts cached = CACHE.get();
         if (cached != null) {
@@ -106,7 +110,7 @@ public final class PdfFontResolver {
         return CACHE.get();
     }
 
-    /** يمسح الكاش؛ للاختبارات ولإعادة القراءة بعد تغيير خصائص النظام. */
+    /** Clears the cache; for tests, and to read the fonts again after the system properties change. */
     public static void clearCache() {
         CACHE.set(null);
         FALLBACK.set(null);
@@ -114,8 +118,9 @@ public final class PdfFontResolver {
     }
 
     /**
-     * أول خط احتياطي للحروف اللي مش في خط المستند: Liberation Sans من PDFBox؛ {@code null} لو نسخة PDFBox
-     * ما فيهاش الملف. بيتقرا مرة واحدة، وما بيتحمّلش في المستند غير لما حرف ناقص يحتاجه.
+     * The first fallback font for characters that are not in the document font: Liberation Sans from PDFBox;
+     * {@code null} if the PDFBox version does not contain the file. It is read once, and it is loaded into a
+     * document only when a missing character needs it.
      */
     static byte[] symbolFallback() {
         byte[] cached = SYMBOLS.get();
@@ -136,8 +141,8 @@ public final class PdfFontResolver {
     }
 
     /**
-     * أول خط نظام متاح، للحروف اللي مش في الخط المختار؛ {@code null} لو مفيش. بيتقرا مرة واحدة،
-     * وما بيتحمّلش في المستند غير لما حرف ناقص يحتاجه.
+     * The first available system font, for characters that are not in the chosen font; {@code null} if there is
+     * none. It is read once, and it is loaded into a document only when a missing character needs it.
      */
     static byte[] systemFallback() {
         byte[] cached = FALLBACK.get();
@@ -209,7 +214,10 @@ public final class PdfFontResolver {
         }
     }
 
-    /** مورد بجانب هذا الصنف: بيتقرا من الصنف نفسه، فيشتغل على الـ classpath والـ module path. */
+    /**
+     * A resource next to this class. It is read through the class itself, so it works on the classpath and on the
+     * module path.
+     */
     private static byte[] readBundled(String resource) {
         try (InputStream in = PdfFontResolver.class.getResourceAsStream(resource)) {
             return in == null ? null : in.readAllBytes();

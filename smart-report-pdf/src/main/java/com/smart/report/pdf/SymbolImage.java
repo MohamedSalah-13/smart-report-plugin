@@ -7,32 +7,34 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 /**
- * رمز QR أو باركود Code 128 كصورة، لبرنامج بيعرضه على الشاشة أو بيبعته من خادم ويب، بنفس التشفير اللي
- * {@link PdfDocument#qrCode(String)} و {@link PdfDocument#barcode(String)} بيرسموه في الـ PDF.
+ * A QR code or a Code 128 barcode as an image, for a program that shows it on screen or sends it from a web
+ * server, with the same encoding that {@link PdfDocument#qrCode(String)} and {@link PdfDocument#barcode(String)}
+ * draw in the PDF.
  *
  * <pre>{@code
- * byte[] png = SymbolImage.qrPng(ZatcaQr.payload(...), 8);       // 8 بكسل لكل مربع
- * byte[] png = SymbolImage.barcodePng("INV-2026-0042", 3, 80);     // 3 بكسل لأضيق خط، و 80 بكسل ارتفاع
- * BufferedImage image = SymbolImage.qr("https://example.com", 6);  // لـ SwingFXUtils.toFXImage مثلًا
+ * byte[] png = SymbolImage.qrPng(ZatcaQr.payload(...), 8);       // 8 pixels per module
+ * byte[] png = SymbolImage.barcodePng("INV-2026-0042", 3, 80);     // 3 pixels for the narrowest bar, 80 pixels high
+ * BufferedImage image = SymbolImage.qr("https://example.com", 6);  // for SwingFXUtils.toFXImage, for example
  * }</pre>
  *
- * <p>كل مربع عدد صحيح من البكسلات، أبيض وأسود بس من غير تنعيم، والمنطقة الفاضية جوّه الصورة (4 مربعات حوالين
- * QR، و 10 على كل جنب من الباركود)، فالصورة تتقري زي ما هي. كبّرها بعدد بكسلات أكبر، مش بتكبير الصورة نفسها:
- * التكبير بكسر بيخلي المربعات مش متساوية. الصنف بلا حالة وآمن بين الـ threads.</p>
+ * <p>Every module is a whole number of pixels, black and white only with no anti-aliasing, and the quiet zone is
+ * inside the image (4 modules around a QR code, 10 on each side of a barcode), so the image scans as it is. Make it
+ * bigger with more pixels per module, not by scaling the image itself: scaling by a fraction makes the modules
+ * unequal. The class is stateless and thread-safe.</p>
  */
 public final class SymbolImage {
 
-    /** أكبر ضلع للصورة بالبكسل، عشان رقم غلط ما يحجزش ذاكرة بالجيجا. */
+    /** The largest image side in pixels, so a wrong number does not allocate gigabytes of memory. */
     static final int MAX_SIDE = 10_000;
 
     private SymbolImage() {}
 
     /**
-     * رمز QR بمستوى تصحيح M، والنص العربي بـ UTF-8 زي اللي في الـ PDF.
+     * A QR code with error correction level M, with Arabic text in UTF-8 as in the PDF.
      *
-     * @param pixelsPerModule بكسلات ضلع المربع الواحد، 1 أو أكتر
-     * @throws IllegalArgumentException لو النص فاضي أو أطول من اللي يشيله الرمز، أو العدد أقل من 1، أو الصورة
-     *                                  هتعدّي {@value #MAX_SIDE} بكسل
+     * @param pixelsPerModule the pixels on one side of a module, 1 or more
+     * @throws IllegalArgumentException if the text is empty or longer than the code can hold, the number is less
+     *                                  than 1, or the image would exceed {@value #MAX_SIDE} pixels
      */
     public static BufferedImage qr(String text, int pixelsPerModule) {
         QrSymbol symbol = QrSymbol.encode(text);
@@ -50,18 +52,18 @@ public final class SymbolImage {
         return image;
     }
 
-    /** {@link #qr} كملف PNG. */
+    /** {@link #qr} as a PNG file. */
     public static byte[] qrPng(String text, int pixelsPerModule) {
         return png(qr(text, pixelsPerModule));
     }
 
     /**
-     * باركود Code 128 (حروف ASCII المطبوعة بس)، من غير النص تحته.
+     * A Code 128 barcode (printable ASCII characters only), without the text under it.
      *
-     * @param pixelsPerModule بكسلات عرض أضيق خط، 1 أو أكتر
-     * @param heightPixels    ارتفاع الخطوط بالبكسل، 1 أو أكتر
-     * @throws IllegalArgumentException لو النص فاضي أو فيه حرف برّه ASCII المطبوع، أو عدد أقل من 1، أو الصورة
-     *                                  هتعدّي {@value #MAX_SIDE} بكسل
+     * @param pixelsPerModule the width of the narrowest bar in pixels, 1 or more
+     * @param heightPixels    the height of the bars in pixels, 1 or more
+     * @throws IllegalArgumentException if the text is empty or has a character outside printable ASCII, a number is
+     *                                  less than 1, or the image would exceed {@value #MAX_SIDE} pixels
      */
     public static BufferedImage barcode(String text, int pixelsPerModule, int heightPixels) {
         BarcodeSymbol symbol = BarcodeSymbol.encode(text);
@@ -76,7 +78,7 @@ public final class SymbolImage {
         return image;
     }
 
-    /** {@link #barcode} كملف PNG. */
+    /** {@link #barcode} as a PNG file. */
     public static byte[] barcodePng(String text, int pixelsPerModule, int heightPixels) {
         return png(barcode(text, pixelsPerModule, heightPixels));
     }

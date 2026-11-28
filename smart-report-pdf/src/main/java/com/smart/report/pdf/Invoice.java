@@ -5,8 +5,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * فاتورة أو إيصال جاهز للرسم ({@link InvoicePdf}): كل حاجة نص منسّق ومترجم بلغة البرنامج، والمكتبة بترتّبه على
- * صفحة أو على لفة. نفس الكائن بيترسم على A4 أو A5 أو لفة 80 / 58 مم، فالفاتورة المحفوظة تتطبع بأي شكل.
+ * An invoice or receipt ready to draw ({@link InvoicePdf}). Everything is text already formatted and translated in
+ * the program's language, and the library lays it out on a page or on a roll. The same object draws on A4, A5 or
+ * an 80 / 58 mm roll, so a saved invoice can print in any form.
  *
  * <pre>{@code
  * Invoice invoice = Invoice.builder(true)
@@ -61,7 +62,7 @@ public final class Invoice {
         this.headers = builder.headers.clone();
     }
 
-    /** @param rightToLeft فاتورة عربية (عناوين الأعمدة الافتراضية بالعربي)، أو إنجليزي */
+    /** @param rightToLeft an Arabic invoice (the default column headers in Arabic), or English */
     public static Builder builder(boolean rightToLeft) {
         return new Builder(rightToLeft);
     }
@@ -70,7 +71,7 @@ public final class Invoice {
         return rightToLeft;
     }
 
-    /** الفاتورة على الورقة: صفحة بالشكل ده، أو إيصال لو الورقة لفة ({@link InvoicePdf#of}). */
+    /** The invoice on the paper: a page in this layout, or a receipt if the paper is a roll ({@link InvoicePdf#of}). */
     public PdfDocument toPdf(Paper paper, InvoiceLayout layout) {
         return InvoicePdf.of(this, paper, layout);
     }
@@ -135,7 +136,7 @@ public final class Invoice {
         return qr;
     }
 
-    /** عناوين الأعمدة: الصنف، الكمية، السعر، الإجمالي، الكود، الوحدة، م. */
+    /** The column headers: item, quantity, price, total, code, unit, line number. */
     String[] headers() {
         return headers;
     }
@@ -166,7 +167,7 @@ public final class Invoice {
                     : new String[]{"Item", "Qty", "Price", "Total", "Code", "Unit", "#"};
         }
 
-        /** ترويسة المحل: الاسم وسطور تحته. */
+        /** The shop letterhead: the name and lines under it. */
         public Builder letterhead(String name, String... lines) {
             this.letterheadName = name == null ? "" : name;
             this.letterheadLines.clear();
@@ -180,13 +181,13 @@ public final class Invoice {
             return this;
         }
 
-        /** شعار PNG أو JPEG جنب الترويسة. */
+        /** A PNG or JPEG logo beside the letterhead. */
         public Builder logo(byte[] image) {
             this.logo = image == null || image.length == 0 ? null : image.clone();
             return this;
         }
 
-        /** «فاتورة بيع»، «فاتورة شراء»، «مرتجع». */
+        /** For example «فاتورة بيع» (sales invoice), «فاتورة شراء» (purchase invoice), «مرتجع» (return). */
         public Builder title(String value) {
             this.title = value == null ? "" : value;
             return this;
@@ -202,7 +203,7 @@ public final class Invoice {
             return this;
         }
 
-        /** بيان تحت العنوان: العميل، الكاشير، طريقة الدفع. */
+        /** A detail under the title: the customer, the cashier, the payment method. */
         public Builder field(String label, String value) {
             fields.add(new String[]{Objects.requireNonNull(label, "label"), value == null ? "" : value});
             return this;
@@ -220,19 +221,19 @@ public final class Invoice {
             return this;
         }
 
-        /** سطر في الملخص تحت الجدول: الإجمالي، الخصم، الضريبة. */
+        /** A line in the summary under the table: the total, the discount, the tax. */
         public Builder total(String label, String value) {
             totals.add(new String[]{Objects.requireNonNull(label, "label"), value == null ? "" : value});
             return this;
         }
 
-        /** السطر اللي القارئ بيدوّر عليه، بخط أكبر: الصافي، المطلوب. */
+        /** The line the reader looks for, in a larger font: the net amount, the amount due. */
         public Builder grandTotal(String label, String value) {
             this.grandTotal = new String[]{Objects.requireNonNull(label, "label"), value == null ? "" : value};
             return this;
         }
 
-        /** المبلغ بالحروف ({@code AmountInWords}). */
+        /** The amount in words ({@code AmountInWords}). */
         public Builder amountInWords(String value) {
             this.amountInWords = value == null ? "" : value;
             return this;
@@ -243,25 +244,28 @@ public final class Invoice {
             return this;
         }
 
-        /** جملة المحل الثابتة في آخر الفاتورة: سياسة الاسترجاع، شكر. */
+        /** The shop's fixed sentence at the end of the invoice: a return policy, a thank-you. */
         public Builder shopNote(String value) {
             this.shopNote = value == null ? "" : value;
             return this;
         }
 
-        /** كود يتقري بالماسح تحت الفاتورة (باركود Code 128)، مثلًا {@code DocumentCode.DEFAULT.encode(...)}. */
+        /** A code to scan under the invoice (Code 128 barcode), e.g. {@code DocumentCode.DEFAULT.encode(...)}. */
         public Builder code(String value) {
             this.code = value == null ? "" : value;
             return this;
         }
 
-        /** نص رمز QR في آخر الفاتورة: رمز الفاتورة الضريبية مثلًا. */
+        /** The text of a QR code at the end of the invoice, for example the tax invoice code. */
         public Builder qr(String value) {
             this.qr = value == null ? "" : value;
             return this;
         }
 
-        /** عناوين الأعمدة بمصطلحات البرنامج: الصنف، الكمية، السعر، الإجمالي (والكود والوحدة ورقم السطر اختياري). */
+        /**
+         * The column headers in the program's own terms: item, quantity, price, total (code, unit and line number
+         * are optional).
+         */
         public Builder headers(String item, String quantity, String price, String total) {
             headers[0] = Objects.requireNonNull(item);
             headers[1] = Objects.requireNonNull(quantity);

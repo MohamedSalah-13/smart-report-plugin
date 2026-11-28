@@ -5,8 +5,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * سند قبض أو صرف جاهز للرسم ({@link #toPdf}): الرقم والتاريخ، والطرف، والمبلغ بخط كبير وبالحروف، والسبب، وخانات
- * التوقيع. كل القيم نص منسّق بلغة البرنامج.
+ * A receipt or payment voucher ready to draw ({@link #toPdf}): the number and date, the other party, the amount in
+ * a large font and in words, the purpose, and the signature boxes. All values are text formatted in the program's
+ * language.
  *
  * <pre>{@code
  * Voucher voucher = Voucher.builder(true)
@@ -53,7 +54,7 @@ public final class Voucher {
         return new Builder(rightToLeft);
     }
 
-    /** السند على الورقة: A5 هو المعتاد، و A4 ولفة حرارية كمان. */
+    /** The voucher on the paper: A5 is the usual choice, and A4 and a thermal roll work too. */
     public PdfDocument toPdf(Paper paper) {
         Objects.requireNonNull(paper, "paper");
         PdfDocument document = rightToLeft ? PdfDocument.rtl(paper) : PdfDocument.ltr(paper);
@@ -119,7 +120,7 @@ public final class Voucher {
             return this;
         }
 
-        /** «سند قبض»، «سند صرف». */
+        /** For example «سند قبض» (receipt voucher) or «سند صرف» (payment voucher). */
         public Builder title(String value) {
             this.title = value == null ? "" : value;
             return this;
@@ -135,13 +136,13 @@ public final class Voucher {
             return this;
         }
 
-        /** «استلمنا من السيد» / «صُرف إلى»، والاسم. */
+        /** A label such as «استلمنا من السيد» (received from) or «صُرف إلى» (paid to), and the name. */
         public Builder party(String label, String name) {
             this.party = pair(label, name);
             return this;
         }
 
-        /** المبلغ بخط كبير. */
+        /** The amount, in a large font. */
         public Builder amount(String label, String value) {
             this.amount = pair(label, value);
             return this;
@@ -152,19 +153,19 @@ public final class Voucher {
             return this;
         }
 
-        /** «وذلك عن»، والسبب. */
+        /** A label such as «وذلك عن» (for), and the purpose. */
         public Builder purpose(String label, String value) {
             this.purpose = pair(label, value);
             return this;
         }
 
-        /** بيان تاني: طريقة الدفع، رقم الشيك. */
+        /** Another detail: the payment method, the cheque number. */
         public Builder field(String label, String value) {
             fields.add(pair(label, value));
             return this;
         }
 
-        /** خانات التوقيع في آخر السند. */
+        /** The signature boxes at the end of the voucher. */
         public Builder signatures(String... labels) {
             signatures.clear();
             for (String label : labels) {

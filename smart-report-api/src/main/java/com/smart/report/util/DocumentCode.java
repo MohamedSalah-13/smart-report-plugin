@@ -3,19 +3,19 @@ package com.smart.report.util;
 import java.util.Optional;
 
 /**
- * كود مستند يتقري بالماسح: الفاتورة المطبوعة تتلاقى بمسح ورقتها (لمرتجع، أو في قائمة). الكود أرقام بس، بطول ثابت،
- * وفي آخره خانة تحقق:
+ * A document code that a scanner can read: a printed invoice is found by scanning its paper (for a return, or in a
+ * list). The code is digits only, has a fixed length, and ends with a check digit:
  *
  * <pre>
  *   2   1   0000000042   7
- *   │   │   │            └ خانة التحقق (GS1 modulo 10، زي EAN-13)
- *   │   │   └ رقم المستند بطول ثابت
- *   │   └ نوع المستند: رقم من 0 لـ 9 البرنامج بيحدده (1 بيع، 2 مرتجع...)
- *   └ رقم ثابت في أول كل كود
+ *   │   │   │            └ check digit (GS1 modulo 10, like EAN-13)
+ *   │   │   └ document number, fixed length
+ *   │   └ document type: a digit from 0 to 9 that the program sets (1 sale, 2 return...)
+ *   └ a fixed digit at the start of every code
  * </pre>
  *
  * <pre>{@code
- * DocumentCode codes = DocumentCode.DEFAULT;          // 13 رقم: 2، النوع، 10 للرقم، خانة التحقق
+ * DocumentCode codes = DocumentCode.DEFAULT;          // 13 digits: 2, the type, 10 for the number, check digit
  * String code = codes.encode(1, 42);                  // "2100000000425"
  * document.barcode(code);
  *
@@ -23,25 +23,27 @@ import java.util.Optional;
  *         .ifPresent(found -> openInvoice(found.type(), found.number()));
  * }</pre>
  *
- * <p><b>أرقام بس:</b> الماسح بيكتب اللي بيقراه كضغطات زرار، ومع لوحة مفاتيح عربية الحرف اللاتيني بيوصل حرف عربي؛
- * الأرقام بتوصل زي ما هي. و{@link #parse} بيقبل الأرقام العربية ({@code ٠١٢}) والفارسية كمان، والمسافات في الأول
- * والآخر (زي Enter بعد المسح).</p>
+ * <p><b>Digits only:</b> a scanner types what it reads as key presses, and with an Arabic keyboard layout a Latin
+ * letter arrives as an Arabic letter; digits arrive unchanged. {@link #parse} also accepts Arabic-Indic digits
+ * ({@code ٠١٢}) and Persian digits, and leading and trailing whitespace (such as the Enter after a scan).</p>
  *
- * <p><b>من غير تخزين:</b> الكود بيتحسب من النوع والرقم، فإعادة الطباعة بتطلع نفس الكود، والمستندات القديمة ما
- * تحتاجش ترحيل.</p>
+ * <p><b>Nothing to store:</b> the code is computed from the type and the number, so a reprint gives the same code,
+ * and old documents need no migration.</p>
  *
- * <p><b>رقم اتكتب باليد مش كود:</b> {@link #parse} بيرجع فاضي للطول الغلط، أو أول رقم غلط، أو خانة تحقق غلط (رقم
- * اتغيّر أو رقمين اتبدلوا جنب بعض)، فخانة البحث تقدر تاخد رقم الفاتورة أو الكود الممسوح.</p>
+ * <p><b>A number typed by hand is not a code:</b> {@link #parse} returns empty for a wrong length, a wrong first
+ * digit, or a wrong check digit (a changed digit or two adjacent digits swapped), so a search field can take either
+ * the invoice number or the scanned code.</p>
  *
- * <p>{@link #DEFAULT} بيبدأ بـ 2 وطوله 13: ده كود EAN-13 صحيح في النطاق 20–29 اللي GS1 سايباه للاستخدام جوّه المحل،
- * فما بيتلخبطش مع باركود منتج حقيقي. الصنف immutable وآمن بين الـ threads.</p>
+ * <p>{@link #DEFAULT} starts with 2 and is 13 digits long: this is a valid EAN-13 code in the range 20–29 that GS1
+ * reserves for in-store use, so it does not clash with a real product barcode. The class is immutable and
+ * thread-safe.</p>
  */
 public final class DocumentCode {
 
-    /** أول رقم 2، و 10 خانات للرقم: 13 رقم في الكود كله. */
+    /** First digit 2, and 10 digits for the number: 13 digits in the whole code. */
     public static final DocumentCode DEFAULT = of(2, 10);
 
-    /** نوع المستند ورقمه، من كود اتمسح. */
+    /** The document type and number, from a scanned code. */
     public record Scanned(int type, long number) {}
 
     private final int lead;
@@ -55,10 +57,11 @@ public final class DocumentCode {
     }
 
     /**
-     * شكل كود: أول رقم ثابت، وعدد خانات رقم المستند. طول الكود = {@code numberDigits + 3}.
+     * A code layout: a fixed first digit, and the number of digits in the document number. The code length is
+     * {@code numberDigits + 3}.
      *
-     * @param lead         من 1 لـ 9 (الصفر في الأول بيضيع لو الكود اتفتح في Excel)
-     * @param numberDigits من 1 لـ 15
+     * @param lead         from 1 to 9 (a leading zero is lost if the code is opened in Excel)
+     * @param numberDigits from 1 to 15
      */
     public static DocumentCode of(int lead, int numberDigits) {
         if (lead < 1 || lead > 9) {
@@ -70,17 +73,17 @@ public final class DocumentCode {
         return new DocumentCode(lead, numberDigits);
     }
 
-    /** عدد الأرقام في الكود كله. */
+    /** The number of digits in the whole code. */
     public int length() {
         return numberDigits + 3;
     }
 
     /**
-     * الكود لنوع ورقم.
+     * The code for a type and a number.
      *
-     * @param type   من 0 لـ 9
-     * @param number من 0 لأقل من {@code 10^numberDigits}
-     * @throws IllegalArgumentException لو النوع أو الرقم برّه المدى
+     * @param type   from 0 to 9
+     * @param number from 0 to below {@code 10^numberDigits}
+     * @throws IllegalArgumentException if the type or the number is out of range
      */
     public String encode(int type, long number) {
         if (type < 0 || type > 9) {
@@ -98,8 +101,9 @@ public final class DocumentCode {
     }
 
     /**
-     * نوع المستند ورقمه من كود اتمسح أو اتكتب؛ فاضي لو النص مش كود بالشكل ده (طول، أو أول رقم، أو حرف مش رقم، أو
-     * خانة تحقق غلط). الأرقام العربية والفارسية مقبولة، والمسافات في الأول والآخر بتتشال.
+     * The document type and number from a scanned or typed code; empty if the text is not a code of this layout
+     * (wrong length, wrong first digit, a character that is not a digit, or a wrong check digit). Arabic-Indic and
+     * Persian digits are accepted, and leading and trailing whitespace is removed.
      */
     public Optional<Scanned> parse(String text) {
         if (text == null) {
@@ -130,11 +134,11 @@ public final class DocumentCode {
     }
 
     /**
-     * خانة التحقق GS1 modulo 10 (EAN-13 و UPC و GTIN): من آخر رقم لأوله الأوزان 3 ثم 1 بالتبادل، والخانة هي اللي
-     * بتكمّل المجموع لمضاعف 10.
+     * The GS1 modulo 10 check digit (EAN-13, UPC and GTIN): from the last digit to the first, the weights alternate
+     * 3 then 1, and the check digit is the one that brings the sum up to a multiple of 10.
      *
-     * @param digits أرقام لاتينية بس، من غير خانة التحقق
-     * @throws IllegalArgumentException لو فاضي أو فيه حرف مش رقم
+     * @param digits Latin digits only, without the check digit
+     * @throws IllegalArgumentException if empty or if it contains a character that is not a digit
      */
     public static int checkDigit(CharSequence digits) {
         if (digits == null || digits.length() == 0) {
@@ -151,7 +155,7 @@ public final class DocumentCode {
         return (10 - sum % 10) % 10;
     }
 
-    /** رقم لاتيني أو عربي ({@code ٠..٩}) أو فارسي ({@code ۰..۹})؛ -1 لأي حرف تاني. */
+    /** A Latin, Arabic-Indic ({@code ٠..٩}) or Persian ({@code ۰..۹}) digit; -1 for any other character. */
     private static int digit(char c) {
         if (c >= '0' && c <= '9') {
             return c - '0';

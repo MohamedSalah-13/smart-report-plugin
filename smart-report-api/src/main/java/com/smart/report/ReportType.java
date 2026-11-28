@@ -1,6 +1,6 @@
 package com.smart.report;
 
-/** أنواع التقارير، وكل نوع في وحدة Maven لوحده. */
+/** The report types. Each type lives in its own Maven module. */
 public enum ReportType {
     PDF("smart-report-pdf"),
     EXCEL("smart-report-excel"),
@@ -12,7 +12,7 @@ public enum ReportType {
         this.module = module;
     }
 
-    /** اسم الوحدة (artifactId) اللي فيها مزوّد هذا النوع. */
+    /** The name (artifactId) of the module that holds the provider for this type. */
     public String module() {
         return module;
     }

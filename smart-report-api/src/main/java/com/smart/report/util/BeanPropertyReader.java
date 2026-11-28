@@ -16,19 +16,19 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * يقرأ قيمة حقل من أي كائن Java عبر الاسم فقط، بدون الحاجة لتعريف interface خاص:
- * يجرّب getX()، ثم isX() (للـ boolean)، ثم x() (لمكوّنات الـ record)، وأخيرًا الحقل نفسه
- * بالبحث في الصنف وكل أصوله.
+ * Reads a field value from any Java object by name only, without the need for a special interface.
+ * It tries getX(), then isX() (for booleans), then x() (for record components), and finally the field
+ * itself, searching the class and all its superclasses.
  *
- * <p>الـ accessor بيتحدّد مرة واحدة لكل (صنف، اسم حقل) وبيتخزّن، فتقرير فيه 50 ألف صف
- * ما بيعملش بحث reflection لكل خلية. الكاش مبني على {@link ClassValue} فبيتحرّر مع الصنف
- * نفسه ومش بيمسك classloader في الذاكرة.</p>
+ * <p>The accessor is resolved once per (class, field name) and cached, so a report with 50,000 rows
+ * does not do a reflection lookup for every cell. The cache is built on {@link ClassValue}, so it is
+ * released together with the class and does not hold a classloader in memory.</p>
  */
 public final class BeanPropertyReader {
 
     private BeanPropertyReader() {}
 
-    /** يقرأ قيمة من كائن؛ بيرمي {@link IllegalStateException} لو الخاصية مش موجودة أو تعذّرت قراءتها. */
+    /** Reads a value from an object; throws {@link IllegalStateException} if the property is missing or unreadable. */
     @FunctionalInterface
     private interface Accessor {
         Object read(Object bean) throws ReflectiveOperationException;
@@ -92,9 +92,9 @@ public final class BeanPropertyReader {
     }
 
     /**
-     * يدوّر على getter بدون مُعطيات وقابل فعلًا للاستدعاء. الميثود العام المعرَّف على صنف
-     * <b>غير عام</b> بيرمي IllegalAccessException وقت الاستدعاء، فبندوّر على نفس التوقيع في
-     * واجهة أو صنف أب عام الأول، وبنلجأ لـ setAccessible لو ملقيناش.
+     * Looks for a no-argument getter that can really be invoked. A public method declared on a
+     * <b>non-public</b> class throws IllegalAccessException when invoked, so we first look for the same
+     * signature on a public interface or superclass, and fall back to setAccessible if none is found.
      */
     private static Method findMethod(Class<?> type, String name) {
         Method method;
@@ -123,7 +123,7 @@ public final class BeanPropertyReader {
         return makeAccessible(method) ? method : null;
     }
 
-    /** يدوّر على الحقل في الصنف وكل أصوله، مش في الصنف المباشر بس. */
+    /** Looks for the field in the class and all its superclasses, not only in the class itself. */
     private static Field findField(Class<?> type, String name) {
         for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
             try {
@@ -138,7 +138,7 @@ public final class BeanPropertyReader {
         return null;
     }
 
-    /** الأصناف العامة (واجهات وآباء) اللي ممكن نستدعي الميثود من خلالها. */
+    /** The public types (interfaces and superclasses) through which the method can be invoked. */
     private static List<Class<?>> publicSupertypes(Class<?> type) {
         List<Class<?>> found = new ArrayList<>();
         Set<Class<?>> seen = new HashSet<>();

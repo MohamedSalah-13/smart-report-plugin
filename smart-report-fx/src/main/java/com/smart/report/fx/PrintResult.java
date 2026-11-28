@@ -6,8 +6,9 @@ import javafx.stage.Stage;
 import java.nio.file.Path;
 
 /**
- * نتيجة {@link PdfPreview#print(com.smart.report.print.PrintSettings, String, javafx.stage.Window)}: المستند طلع
- * زي ما إعداد نوعه بيقول، أو نافذة المعاينة اتفتحت، أو اتحفظ، أو المستخدم لغى، أو فشل.
+ * The result of {@link PdfPreview#print(com.smart.report.print.PrintSettings, String, javafx.stage.Window)}: the
+ * document was output as its type's profile says, or the preview window opened, or it was saved, or the user
+ * cancelled, or it failed.
  *
  * <pre>{@code
  * preview.print(settings, "sale-receipt", owner).thenAccept(result -> {
@@ -23,29 +24,30 @@ import java.nio.file.Path;
  */
 public sealed interface PrintResult {
 
-    /** اتبعت للطابعة: {@code copies} نسخة على {@code paper}. */
+    /** Sent to the printer: {@code copies} copies on {@code paper}. */
     record Printed(String printer, Paper paper, int copies) implements PrintResult {
     }
 
     /**
-     * نافذة المعاينة اتفتحت: الإعداد بيقول معاينة، أو طابعة الإعداد مش موجودة على الجهاز (وساعتها فوق الصفحة سطر
-     * بيقول كده، والمستند ما اتبعتش لطابعة تانية).
+     * The preview window opened: the profile says preview, or the profile's printer is not on the computer (then a
+     * line above the page says so, and the document was not sent to another printer).
      */
     record Shown(Stage window) implements PrintResult {
     }
 
-    /** اتحفظ ملف PDF. */
+    /** A PDF file was saved. */
     record Saved(Path file) implements PrintResult {
     }
 
-    /** المستخدم لغى: قفل سؤال «اسأل كل مرة» أو نافذة الحفظ. */
+    /** The user cancelled: closed the «اسأل كل مرة» ("Ask every time") question or the save dialog. */
     record Cancelled() implements PrintResult {
     }
 
     /**
-     * المستند ما اتبناش، أو الطابعة رفضت المهمة، أو الملف ما اتكتبش. ما فيش نافذة بتتفتح لوحدها.
+     * The document was not built, or the printer rejected the job, or the file was not written. No window opens
+     * by itself.
      *
-     * @param reason رسالته إنجليزي للسجل، مش للمستخدم
+     * @param reason its message is in English, for the log, not for the user
      */
     record Failed(Exception reason) implements PrintResult {
     }

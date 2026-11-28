@@ -10,13 +10,14 @@ import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 
 /**
- * نقطة الدخول الموحّدة لتوليد التقارير. اختر النوع المطلوب ({@link ReportType}) وحضّر
- * {@link ReportRequest}، والخدمة تتكفّل باختيار المزوّد المناسب (PDF عام / Excel عام / Jasper).
+ * The single entry point for generating reports. Pick the report type ({@link ReportType}) and prepare a
+ * {@link ReportRequest}. The service picks the matching provider (generic PDF / generic Excel / Jasper).
  *
- * <p>أي فشل أثناء التوليد بيوصل كـ {@link ReportException}، حتى لو أصله استثناء غير متوقّع
- * جاي من مكتبة تحتية؛ كده الـ {@code catch (ReportException)} عند المستخدم بيمسك كل الحالات فعلًا.
- * الاستثناء الوحيد هو التحقق من المعطيات نفسها، وده بيرمي {@link IllegalArgumentException}
- * لأنه غلطة برمجية عند المستدعي مش فشل في التوليد.</p>
+ * <p>Any failure during generation reaches the caller as a {@link ReportException}, even when it starts as
+ * an unexpected exception from an underlying library. So a {@code catch (ReportException)} in the caller's
+ * code really catches every case. The one exception is validation of the arguments themselves: it throws
+ * {@link IllegalArgumentException}, because that is a programming error in the caller, not a generation
+ * failure.</p>
  */
 public final class ReportService {
 
@@ -59,8 +60,8 @@ public final class ReportService {
     }
 
     /**
-     * المزوّد المسجَّل لهذا النوع. كل نوع في وحدة Maven لوحده، فلو الوحدة مش على الـ classpath
-     * الرسالة بتقول أنهي dependency ناقصة بدل استثناء غامض.
+     * The provider registered for this type. Each type lives in its own Maven module, so when the module is
+     * not on the classpath the message names the missing dependency instead of throwing an unclear exception.
      */
     private static ReportProvider provider(ReportType type) throws ReportException {
         try {

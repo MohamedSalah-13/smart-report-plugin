@@ -5,8 +5,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * كشف حساب جاهز للرسم ({@link #toPdf}): رأس الكشف، وأرقام مهمة (رصيد أول المدة، إجمالي المدين والدائن)، والحركات
- * بالرصيد بعد كل حركة، والرصيد الختامي. كل القيم نص منسّق بلغة البرنامج؛ الرصيد السالب بيتكتب بالأحمر.
+ * An account statement ready to draw ({@link #toPdf}): the statement header, key figures (opening balance, total
+ * debit and total credit), the transactions with the balance after each one, and the closing balance. All values
+ * are text formatted in the program's language; a negative balance is printed in red.
  *
  * <pre>{@code
  * AccountStatement statement = AccountStatement.builder(true)
@@ -48,14 +49,14 @@ public final class AccountStatement {
         return new Builder(rightToLeft);
     }
 
-    /** عدد الحركات. */
+    /** The number of transactions. */
     public int size() {
         return lines.size();
     }
 
     /**
-     * الكشف على الورقة. على A4 / A5 جدول بخمس أعمدة؛ وعلى لفة حرارية كل حركة سطرين (التاريخ والبيان، وتحتهم المدين
-     * والدائن والرصيد) عشان يكفّي العرض.
+     * The statement on the paper. On A4 / A5 it is a five-column table. On a thermal roll each transaction takes two
+     * lines (the date and description, with debit, credit and balance under them) so it fits the width.
      */
     public PdfDocument toPdf(Paper paper) {
         Objects.requireNonNull(paper, "paper");
@@ -132,19 +133,22 @@ public final class AccountStatement {
             return this;
         }
 
-        /** رأس الكشف: العميل، رقم الحساب، الفترة. */
+        /** The statement header: the customer, the account number, the period. */
         public Builder field(String label, String value) {
             fields.add(new String[]{Objects.requireNonNull(label, "label"), value == null ? "" : value});
             return this;
         }
 
-        /** رقم مهم فوق الحركات: رصيد أول المدة، إجمالي المدين، إجمالي الدائن. */
+        /** A key figure above the transactions: the opening balance, the total debit, the total credit. */
         public Builder figure(String label, String value) {
             figures.add(new String[]{Objects.requireNonNull(label, "label"), value == null ? "" : value});
             return this;
         }
 
-        /** حركة: التاريخ، والبيان، والمدين، والدائن (واحد منهم فاضي عادةً)، والرصيد بعدها. */
+        /**
+         * A transaction: the date, the description, the debit, the credit (one of them is usually empty), and the
+         * balance after it.
+         */
         public Builder line(String date, String description, String debit, String credit, String balance) {
             lines.add(new String[]{blank(date), blank(description), blank(debit), blank(credit), blank(balance)});
             return this;

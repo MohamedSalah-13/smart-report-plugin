@@ -12,18 +12,20 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * PDF مكتوب، بيترسم صفحة صفحة كصورة — اللي نافذة المعاينة بتعرضه.
+ * A written PDF, drawn page by page as an image. This is what the preview window shows.
  *
- * <p><b>الصفحة المطلوبة بس هي اللي بتترسم.</b> صفحة A4 مرسومة للشاشة كام ميجا من البكسلات، والتقرير
- * ممكن يوصل مئة صفحة؛ رسمها كلها مقدمًا يحجز مئات الميجات لنافذة أغلب الناس بتقفلها بعد أول صفحة.</p>
+ * <p><b>Only the requested page is drawn.</b> An A4 page drawn for the screen is a few megapixels, and a report
+ * can reach a hundred pages. Drawing them all up front would reserve hundreds of megabytes for a window that
+ * most people close after the first page.</p>
  *
- * <p>الرسم بـ PDFBox، نفس اللي {@link PdfPrinter} بيبعت بيه الصفحات للطابعة، فالمعاينة بتعرض اللي
- * الطابعة هتستلمه. مستند PDFBox مش آمن للرسم من أكتر من thread، فالطرق synchronized: النافذة بترسم
- * على thread جانبي، والصفحة البطيئة بتأخّر الطلب اللي بعدها بدل ما تبوّظه.</p>
+ * <p>Drawing uses PDFBox, the same library {@link PdfPrinter} uses to send the pages to the printer, so the
+ * preview shows what the printer will receive. A PDFBox document is not safe to draw from more than one thread,
+ * so the methods are synchronized: the window draws on a background thread, and a slow page delays the next
+ * request instead of breaking it.</p>
  */
 public final class PdfPages implements AutoCloseable {
 
-    /** أقصى عدد بكسلات لكل نقطة: أكبر من كده الصورة بتاكل ذاكرة من غير ما العين تشوف فرق. */
+    /** The maximum number of pixels per point. Above this, the image uses memory with no visible difference. */
     public static final float MAX_SCALE = 4f;
     private static final float MIN_SCALE = 0.1f;
 
@@ -48,14 +50,14 @@ public final class PdfPages implements AutoCloseable {
         return document.getNumberOfPages();
     }
 
-    /** عرض الصفحة بالنقطة كما بتترسم — الصفحة المقلوبة بالدوران عريضة. */
+    /** The page width in points, as drawn. A page turned by its rotation is wide. */
     public synchronized float width(int index) {
         PDPage page = document.getPage(index);
         PDRectangle box = page.getCropBox();
         return turned(page) ? box.getHeight() : box.getWidth();
     }
 
-    /** ارتفاع الصفحة بالنقطة كما بتترسم. */
+    /** The page height in points, as drawn. */
     public synchronized float height(int index) {
         PDPage page = document.getPage(index);
         PDRectangle box = page.getCropBox();
@@ -63,9 +65,9 @@ public final class PdfPages implements AutoCloseable {
     }
 
     /**
-     * بكسلات صفحة واحدة.
+     * The pixels of one page.
      *
-     * @param scale بكسلات لكل نقطة (1 = 72 نقطة في البوصة)، بين عُشر و{@link #MAX_SCALE}
+     * @param scale pixels per point (1 = 72 dots per inch), between one tenth and {@link #MAX_SCALE}
      */
     public synchronized BufferedImage render(int index, float scale) throws ReportException {
         try {

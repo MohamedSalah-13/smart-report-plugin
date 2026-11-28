@@ -13,7 +13,8 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * مستند PDF بيتبني جزءًا بعد جزء بالترتيب اللي هيظهر بيه: ترويسة، عنوان، بيانات، جداول، ملخص، تذييل.
+ * A PDF document built part by part, in the order the parts will appear: letterhead, title, fields, tables,
+ * summary, footer.
  *
  * <pre>{@code
  * PdfDocument document = PdfDocument.rtl(Paper.A5)
@@ -26,18 +27,19 @@ import java.util.function.Consumer;
  *         .summary("المستحق", "5,400.00")
  *         .summaryTotal("الباقى", "1,400.00");
  *
- * document.save(Path.of("statement.pdf"));     // ملف
- * PdfPrinter.print(document, printerName, 1);  // أو للطابعة مباشرة
+ * document.save(Path.of("statement.pdf"));     // to a file
+ * PdfPrinter.print(document, printerName, 1);  // or straight to the printer
  * }</pre>
  *
- * <p>الاتجاه ({@link #rtl(Paper)} / {@link #ltr(Paper)}) بيحدد مكان أول عمود في الجدول ومحاذاة
- * النص؛ النص العربي بيتشكّل ويترتب صح في الاتجاهين، والأرقام والتواريخ بتتقرا زي ما اتكتبت.</p>
+ * <p>The direction ({@link #rtl(Paper)} / {@link #ltr(Paper)}) sets where the first table column goes and how
+ * text is aligned. Arabic text is shaped and ordered correctly in both directions, and numbers and dates read
+ * as they were written.</p>
  *
- * <p>الكائن قابل للتعديل وغير آمن للاستخدام من أكتر من thread؛ ابنِ مستندًا لكل طباعة.</p>
+ * <p>The object is mutable and not safe to use from more than one thread; build one document per print.</p>
  */
 public final class PdfDocument {
 
-    /** جزء من جسم المستند، بالترتيب اللي اتضاف بيه. */
+    /** A part of the document body, in the order it was added. */
     sealed interface Block {
     }
 
@@ -65,48 +67,57 @@ public final class PdfDocument {
     record SummaryBlock(List<SummaryLine> lines) implements Block {
     }
 
-    /** @param negativeInRed القيمة السالبة بالأحمر ({@link PdfTable#negativeInRed}) */
+    /** @param negativeInRed a negative value is shown in red ({@link PdfTable#negativeInRed}) */
     record SummaryLine(String label, String value, boolean total, boolean negativeInRed) {
     }
 
     record SignaturesBlock(List<String> labels) implements Block {
     }
 
-    /** @param size ضلع الرمز بالنقطة، من غير المنطقة الفاضية حواليه */
+    /** @param size the side of the symbol in points, without the blank zone around it */
     record QrBlock(QrSymbol symbol, float size, Align align) implements Block {
     }
 
-    /** @param height طول الخطوط بالنقطة، من غير السطر المكتوب تحتها */
+    /** @param height the height of the bars in points, without the text line under them */
     record BarcodeBlock(BarcodeSymbol symbol, float height, Align align) implements Block {
     }
 
-    /** @param height طول الخطوط بالنقطة، من غير الأرقام المكتوبة تحتها */
+    /** @param height the height of the bars in points, without the digits under them */
     record Ean13Block(Ean13Symbol symbol, float height, Align align) implements Block {
     }
 
     /**
-     * @param bytes  PNG أو JPEG زي ما اتدّت
-     * @param width  العرض المطلوب بالنقطة
-     * @param pixels عرض الصورة وطولها بالبكسل، للنسبة بينهم
+     * @param bytes  PNG or JPEG, as given
+     * @param width  the requested width in points
+     * @param pixels the image width and height in pixels, for the aspect ratio
      */
     record ImageBlock(byte[] bytes, float width, int[] pixels, Align align) implements Block {
     }
 
-    /** سطر «طُبع في ... بواسطة ...» تحت العنوان. */
+    /** The «طُبع في ... بواسطة ...» ("printed on ... by ...") line under the title. */
     record PrintedBlock(String text) implements Block {
     }
 
-    /** الجزء اللي بعده يبدأ في صفحة جديدة؛ القواعد في {@link #pageBreak()}. */
+    /** The part after it starts on a new page; the rules are in {@link #pageBreak()}. */
     record PageBreakBlock() implements Block {
     }
 
-    /** ضلع رمز QR لو ما اتحدّدش: 30 مم، بيتقرا بسهولة من الموبايل ويكفي في عرض لفة 58 مم. */
+    /**
+     * The side of a QR symbol when none is set: 30 mm. A phone reads it easily, and it fits the width of a 58 mm
+     * roll.
+     */
     static final float DEFAULT_QR_MM = 30f;
 
-    /** طول خطوط الباركود لو ما اتحدّدش: 12 مم، بيتقرا بقارئ اليد من غير ما ياخد مكان كتير في الإيصال. */
+    /**
+     * The bar height of a barcode when none is set: 12 mm. A handheld scanner reads it, and it does not take much
+     * room on a receipt.
+     */
     static final float DEFAULT_BARCODE_MM = 12f;
 
-    /** طول خطوط EAN-13 لو ما اتحدّدش: 15 مم، قريب من حجم المنتجات (22.85 مم بالأرقام في الحجم الكامل). */
+    /**
+     * The bar height of an EAN-13 when none is set: 15 mm, close to the size on products (22.85 mm with the digits
+     * at full size).
+     */
     static final float DEFAULT_EAN13_MM = 15f;
 
     private static final float POINTS_PER_MM = 72f / 25.4f;
@@ -133,19 +144,19 @@ public final class PdfDocument {
     private java.time.LocalDateTime printedOn;
     private String printedBy;
     private PageNumberStyle pageNumberStyle = PageNumberStyle.WORDS;
-    /** الورق المطبوع عليه ترويسة: المسافة فوق بالنقطة، أو سالب = ورق أبيض. */
+    /** Paper with a pre-printed letterhead: the top space in points, or negative = plain paper. */
     private float prePrintedTop = -1;
     private float totalsFontSize;
 
-    /** علاقة الملف المرفق بالمستند، زي ما PDF/A-3 بيسميها ({@code /AFRelationship}). */
+    /** How an attached file relates to the document, as PDF/A-3 names it ({@code /AFRelationship}). */
     public enum Relationship {
-        /** المصدر اللي المستند اتعمل منه. */
+        /** The source the document was made from. */
         SOURCE("Source"),
-        /** بيانات المستند نفسه في صيغة تانية: XML الفاتورة الإلكترونية. */
+        /** The document's own data in another format: the XML of an e-invoice. */
         DATA("Data"),
-        /** نسخة تانية بديلة من نفس المحتوى. */
+        /** Another, alternative copy of the same content. */
         ALTERNATIVE("Alternative"),
-        /** ملف مكمّل. */
+        /** A supplementary file. */
         SUPPLEMENT("Supplement"),
         UNSPECIFIED("Unspecified");
 
@@ -168,25 +179,25 @@ public final class PdfDocument {
         this.rightToLeft = rightToLeft;
     }
 
-    /** مستند من اليمين لليسار — العربي. */
+    /** A right-to-left document: Arabic. */
     public static PdfDocument rtl(Paper paper) {
         return new PdfDocument(paper, true);
     }
 
-    /** مستند من اليسار لليمين. */
+    /** A left-to-right document. */
     public static PdfDocument ltr(Paper paper) {
         return new PdfDocument(paper, false);
     }
 
-    /** شكل الصفحة؛ من غيره بيتاخد {@link PdfStyle#forPaper(Paper)}. */
+    /** The page style; without it, {@link PdfStyle#forPaper(Paper)} is used. */
     public PdfDocument style(PdfStyle style) {
         this.style = Objects.requireNonNull(style, "style");
         return this;
     }
 
     /**
-     * خط المستند ده بدل الخط العام ({@code -Dsmart.report.pdf.font} أو Noto Naskh Arabic المضمَّن)، من غير
-     * ما يأثر على أي مستند تاني؛ {@code null} يرجّعه للخط العام.
+     * The font of this document, instead of the global font ({@code -Dsmart.report.pdf.font} or the bundled Noto
+     * Naskh Arabic), without affecting any other document; {@code null} goes back to the global font.
      */
     public PdfDocument font(PdfFont font) {
         this.font = font;
@@ -194,9 +205,10 @@ public final class PdfDocument {
     }
 
     /**
-     * حرف مش في أي خط (لا خط المستند ولا الخطوط الاحتياطية) يوقّف كتابة المستند بـ
-     * {@link ReportException} فيها الحرف وكوده والنص اللي هو فيه، بدل ما يتطبع {@code ?} — للفواتير
-     * والمستندات المالية اللي علامة استفهام مكان حرف فيها غلط. مقفول من غير ما يتحدد.
+     * A character that is in no font (neither the document font nor the fallback fonts) stops writing the
+     * document with a {@link ReportException} that names the character, its code and the text it is in, instead
+     * of printing {@code ?}. This is for invoices and financial documents, where a question mark in place of a
+     * character is an error. Off unless set.
      */
     public PdfDocument failOnMissingGlyphs(boolean value) {
         this.failOnMissingGlyphs = value;
@@ -204,31 +216,35 @@ public final class PdfDocument {
     }
 
     /**
-     * سطر صغير تحت أول عنوان بوقت الطباعة: «طُبع في 2026-11-28 10:30». مع {@link #printedBy} في نفس السطر.
-     * {@code null} = من غيره.
+     * A small line under the first title with the print time: «طُبع في 2026-11-28 10:30» ("printed on ...").
+     * Together with {@link #printedBy} on the same line. {@code null} = no line.
      */
     public PdfDocument printedOn(java.time.LocalDateTime when) {
         this.printedOn = when == null ? null : when.truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
         return this;
     }
 
-    /** اسم المستخدم في سطر الطباعة تحت أول عنوان: «بواسطة أحمد». {@code null} أو فاضي = من غيره. */
+    /**
+     * The user name on the print line under the first title: «بواسطة أحمد» ("by Ahmed"). {@code null} or blank =
+     * no name.
+     */
     public PdfDocument printedBy(String user) {
         this.printedBy = user == null || user.isBlank() ? null : user.strip();
         return this;
     }
 
-    /** شكل رقم الصفحة: «صفحة 1 من 3» ({@link PageNumberStyle#WORDS}، الافتراضي) أو «1 / 3». */
+    /** The page number format: «صفحة 1 من 3» ({@link PageNumberStyle#WORDS}, the default) or «1 / 3». */
     public PdfDocument pageNumberStyle(PageNumberStyle value) {
         this.pageNumberStyle = Objects.requireNonNull(value, "value");
         return this;
     }
 
     /**
-     * ورق مطبوع عليه ترويسة المحل: الترويسة ({@link #letterhead} والشعار) ما بتترسمش، والمحتوى بيبدأ بعد
-     * {@code topMm} مليمتر زيادة على الهامش في كل صفحة، تحت الترويسة المطبوعة.
+     * Paper with the shop's letterhead already printed on it. The letterhead ({@link #letterhead} and the logo) is
+     * not drawn, and on every page the content starts {@code topMm} millimetres below the margin, under the
+     * printed letterhead.
      *
-     * @throws IllegalArgumentException لو سالب
+     * @throws IllegalArgumentException if negative
      */
     public PdfDocument prePrinted(float topMm) {
         if (!(topMm >= 0) || Float.isInfinite(topMm)) {
@@ -238,16 +254,17 @@ public final class PdfDocument {
         return this;
     }
 
-    /** ورق أبيض: الترويسة بتترسم زي العادي (بيلغي {@link #prePrinted}). */
+    /** Plain paper: the letterhead is drawn as usual (cancels {@link #prePrinted}). */
     public PdfDocument plainPaper() {
         this.prePrintedTop = -1;
         return this;
     }
 
     /**
-     * حجم خط صفوف الإجمالي في الجداول، منفصل عن خط الصفوف ({@link PdfStyle#bodySize}). صفر = زي الصفوف.
+     * The font size of the totals rows in tables, separate from the row font ({@link PdfStyle#bodySize}). Zero =
+     * the same as the rows.
      *
-     * @throws IllegalArgumentException لو مش صفر وأصغر من {@link PdfStyle#MIN_FONT_SIZE}
+     * @throws IllegalArgumentException if not zero and smaller than {@link PdfStyle#MIN_FONT_SIZE}
      */
     public PdfDocument totalsFontSize(float points) {
         if (points != 0 && !(points >= PdfStyle.MIN_FONT_SIZE && points <= 72)) {
@@ -259,8 +276,8 @@ public final class PdfDocument {
     }
 
     /**
-     * ملف جوّه الـ PDF: XML الفاتورة الإلكترونية الموقّعة مثلًا، فالملف المؤرشف يشيل الاتنين. علاقته
-     * {@link Relationship#DATA}.
+     * A file inside the PDF, for example the XML of a signed e-invoice, so the archived file holds both. Its
+     * relationship is {@link Relationship#DATA}.
      *
      * @see #attach(String, byte[], String, Relationship)
      */
@@ -269,12 +286,12 @@ public final class PdfDocument {
     }
 
     /**
-     * ملف جوّه الـ PDF، بعلاقته بالمستند. بيظهر في قائمة المرفقات في قارئ الـ PDF، ومع {@link #pdfA3} بيبقى ملف
-     * «مرتبط» بالمستند زي ما الأرشفة بتطلب.
+     * A file inside the PDF, with its relationship to the document. It appears in the attachments list of the PDF
+     * reader, and with {@link #pdfA3} it becomes a file "associated" with the document, as archiving requires.
      *
-     * @param name     اسم الملف زي ما هيظهر: {@code "invoice.xml"}؛ كل اسم مرة واحدة
-     * @param mimeType {@code "application/xml"}، {@code "text/xml"}...
-     * @throws IllegalArgumentException لو الاسم فاضي أو متكرر، أو النوع مش {@code type/subtype}
+     * @param name     the file name as it will appear: {@code "invoice.xml"}; each name only once
+     * @param mimeType {@code "application/xml"}, {@code "text/xml"}...
+     * @throws IllegalArgumentException if the name is blank or repeated, or the type is not {@code type/subtype}
      */
     public PdfDocument attach(String name, byte[] data, String mimeType, Relationship relationship) {
         Objects.requireNonNull(data, "data");
@@ -294,9 +311,9 @@ public final class PdfDocument {
     }
 
     /**
-     * يكتب المستند PDF/A-3B، صيغة الأرشفة: ملف الألوان (sRGB) والبيانات الوصفية XMP جوّاه، والخطوط مضمّنة أصلًا، والملفات
-     * المرفقة ({@link #attach}) مرتبطة بالمستند. للفاتورة اللي لازم تتحفظ سنين ومعاها الـ XML بتاعها. مقفول من غير ما
-     * يتحدد.
+     * Writes the document as PDF/A-3B, the archiving format: the colour profile (sRGB) and the XMP metadata are
+     * inside it, the fonts are embedded anyway, and the attached files ({@link #attach}) are associated with the
+     * document. For an invoice that must be kept for years together with its XML. Off unless set.
      */
     public PdfDocument pdfA3(boolean value) {
         this.pdfA3 = value;
@@ -304,10 +321,11 @@ public final class PdfDocument {
     }
 
     /**
-     * كل رقم في المستند بيترسم بالأرقام العربية ({@code ١٢٣}) بدل {@code 123}: النص، والجداول، والملخص، والترويسة،
-     * وأرقام الصفحات. الرقم بيفضل مكانه في السطر زي ما هو (الأرقام العربية بتتقري من الشمال لليمين زي اللاتينية)،
-     * والفاصلة والنقطة زي ما اتكتبوا. اللي جوّه رمز QR والباركود والكود المكتوب تحت الباركود بيفضلوا لاتيني: الماسح
-     * والقارئ محتاجينهم كده. مقفول من غير ما يتحدد.
+     * Draws every number in the document with Arabic-Indic digits ({@code ١٢٣}) instead of {@code 123}: the text,
+     * the tables, the summary, the letterhead and the page numbers. The number keeps its place in the line
+     * (Arabic-Indic digits read from left to right, like Latin digits), and the comma and full stop stay as
+     * written. The content of a QR symbol, a barcode and the code written under a barcode stay Latin: the scanner
+     * and the reader need them that way. Off unless set.
      */
     public PdfDocument arabicIndicDigits(boolean value) {
         this.arabicIndicDigits = value;
@@ -315,16 +333,19 @@ public final class PdfDocument {
     }
 
     /**
-     * دقة الطابعة اللي المستند رايح لها (203 للطابعة الحرارية المعتادة، 300، 600...)، عشان كل مربع في الباركود
-     * ورمز QR ياخد عدد صحيح من نقطها، ومكانه على نقطة منها. من غيرها أضيق خط 0.33 مم، أي 2.64 نقطة على رأس
-     * 203، فالدرايفر بيقرر أنهي خط ياخد 2 وأنهي 3، والخطوط المش متساوية سبب معروف لباركود ما بيتقريش.
+     * The resolution of the printer the document goes to (203 for the usual thermal printer, 300, 600...), so
+     * every module of a barcode and a QR symbol takes a whole number of printer dots and sits on a dot. Without it
+     * the narrowest bar is 0.33 mm, that is 2.64 dots on a 203 dpi head, so the driver decides which bar gets 2
+     * dots and which gets 3. Uneven bars are a known cause of a barcode that does not scan.
      *
-     * <p>بالدقة: أضيق خط في الباركود أقرب عدد نقط لـ 0.33 مم، ومربع QR أقرب عدد نقط للمقاس المطلوب، والاتنين
-     * نقطتين على الأقل، والباركود مش أضيق من 0.25 مم. لو الرمز ما كفّاش السطر بيقل نقطة نقطة لحد الحد ده،
-     * وبعدها بيفشل بـ {@link ReportException} بدل ما يصغر لكسور. من غيرها (أو بصفر) الرسم زي ما هو.</p>
+     * <p>With the resolution set: the narrowest barcode bar is the whole number of dots closest to 0.33 mm, and a
+     * QR module is the whole number of dots closest to the requested size. Both are at least two dots, and a
+     * barcode bar is never narrower than 0.25 mm. If the symbol does not fit the line, it shrinks one dot at a time
+     * down to that limit, and then fails with a {@link ReportException} instead of shrinking to fractions of a
+     * dot. Without it (or with zero) drawing is unchanged.</p>
      *
-     * @param dpi نقط في البوصة، من 72 لـ 2400؛ صفر = من غير
-     * @throws IllegalArgumentException لو برّه المدى
+     * @param dpi dots per inch, from 72 to 2400; zero = none
+     * @throws IllegalArgumentException if out of range
      */
     public PdfDocument printerDpi(int dpi) {
         if (dpi != 0 && (dpi < 72 || dpi > 2400)) {
@@ -335,7 +356,10 @@ public final class PdfDocument {
         return this;
     }
 
-    /** ترويسة أعلى أول صفحة: اسم الجهة بخط عريض، وتحته سطور (عنوان، تليفون...)، ثم خط فاصل. */
+    /**
+     * A letterhead at the top of the first page: the organisation name in bold, lines under it (address,
+     * phone...), then a separator line.
+     */
     public PdfDocument letterhead(String name, String... lines) {
         this.letterheadName = name == null ? "" : name;
         List<String> kept = new ArrayList<>();
@@ -351,8 +375,8 @@ public final class PdfDocument {
     }
 
     /**
-     * الترويسة (والشعار) في أعلى كل صفحة، مش الأولى بس — للكشوف اللي بتطول. رأس الجدول اللي بيكمل
-     * على الصفحة الجديدة بيترسم تحتها.
+     * The letterhead (and the logo) at the top of every page, not only the first, for long statements. A table
+     * header that continues on the new page is drawn under it.
      */
     public PdfDocument letterheadOnEveryPage(boolean value) {
         this.letterheadOnEveryPage = value;
@@ -360,8 +384,9 @@ public final class PdfDocument {
     }
 
     /**
-     * سطر صغير في أسفل كل صفحة فوق رقمها — العنوان والتليفون، أو «هذا المستند صادر من نظام ...».
-     * غير {@link #footer(String)} اللي بيترسم مرة واحدة بعد آخر جزء.
+     * A small line at the bottom of every page, above its number: the address and phone, or
+     * «هذا المستند صادر من نظام ...» ("this document was issued by the ... system"). Unlike
+     * {@link #footer(String)}, which is drawn once after the last part.
      */
     public PdfDocument pageFooter(String text) {
         this.pageFooter = text == null ? "" : text;
@@ -369,8 +394,9 @@ public final class PdfDocument {
     }
 
     /**
-     * علامة مائية رمادية فاتحة في كل صفحة — «مسودة»، «صورة»، «ملغاة»، «مدفوع»، {@code DRAFT}، {@code COPY}:
-     * لنسخة الفاتورة وصورة المستند. {@code null} أو نص فاضي = من غير علامة.
+     * A light grey watermark on every page: «مسودة» (draft), «صورة» (copy), «ملغاة» (cancelled), «مدفوع» (paid),
+     * {@code DRAFT}, {@code COPY}. For an invoice copy or a copy of a document. {@code null} or blank text = no
+     * watermark.
      *
      * @see #watermark(String, int)
      */
@@ -379,21 +405,25 @@ public final class PdfDocument {
     }
 
     /**
-     * علامة مائية في كل صفحة بلون {@code color} ({@code 0xRRGGBB}) شفاف — أحمر لـ «ملغاة» وأخضر لـ «مدفوع»
-     * مثلًا. {@code null} أو نص فاضي = من غير علامة.
+     * A watermark on every page in the colour {@code color} ({@code 0xRRGGBB}), transparent. For example red for
+     * «ملغاة» (cancelled) and green for «مدفوع» (paid). {@code null} or blank text = no watermark.
      *
      * <ul>
-     *   <li>كبيرة ومايلة على قطر الصفحة في نصها، <b>فوق كل حاجة وبشفافية</b>: بتترسم بعد محتوى الصفحة، فما
-     *       بتستخباش تحت خلفية رأس الجدول أو الإجمالي أو صندوق الملخص، والنص اللي تحتها بيفضل مقروء. سطر واحد
-     *       بخط المستند ({@link #font(PdfFont)})، والعربي متشكّل ومن اليمين لليسار.</li>
-     *   <li>بتصغر على قد الورقة: الكلمة الطويلة والورق الصغير بيصغّروا الخط لحد ما العلامة تكفي جوه الهوامش.</li>
-     *   <li>على الورق الحراري ({@link Paper#roll()}) العلامة بالعرض مش مايلة، ومتكررة على طول الإيصال (نسخة
-     *       لكل حوالي مرة ونص عرض اللفة؛ الإيصال القصير نسخة واحدة في نصه)، عشان أي جزء من الإيصال يبان فيه.</li>
-     *   <li>عتامتها 15%: على الورق الأبيض الأسود رمادي فاتح والأحمر وردي فاتح، فاتحة حتى لو اللون غامق، وحبرها
-     *       قليل حتى مع {@link PdfStyle#inkSaver()}.</li>
-     *   <li>مش محتوى: ما بتغيرش مكان أي جزء ولا طول الإيصال، والصفحة اللي فيها العلامة بس فاضية، فالفاصل
-     *       ({@link #pageBreak()}) ما بيسيبش صفحة عشانها. ومحطوطة {@code /Artifact}، فالقارئ اللي بيحترمها بيسيبها
-     *       في النسخ والبحث. وفي {@link PdfBatch} كل مستند بعلامته.</li>
+     *   <li>Large and slanted along the page diagonal, in the middle, <b>above everything and transparent</b>: it
+     *       is drawn after the page content, so it is not hidden under the background of the table header, the
+     *       totals or the summary box, and the text under it stays readable. One line in the document font
+     *       ({@link #font(PdfFont)}); Arabic is shaped and runs right to left.</li>
+     *   <li>It shrinks to fit the paper: a long word or small paper makes the font smaller until the watermark
+     *       fits inside the margins.</li>
+     *   <li>On thermal paper ({@link Paper#roll()}) the watermark is horizontal, not slanted, and repeats along
+     *       the receipt (one copy about every one and a half roll widths; a short receipt gets one copy in the
+     *       middle), so it shows on any part of the receipt.</li>
+     *   <li>Its opacity is 15%: on white paper black comes out light grey and red comes out light pink. It stays
+     *       light even with a dark colour, and uses little ink even with {@link PdfStyle#inkSaver()}.</li>
+     *   <li>It is not content: it does not move any part or change the receipt length, and a page that holds only
+     *       the watermark is empty, so a page break ({@link #pageBreak()}) does not leave a page for it. It is
+     *       marked {@code /Artifact}, so a reader that respects that leaves it out of copying and search. In a
+     *       {@link PdfBatch} each document has its own watermark.</li>
      * </ul>
      */
     public PdfDocument watermark(String text, int color) {
@@ -403,8 +433,9 @@ public final class PdfDocument {
     }
 
     /**
-     * خانات توقيع بالعرض: عنوان كل خانة («المستلم»، «المحاسب»، «الختم») وتحته مكان للتوقيع وخط.
-     * الخانة الأولى عند بداية السطر، والخانات بتفضل مع بعض في نفس الصفحة.
+     * Signature boxes side by side: each box has a label («المستلم» recipient, «المحاسب» accountant, «الختم»
+     * stamp) with space for the signature and a line under it. The first box is at the start of the line, and the
+     * boxes stay together on the same page.
      */
     public PdfDocument signatures(String... labels) {
         List<String> kept = new ArrayList<>();
@@ -420,32 +451,33 @@ public final class PdfDocument {
     }
 
     /**
-     * رمز QR في منتصف السطر، ضلعه 30 مم — رابط، رقم فاتورة، أو رمز فاتورة الزكاة والضريبة
-     * ({@link com.smart.report.util.ZatcaQr#payload}).
+     * A QR symbol in the middle of the line, 30 mm on each side: a link, an invoice number, or the ZATCA
+     * (Saudi Zakat, Tax and Customs Authority) invoice code ({@link com.smart.report.util.ZatcaQr#payload}).
      *
-     * @throws IllegalArgumentException لو النص فاضي أو أطول من اللي يشيله رمز QR
+     * @throws IllegalArgumentException if the text is blank or longer than a QR symbol can hold
      * @see #qrCode(String, float, Align)
      */
     public PdfDocument qrCode(String text) {
         return qrCode(text, DEFAULT_QR_MM, Align.CENTER);
     }
 
-    /** رمز QR ضلعه 30 مم، عند بداية السطر أو في منتصفه أو آخره حسب اتجاه المستند. */
+    /** A QR symbol 30 mm on each side, at the start, middle or end of the line, by the document direction. */
     public PdfDocument qrCode(String text, Align align) {
         return qrCode(text, DEFAULT_QR_MM, align);
     }
 
     /**
-     * رمز QR مرسوم مربعات متجهة (مش صورة)، فبيفضل حادًا على أي طابعة. حواليه منطقة فاضية بعرض 4
-     * مربعات زيادة على {@code sizeMm}، والقارئ بيحتاجها. الرمز ما بيتقسمش: لو ما كفّاهوش الباقي بيتنقل
-     * كله للصفحة الجاية، ولو أعرض من الصفحة (لفة 58 مم مثلًا) بيصغر لحد ما يكفي هو ومنطقته الفاضية.
+     * A QR symbol drawn as vector squares (not an image), so it stays sharp on any printer. Around it is a blank
+     * zone 4 modules wide, in addition to {@code sizeMm}, which the scanner needs. The symbol is never split: if
+     * the rest of the page has no room for it, it moves whole to the next page, and if it is wider than the page
+     * (a 58 mm roll, for example) it shrinks until it fits together with its blank zone.
      *
-     * @param text   النص اللي الرمز بيشيله؛ العربي بيتشفّر UTF-8
-     * @param sizeMm ضلع الرمز بالمليمتر، من غير المنطقة الفاضية
-     * @param align  {@link Align#START} عند بداية السطر (يمين في المستند العربي)، {@link Align#CENTER}، أو
-     *               {@link Align#END}
-     * @throws IllegalArgumentException لو النص فاضي أو أطول من اللي يشيله رمز QR (حوالي 2300 بايت)، أو
-     *                                  المقاس مش موجب
+     * @param text   the text the symbol holds; Arabic is encoded as UTF-8
+     * @param sizeMm the side of the symbol in millimetres, without the blank zone
+     * @param align  {@link Align#START} at the start of the line (the right side in an Arabic document),
+     *               {@link Align#CENTER}, or {@link Align#END}
+     * @throws IllegalArgumentException if the text is blank or longer than a QR symbol can hold (about 2300
+     *                                  bytes), or the size is not positive
      */
     public PdfDocument qrCode(String text, float sizeMm, Align align) {
         if (!(sizeMm > 0) || Float.isInfinite(sizeMm)) {
@@ -455,37 +487,40 @@ public final class PdfDocument {
     }
 
     /**
-     * باركود Code 128 في منتصف السطر، خطوطه بطول 12 مم وتحتها النص نفسه مكتوب — رقم شحنة، بوليصة،
-     * فاتورة، أو كود صنف.
+     * A Code 128 barcode in the middle of the line, with 12 mm bars and the text itself written under them: a
+     * shipment number, a waybill, an invoice, or an item code.
      *
-     * @throws IllegalArgumentException لو النص فاضي أو فيه حرف غير الإنجليزي والأرقام والعلامات
+     * @throws IllegalArgumentException if the text is blank or contains a character other than English letters,
+     *                                  digits and symbols
      * @see #barcode(String, float, Align)
      */
     public PdfDocument barcode(String text) {
         return barcode(text, DEFAULT_BARCODE_MM, Align.CENTER);
     }
 
-    /** باركود Code 128 خطوطه بطول 12 مم، عند بداية السطر أو في منتصفه أو آخره حسب اتجاه المستند. */
+    /** A Code 128 barcode with 12 mm bars, at the start, middle or end of the line, by the document direction. */
     public PdfDocument barcode(String text, Align align) {
         return barcode(text, DEFAULT_BARCODE_MM, align);
     }
 
     /**
-     * باركود Code 128 مرسوم خطوطًا متجهة (مش صورة)، وتحته النص مكتوب من الشمال لليمين حتى في المستند
-     * العربي، عشان اللي بيقراه بعينه يقراه زي ما هو. أضيق خط 0.33 مم، وحواليه من الجنبين منطقة فاضية
-     * بعرض 10 خطوط؛ لو ده أعرض من السطر (لفة 58 مم مثلًا) الخطوط بتضيق لحد ما يكفي. الباركود وسطره ما
-     * بيتقسموش على صفحتين.
+     * A Code 128 barcode drawn as vector bars (not an image), with the text written under it from left to right,
+     * even in an Arabic document, so a person reading it by eye reads it as it is. The narrowest bar is 0.33 mm,
+     * with a blank zone 10 bars wide on each side. If that is wider than the line (a 58 mm roll, for example), the
+     * bars get narrower until it fits. The barcode and its text line are never split across two pages.
      *
-     * <p>Code 128 بيشيل الإنجليزي والأرقام والعلامات بس، والرقم الطويل بيعرّض الباركود: النص اللي يحتاج
-     * خطوطًا أضيق من 0.25 مم عشان يكفي في السطر (أكتر من حوالي 15 حرف على لفة 58 مم) بيفشل وقت كتابة
-     * المستند بـ {@link com.smart.report.ReportException} بدل ما يطلع باركود ما بيتقريش.</p>
+     * <p>Code 128 holds only English letters, digits and symbols, and a long number makes the barcode wider. Text
+     * that would need bars narrower than 0.25 mm to fit the line (more than about 15 characters on a 58 mm roll)
+     * fails when the document is written, with a {@link com.smart.report.ReportException}, instead of producing a
+     * barcode that does not scan.</p>
      *
-     * @param text     النص اللي الباركود بيشيله
-     * @param heightMm طول الخطوط بالمليمتر، من غير السطر المكتوب تحتها
-     * @param align    {@link Align#START} عند بداية السطر (يمين في المستند العربي)، {@link Align#CENTER}، أو
-     *                 {@link Align#END}
-     * @throws IllegalArgumentException لو النص فاضي أو فيه حرف غير الإنجليزي والأرقام والعلامات (حرف عربي
-     *                                  مثلًا)، أو الطول مش موجب
+     * @param text     the text the barcode holds
+     * @param heightMm the height of the bars in millimetres, without the text line under them
+     * @param align    {@link Align#START} at the start of the line (the right side in an Arabic document),
+     *                 {@link Align#CENTER}, or {@link Align#END}
+     * @throws IllegalArgumentException if the text is blank or contains a character other than English letters,
+     *                                  digits and symbols (an Arabic letter, for example), or the height is not
+     *                                  positive
      */
     public PdfDocument barcode(String text, float heightMm, Align align) {
         if (!(heightMm > 0) || Float.isInfinite(heightMm)) {
@@ -496,10 +531,11 @@ public final class PdfDocument {
     }
 
     /**
-     * باركود EAN-13 في منتصف السطر، خطوطه بطول 15 مم وتحتها الـ 13 رقم: الباركود اللي على المنتجات.
+     * An EAN-13 barcode in the middle of the line, with 15 mm bars and the 13 digits under them: the barcode on
+     * products.
      *
-     * @param digits 12 رقم (خانة التحقق بتتحسب) أو 13 (خانتها بتتراجع)
-     * @throws IllegalArgumentException لو مش 12 أو 13 رقم، أو خانة التحقق غلط
+     * @param digits 12 digits (the check digit is calculated) or 13 (the check digit is verified)
+     * @throws IllegalArgumentException if not 12 or 13 digits, or the check digit is wrong
      * @see #ean13(String, float, Align)
      */
     public PdfDocument ean13(String digits) {
@@ -507,13 +543,15 @@ public final class PdfDocument {
     }
 
     /**
-     * باركود EAN-13 مرسوم خطوطًا متجهة: أضيق خط 0.33 مم (الحجم الأساسي)، والخطوط الحارسة أطول من الباقي، والأرقام
-     * تحتها زي المنتجات، وأول رقم في المنطقة الفاضية على الشمال. لو ما كفّاش السطر الخطوط بتضيق لحد 0.264 مم (80%
-     * من الحجم، أقل ما المواصفة بتسمح بيه)، وبعدها كتابة المستند بتفشل بـ {@link ReportException}. ومع
-     * {@link #printerDpi} كل خط عدد صحيح من نقط الطابعة.
+     * An EAN-13 barcode drawn as vector bars: the narrowest bar is 0.33 mm (the nominal size), the guard bars are
+     * longer than the rest, the digits are under the bars as on products, and the first digit is in the blank
+     * zone on the left. If it does not fit the line, the bars get narrower down to 0.264 mm (80% of the size, the
+     * smallest the specification allows), and after that writing the document fails with a
+     * {@link ReportException}. With {@link #printerDpi}, every bar is a whole number of printer dots.
      *
-     * @param heightMm طول الخطوط بالمليمتر، من غير الأرقام
-     * @throws IllegalArgumentException لو مش 12 أو 13 رقم، أو خانة التحقق غلط، أو الطول مش موجب
+     * @param heightMm the height of the bars in millimetres, without the digits
+     * @throws IllegalArgumentException if not 12 or 13 digits, or the check digit is wrong, or the height is not
+     *                                  positive
      */
     public PdfDocument ean13(String digits, float heightMm, Align align) {
         if (!(heightMm > 0) || Float.isInfinite(heightMm)) {
@@ -524,14 +562,16 @@ public final class PdfDocument {
     }
 
     /**
-     * صورة في جسم المستند: ختم، أو توقيع، أو صورة صنف. الطول بيتحسب من نسبة الصورة، والصورة ما بتتقسمش: لو
-     * ما كفّاهاش الباقي بتتنقل كلها للصفحة الجاية، ولو أعرض من السطر أو أطول من صفحة كاملة بتصغر بنفس نسبتها.
+     * An image in the document body: a stamp, a signature, or an item picture. The height is calculated from the
+     * image aspect ratio, and the image is never split: if the rest of the page has no room for it, it moves whole
+     * to the next page, and if it is wider than the line or taller than a full page, it shrinks, keeping its
+     * aspect ratio.
      *
-     * @param image   PNG أو JPEG (الشفافية في PNG بتفضل: الختم ما بيغطيش اللي تحته)
-     * @param widthMm العرض بالمليمتر
-     * @param align   {@link Align#START} عند بداية السطر (يمين في المستند العربي)، {@link Align#CENTER}، أو
-     *                {@link Align#END}
-     * @throws IllegalArgumentException لو مش صورة PNG أو JPEG تتقري، أو العرض مش موجب
+     * @param image   PNG or JPEG (PNG transparency is kept: a stamp does not cover what is under it)
+     * @param widthMm the width in millimetres
+     * @param align   {@link Align#START} at the start of the line (the right side in an Arabic document),
+     *                {@link Align#CENTER}, or {@link Align#END}
+     * @throws IllegalArgumentException if it is not a readable PNG or JPEG image, or the width is not positive
      */
     public PdfDocument image(byte[] image, float widthMm, Align align) {
         if (!(widthMm > 0) || Float.isInfinite(widthMm)) {
@@ -543,9 +583,9 @@ public final class PdfDocument {
     }
 
     /**
-     * صورة من ملف؛ زي {@link #image(byte[], float, Align)}.
+     * An image from a file; like {@link #image(byte[], float, Align)}.
      *
-     * @throws java.io.UncheckedIOException لو الملف ما اتقراش
+     * @throws java.io.UncheckedIOException if the file cannot be read
      */
     public PdfDocument image(java.nio.file.Path file, float widthMm, Align align) {
         try {
@@ -555,28 +595,28 @@ public final class PdfDocument {
         }
     }
 
-    /** شعار الجهة (PNG أو JPEG) بجانب الترويسة، في الجهة اللي الصفحة بتبدأ منها. */
+    /** The organisation logo (PNG or JPEG) next to the letterhead, on the side where the page starts. */
     public PdfDocument logo(byte[] image) {
         this.logo = image == null || image.length == 0 ? null : image.clone();
         return this;
     }
 
-    /** عنوان في منتصف الصفحة بخط عريض. */
+    /** A title in the middle of the page, in bold. */
     public PdfDocument title(String text) {
         return add(new TitleBlock(text));
     }
 
-    /** سطر تحت العنوان، في المنتصف بلون أهدأ — الفترة مثلًا. */
+    /** A line under the title, centred, in a softer colour; the period, for example. */
     public PdfDocument subtitle(String text) {
         return add(new SubtitleBlock(text));
     }
 
-    /** عنوان قسم بخط عريض عند بداية السطر — فوق جدول مثلًا. */
+    /** A section heading in bold at the start of the line; above a table, for example. */
     public PdfDocument heading(String text) {
         return add(new HeadingBlock(text));
     }
 
-    /** فقرة عند بداية السطر، بتلتف على عرض الصفحة. */
+    /** A paragraph at the start of the line, wrapped to the page width. */
     public PdfDocument text(String text) {
         return text(text, Align.START);
     }
@@ -585,14 +625,14 @@ public final class PdfDocument {
         return add(new TextBlock(text, align == null ? Align.START : align));
     }
 
-    /** مسافة رأسية بالنقطة. */
+    /** Vertical space in points. */
     public PdfDocument space(float points) {
         return add(new SpaceBlock(Math.max(0, points)));
     }
 
     /**
-     * بيان وقيمته ("رقم العربية: 1234"). البيانات المتتالية بتترص اثنين في السطر، الأول عند بداية
-     * السطر والتاني في نصف الصفحة.
+     * A label and its value ("رقم العربية: 1234"). Consecutive fields are laid out two per line, the first at the
+     * start of the line and the second at the middle of the page.
      */
     public PdfDocument field(String label, String value) {
         String[] field = {label == null ? "" : label, value == null ? "" : value};
@@ -610,24 +650,33 @@ public final class PdfDocument {
         return add(new TableBlock(Objects.requireNonNull(table, "table")));
     }
 
-    /** جدول بيتبني في مكانه: {@code table(t -> t.column(...).row(...))}. */
+    /** A table built in place: {@code table(t -> t.column(...).row(...))}. */
     public PdfDocument table(Consumer<PdfTable> build) {
         PdfTable table = PdfTable.create();
         build.accept(table);
         return table(table);
     }
 
-    /** سطر في الملخص: بيان عند بداية السطر وقيمته بجانبه. السطور المتتالية بتبقى صندوقًا واحدًا. */
+    /**
+     * A summary line: a label at the start of the line and its value next to it. Consecutive lines form one
+     * box.
+     */
     public PdfDocument summary(String label, String value) {
         return summaryLine(label, value, false);
     }
 
-    /** السطر اللي القارئ بيدوّر عليه (الباقى، الإجمالى): بخط أكبر وعريض على خلفية مميّزة. */
+    /**
+     * The line the reader is looking for («الباقى» balance due, «الإجمالى» total): larger bold text on a distinct
+     * background.
+     */
     public PdfDocument summaryTotal(String label, String value) {
         return summaryLine(label, value, true);
     }
 
-    /** سطر الإجمالي في الملخص، وقيمته بالأحمر لو سالبة: الرصيد الختامي في كشف الحساب. */
+    /**
+     * The total line of the summary, with its value in red if negative: the closing balance of an account
+     * statement.
+     */
     PdfDocument summaryTotalNegativeInRed(String label, String value) {
         return summaryLine(label, value, true, true);
     }
@@ -650,30 +699,34 @@ public final class PdfDocument {
     }
 
     /**
-     * الجزء اللي بعده يبدأ في صفحة جديدة — قسم لكل عربية، أو الملاحق بعد الكشف.
+     * The next part starts on a new page: a section per vehicle, or the appendices after the statement.
      *
      * <ul>
-     *   <li>الفاصل ما بيطلّعش صفحة فاضية أبدًا: لو الصفحة الحالية لسه مفيهاش حاجة تحت الترويسة (الفاصل
-     *       في أول المستند، أو فاصلين ورا بعض) ما بيعملش حاجة، والفاصل اللي مفيش بعده حاجة بتترسم (آخر
-     *       المستند، أو بعده مسافات ونص فاضي بس) ما بيسيبش صفحة، ولا صفحة فيها التذييل لوحده.</li>
-     *   <li>الصفحة الجديدة زي أي صفحة بيفتحها المحتوى الطويل: الترويسة في أعلاها لو
-     *       {@link #letterheadOnEveryPage(boolean)}، وترقيم الصفحات بيكمل («صفحة 2 من 3»).</li>
-     *   <li>بعد جدول كمل على كذا صفحة، الفاصل بييجي بعد آخر صف فيه (والإجمالي)، ورأس الجدول ما بيتكررش في
-     *       الصفحة الجديدة: الجدول خلص. عشان كل مجموعة صفوف تبدأ في صفحة، اعمل جدول لكل مجموعة وبينهم فاصل.</li>
-     *   <li>على الورق الحراري ({@link Paper#roll()}) الإيصال صفحة واحدة بطول المحتوى، فالفاصل
-     *       <b>ما بيعملش حاجة</b>: نفس المستند بيتبني لأي ورق من غير ما يفشل على اللفة، والإيصال زي ما هو من
-     *       غيره بالظبط (البيانات وسطور الملخص اللي حواليه بتفضل مع بعض). عشان كل إيصال يتقص لوحده، اطبعهم
-     *       {@link PdfBatch}.</li>
+     *   <li>A page break never produces an empty page. If the current page has nothing under the letterhead yet
+     *       (a break at the start of the document, or two breaks in a row), it does nothing. A break with nothing
+     *       drawn after it (the end of the document, or only spaces and blank text after it) leaves no page, and
+     *       no page that holds only the footer.</li>
+     *   <li>The new page is like any page that long content opens: the letterhead is at its top if
+     *       {@link #letterheadOnEveryPage(boolean)} is set, and the page numbering continues («صفحة 2 من 3»,
+     *       "page 2 of 3").</li>
+     *   <li>After a table that ran over several pages, the break comes after its last row (and the totals), and
+     *       the table header is not repeated on the new page: the table is finished. To start each group of rows
+     *       on its own page, make one table per group with a break between them.</li>
+     *   <li>On thermal paper ({@link Paper#roll()}) the receipt is one page as long as its content, so a break
+     *       <b>does nothing</b>. The same document builds for any paper without failing on the roll, and the
+     *       receipt is exactly the same as without the break (the fields and summary lines around it stay
+     *       together). To cut each receipt on its own, print them as a {@link PdfBatch}.</li>
      * </ul>
      *
-     * <p>كل قسم بترقيمه وترويسته (كشف لكل سواق في ملف واحد) ده {@link PdfBatch}، مش فاصل.</p>
+     * <p>Sections each with their own numbering and letterhead (a statement per driver in one file) are a
+     * {@link PdfBatch}, not a page break.</p>
      */
     public PdfDocument pageBreak() {
         // على اللفة ما بيتضافش خالص: لو اتضاف، البيانات وسطور الملخص اللي قبله وبعده كانت هتبقى صفين وصندوقين.
         return paper.roll() ? this : add(new PageBreakBlock());
     }
 
-    /** جملة ختامية صغيرة في منتصف الصفحة بعد آخر جزء. */
+    /** A small closing sentence in the middle of the page after the last part. */
     public PdfDocument footer(String text) {
         this.footer = text == null ? "" : text;
         return this;
@@ -705,7 +758,7 @@ public final class PdfDocument {
         return blocks;
     }
 
-    /** عنوان الملف (واسم مهمة الطباعة): نص أول {@link #title(String)} مش {@code null}. */
+    /** The file title (and the print job name): the text of the first non-{@code null} {@link #title(String)}. */
     String firstTitle() {
         for (Block block : blocks) {
             if (block instanceof TitleBlock title && title.text() != null) {
@@ -747,7 +800,7 @@ public final class PdfDocument {
         return watermark;
     }
 
-    /** نص سطر «طُبع في ... بواسطة ...»، أو {@code null} من غيره. */
+    /** The text of the «طُبع في ... بواسطة ...» ("printed on ... by ...") line, or {@code null} without one. */
     String printedLine() {
         if (printedOn == null && printedBy == null) {
             return null;
@@ -799,20 +852,20 @@ public final class PdfDocument {
         return watermarkColor;
     }
 
-    /** المستند كبايتات PDF. */
+    /** The document as PDF bytes. */
     public byte[] toBytes() throws ReportException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         writeTo(out);
         return out.toByteArray();
     }
 
-    /** يكتب المستند في {@code out} ولا يقفله. */
+    /** Writes the document to {@code out} and does not close it. */
     public void writeTo(OutputStream out) throws ReportException {
         Objects.requireNonNull(out, "out");
         PageWriter.write(this, font, failOnMissingGlyphs, out);
     }
 
-    /** يحفظ المستند في ملف، وينشئ المجلدات الناقصة في مساره. */
+    /** Saves the document to a file, and creates any missing folders in its path. */
     public void save(Path file) throws ReportException {
         Objects.requireNonNull(file, "file");
         byte[] bytes = toBytes();

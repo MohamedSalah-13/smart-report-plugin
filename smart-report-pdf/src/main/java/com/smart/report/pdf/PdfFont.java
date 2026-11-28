@@ -14,26 +14,29 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * خط مستند واحد (عادي وعريض) بدل الخط العام للبرنامج كله — فاتورة بخط الشركة وكشف بالخط المضمَّن
- * في نفس البرنامج. المستند اللي ما اتحدّدلوش خط بياخد الخط العام زي ما هو ({@link PdfFontResolver}:
- * {@code -Dsmart.report.pdf.font} أو Noto Naskh Arabic المضمَّن).
+ * The font of one document (regular and bold), used instead of the global font of the whole application. For
+ * example, an invoice in the company font and a statement in the bundled font, in the same application. A
+ * document with no font set uses the global font as is ({@link PdfFontResolver}:
+ * {@code -Dsmart.report.pdf.font} or the bundled Noto Naskh Arabic).
  *
  * <pre>{@code
  * PdfFont amiri = PdfFont.of(Path.of("fonts/Amiri-Regular.ttf"), Path.of("fonts/Amiri-Bold.ttf"));
  * PdfDocument.rtl(Paper.A4).font(amiri).title("فاتورة").save(Path.of("invoice.pdf"));
  * }</pre>
  *
- * <p><b>الملف:</b> خط TrueType ({@code .ttf}، أو {@code .otf} بحدود TrueType) مسموح بتضمينه. مجموعة الخطوط
- * ({@code .ttc}) و OpenType بحدود CFF (أغلب ملفات {@code .otf}) مش مدعومين في PDFBox، فبيترفضوا هنا برسالة
- * بدل ما يفشلوا وقت الطباعة. العربي بيترسم بصور الحروف الجاهزة (U+FB50–U+FDFF و U+FE70–U+FEFF)، فخط المستند
- * العربي لازم يكون فيه الصور دي — Noto Naskh Arabic و Amiri و Arial و Tahoma فيهم. خط من غيرها مقبول (لمستند
- * لاتيني مثلًا)، بس العربي فيه بيترسم من خط النظام وبيتسجّل تحذير في الـ log أول مرة.</p>
+ * <p><b>The file:</b> a TrueType font ({@code .ttf}, or {@code .otf} with TrueType outlines) that allows
+ * embedding. Font collections ({@code .ttc}) and OpenType with CFF outlines (most {@code .otf} files) are not
+ * supported by PDFBox, so they are rejected here with a message instead of failing at print time. Arabic is
+ * drawn with the ready-made letter forms (U+FB50–U+FDFF and U+FE70–U+FEFF), so the font of an Arabic document
+ * must contain those forms. Noto Naskh Arabic, Amiri, Arial and Tahoma have them. A font without them is
+ * accepted (for a Latin document, for example), but any Arabic in it is drawn from a system font and a
+ * warning is logged the first time.</p>
  *
- * <p>الحرف اللي مش في الخط بيتدوّر عليه في الخطوط الاحتياطية زي أي مستند (شوف
+ * <p>A character that is not in the font is looked up in the fallback fonts, as in any document (see
  * {@link PdfDocument#failOnMissingGlyphs(boolean)}).</p>
  *
- * <p>البايتات بتتقرا وتتفحص مرة واحدة وقت الإنشاء؛ الكائن ثابت وآمن للمشاركة بين المستندات والـ threads،
- * فاعمله مرة واحدة واستخدمه في كل مستند.</p>
+ * <p>The bytes are read and checked once, at creation. The object is immutable and safe to share between
+ * documents and threads, so create it once and use it in every document.</p>
  */
 public final class PdfFont {
 
@@ -45,16 +48,18 @@ public final class PdfFont {
         this.name = name;
     }
 
-    /** خط عادي من ملف؛ النص العريض بيترسم منه بتسميك مصطنع. */
+    /** A regular font from a file; bold text is drawn from it with synthetic emboldening. */
     public static PdfFont of(Path regular) throws ReportException {
         return of(regular, null);
     }
 
     /**
-     * خط عادي وعريض من ملفين.
+     * A regular and a bold font from two files.
      *
-     * @param bold {@code null} (أو نفس ملف العادي) معناه النص العريض بيترسم من العادي بتسميك مصطنع
-     * @throws ReportException لو ملف منهم ما اتقراش، أو مش خط TrueType ينفع يتضمّن في PDF
+     * @param bold {@code null} (or the same file as the regular one) means bold text is drawn from the regular
+     *             font with synthetic emboldening
+     * @throws ReportException if either file cannot be read, or is not a TrueType font that can be embedded in
+     *                         a PDF
      */
     public static PdfFont of(Path regular, Path bold) throws ReportException {
         Objects.requireNonNull(regular, "regular");
@@ -62,16 +67,19 @@ public final class PdfFont {
                 bold == null ? null : bold.toString());
     }
 
-    /** خط عادي من بايتاته — مورد على الـ classpath مثلًا؛ النص العريض بيترسم منه بتسميك مصطنع. */
+    /**
+     * A regular font from its bytes (a classpath resource, for example); bold text is drawn from it with
+     * synthetic emboldening.
+     */
     public static PdfFont of(byte[] regular) throws ReportException {
         return of(regular, null);
     }
 
     /**
-     * خط عادي وعريض من بايتاتهم. البايتات بتتنسخ، فتغييرها بعدين ما بيأثرش.
+     * A regular and a bold font from their bytes. The bytes are copied, so changing them later has no effect.
      *
-     * @param bold {@code null} معناه النص العريض بيترسم من العادي بتسميك مصطنع
-     * @throws ReportException لو البايتات مش خط TrueType ينفع يتضمّن في PDF
+     * @param bold {@code null} means bold text is drawn from the regular font with synthetic emboldening
+     * @throws ReportException if the bytes are not a TrueType font that can be embedded in a PDF
      */
     public static PdfFont of(byte[] regular, byte[] bold) throws ReportException {
         Objects.requireNonNull(regular, "regular");
@@ -98,7 +106,9 @@ public final class PdfFont {
         }
     }
 
-    /** يفحص إن البايتات خط PDFBox يقدر يضمّنه ويرسم بيه حروف Unicode، ويرجّع اسمه. */
+    /**
+     * Checks that the bytes are a font PDFBox can embed and draw Unicode characters with, and returns its name.
+     */
     private static String check(byte[] bytes, String source) throws ReportException {
         try (TrueTypeFont ttf = new TTFParser().parse(new RandomAccessReadBuffer(bytes));
              PDDocument probe = new PDDocument()) {
@@ -113,7 +123,7 @@ public final class PdfFont {
         }
     }
 
-    /** اسم الخط العادي زي ما هو مكتوب جوّه الملف (اسم PostScript) — {@code Amiri-Regular} مثلًا. */
+    /** The name of the regular font as written inside the file (its PostScript name), e.g. {@code Amiri-Regular}. */
     public String name() {
         return name;
     }

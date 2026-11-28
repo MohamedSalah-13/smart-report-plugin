@@ -3,7 +3,8 @@ package com.smart.report.pdf;
 import java.util.Objects;
 
 /**
- * سطر في فاتورة أو إيصال ({@link Invoice}): كل القيم نص جاهز منسّق بلغة البرنامج.
+ * A line in an invoice or receipt ({@link Invoice}). All values are ready-made text, formatted in the program's
+ * language.
  *
  * <pre>{@code
  * InvoiceLine.of("مسمار 10 مم", "12", "2.50", "30.00").withCode("NL-10").withUnit("علبة")
@@ -27,17 +28,17 @@ public final class InvoiceLine {
         this.unit = unit == null ? "" : unit;
     }
 
-    /** الصنف، والكمية، وسعر الوحدة، وإجمالي السطر. */
+    /** The item, the quantity, the unit price, and the line total. */
     public static InvoiceLine of(String name, String quantity, String price, String total) {
         return new InvoiceLine(name, quantity, price, total, null, null);
     }
 
-    /** كود الصنف: بيظهر في عمود لوحده في الشكل المفصّل. */
+    /** The item code: shown in its own column in the detailed layout. */
     public InvoiceLine withCode(String value) {
         return new InvoiceLine(name, quantity, price, total, value, unit);
     }
 
-    /** الوحدة (قطعة، كرتونة، كيلو). */
+    /** The unit (piece, carton, kilo). */
     public InvoiceLine withUnit(String value) {
         return new InvoiceLine(name, quantity, price, total, code, value);
     }

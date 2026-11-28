@@ -22,39 +22,43 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 
 /**
- * مقياس النص بتاع JasperReports نفسه، ومعاه حاجتين للنص اللي أول سطر فيه أطول من خانته: السطر العربي اللي قرّب
- * يدخل بيترسم، والنص اللي مش هيطلع منه حاجة بيتسجّل تحذير باسمه. {@link JasperReportProvider} بيستخدمه في كل
- * تعبئة، والبرنامج اللي بيعبّي بـ {@code JasperFillManager} بنفسه يقدر يستخدمه بالخاصية
+ * The JasperReports text measurer itself, with two additions for text whose first line is taller than its box:
+ * an Arabic line that almost fits is drawn, and text that would print nothing logs a warning that names it.
+ * {@link JasperReportProvider} uses it for every fill, and an application that fills with
+ * {@code JasperFillManager} itself can use it with the property
  * {@code net.sf.jasperreports.text.measurer.factory=com.smart.report.jasper.ArabicTextMeasurerFactory}.
  *
- * <p><b>ليه:</b> JasperReports بيطبع من النص السطور اللي ارتفاعها كله (leading + ascent + descent) جوّه الخانة بس،
- * والخانة اللي الخاصية {@code textAdjust} بتاعتها {@code CutText} (الافتراضي) ما بتكبرش. سطر Noto Naskh Arabic
- * حوالي 1.7 من حجم الخط (مكان للتشكيل)، وسطر الخط الافتراضي حوالي 1.2؛ فعنوان عربي 18 نقطة في خانة 30 نقطة
- * (محتاج 31) كان بيختفي كله من غير خطأ، والعنوان الإنجليزي في نفس الخانة سليم.</p>
+ * <p><b>Why:</b> JasperReports prints only the lines of text whose full height (leading + ascent + descent) fits
+ * inside the box, and a box whose {@code textAdjust} property is {@code CutText} (the default) does not grow. A
+ * Noto Naskh Arabic line is about 1.7 times the font size (room for diacritics), and a default-font line about
+ * 1.2; so an 18-point Arabic title in a 30-point box (it needs 31) disappeared entirely without an error, while an
+ * English title in the same box was fine.</p>
  *
- * <p><b>اللي بيتغيّر:</b> نص فيه حروف عربية، في خانة ما بتكبرش، ما دخلش منه ولا سطر، وأول سطر فيه طوله لحد
- * {@value #FIRST_LINE_ROOM} من مساحة الخانة: السطر ده بيترسم والخانة بتفضل بمقاسها. الـ baseline بيفضل جوّه الخانة
- * (سطر Noto: الـ ascent حوالي 0.63 منه)، وذيول الحروف اللي تحت السطر (ي، ج، ع) ممكن تعدّي حافة الخانة التحتانية
- * لو الخانة أقصر من حوالي 1.5 من حجم الخط. السطر ده بالظبط هو اللي كان هيترسم لو الخانة أطول، فالـ HTML و XLSX
- * بياخدوه زي الـ PDF.</p>
+ * <p><b>What changes:</b> text with Arabic letters, in a box that does not grow, of which no line fits, and whose
+ * first line is up to {@value #FIRST_LINE_ROOM} times the box's room: that line is drawn and the box keeps its
+ * size. The baseline stays inside the box (on a Noto line the ascent is about 0.63 of it), and the descenders
+ * below the line (ي، ج، ع) can pass the bottom edge of the box when the box is shorter than about 1.5 times the
+ * font size. This is exactly the line that would be drawn if the box were taller, so HTML and XLSX get it like the
+ * PDF.</p>
  *
- * <p><b>اللي ما بيتغيّرش:</b> أي نص دخل منه سطر واحد على الأقل (زي ما JasperReports بيقطعه بالظبط)، والنص اللي
- * مفيهوش عربي، والخانة اللي بتكبر ({@code StretchHeight}) لأن نصها بيكمّل في الصفحة اللي بعدها، والخانة اللي بتصغّر
- * الخط ({@code ScaleFont}) لأن JasperReports بيصغّره لحد ما يدخل. التقرير اللي مفيهوش عربي بيطلع زي ما كان بالظبط؛
- * الفرق الوحيد إن النص اللي بيضيع منه (أي لغة) بقى له تحذير في الـ log.</p>
+ * <p><b>What does not change:</b> any text of which at least one line fits (cut exactly as JasperReports cuts it),
+ * text with no Arabic, a box that grows ({@code StretchHeight}) because its text continues on the next page, and a
+ * box that shrinks the font ({@code ScaleFont}) because JasperReports shrinks it until it fits. A report with no
+ * Arabic comes out exactly as before; the only difference is that text that gets lost (in any language) now has a
+ * warning in the log.</p>
  */
 public final class ArabicTextMeasurerFactory extends AbstractTextMeasurerFactory {
 
     private static final Logger log = LoggerFactory.getLogger(ArabicTextMeasurerFactory.class);
 
     /**
-     * أول سطر عربي بيترسم لو طوله لحد المرات دي من مساحة الخانة: خانة على الأقل 1.14 من حجم الخط، وده أقل من
-     * اللي سطر الخط الافتراضي محتاجه (1.16 في Linux و 1.26 في Windows). يعني الخانة اللي بتشيل السطر اللاتيني
-     * بتشيل العربي كمان.
+     * A first Arabic line is drawn when its height is up to this many times the box's room: a box of at least 1.14
+     * times the font size, which is less than a default-font line needs (1.16 on Linux and 1.26 on Windows). So a
+     * box that holds the Latin line holds the Arabic one too.
      */
     static final float FIRST_LINE_ROOM = 1.5f;
 
-    /** JasperReports بيعمل المصنع بنفسه من اسمه. */
+    /** JasperReports creates the factory itself from its name. */
     public ArabicTextMeasurerFactory() {
     }
 
@@ -67,12 +71,12 @@ public final class ArabicTextMeasurerFactory extends AbstractTextMeasurerFactory
         return text.codePoints().anyMatch(ArabicFonts::isArabic);
     }
 
-    /** مقياس لكل عنصر نص في كل تعبئة: التحذير مرة واحدة للعنصر، مش مرة لكل صف. */
+    /** One measurer per text element per fill: the warning comes once per element, not once per row. */
     private static final class FirstLineMeasurer extends TextMeasurer {
 
         private boolean warned;
 
-        /** وقت قياس الإنقاذ: سطر واحد بس. */
+        /** During the rescue measurement: one line only. */
         private boolean firstLineOnly;
 
         FirstLineMeasurer(JasperReportsContext jasperReportsContext, JRCommonText textElement) {
@@ -80,10 +84,11 @@ public final class ArabicTextMeasurerFactory extends AbstractTextMeasurerFactory
         }
 
         /**
-         * في قياس الإنقاذ، أي سطر بعد أول سطر "ما بيدخلش"، زي خانة طولها على قد أول سطر بالظبط: JasperReports بيكمّل
-         * من هنا زي ما بيعمل مع أي نص اتقطع (لاحقة القطع {@code net.sf.jasperreports.text.truncate.suffix}، والقطع
-         * عند حرف، و {@code isParagraphCut} و {@code lineBreakOffsets})، فالنتيجة فيها أول سطر بس، بمكانه وارتفاعه.
-         * إعادة رسم أول سطر عشان اللاحقة بتبدأ من الحالة اللي قبله (ارتفاعها صفر)، فبتعدّي.
+         * In the rescue measurement, any line after the first "does not fit", as in a box exactly as tall as the
+         * first line: JasperReports goes on from here as it does with any cut text (the truncation suffix
+         * {@code net.sf.jasperreports.text.truncate.suffix}, cutting at a character, {@code isParagraphCut} and
+         * {@code lineBreakOffsets}), so the result holds only the first line, with its position and height.
+         * Redrawing the first line for the suffix starts from the state before it (height zero), so it passes.
          */
         @Override
         protected boolean renderNextLine(TextLineWrapper lineWrapper, List<Integer> tabIndexes,
@@ -145,7 +150,10 @@ public final class ArabicTextMeasurerFactory extends AbstractTextMeasurerFactory
             return textElement instanceof JRTextField field && field.getTextAdjust() == TextAdjustEnum.SCALE_FONT;
         }
 
-        /** العنصر زي ما مصمم القالب بيشوفه: التقرير، والتعبير أو النص، والمفتاح والمكان في الـ band. */
+        /**
+         * The element as the template designer sees it: the report, the expression or text, and the key and
+         * position in the band.
+         */
         private String describe() {
             StringBuilder out = new StringBuilder();
             if (textElement instanceof JRFillElement fillElement && fillElement.getFiller() != null) {
@@ -175,8 +183,9 @@ public final class ArabicTextMeasurerFactory extends AbstractTextMeasurerFactory
     }
 
     /**
-     * أول سطر بارتفاع الخانة: العنصر بيفضل بمقاسه في التصميم (ما بيكبرش ولا بيكبّر الـ band). الـ exporters بترسم
-     * السطر لو الـ baseline بتاعه جوّه الارتفاع ده، والسطر طوله لحد مرة ونص منه فالـ baseline جوّه.
+     * The first line at the box height: the element keeps its design size (it does not grow, and does not grow the
+     * band). The exporters draw the line when its baseline is within that height, and the line is at most one and
+     * a half times that height, so the baseline is inside.
      */
     private record InBox(JRMeasuredText line, float box) implements JRMeasuredText {
 

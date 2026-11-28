@@ -43,27 +43,29 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * يولّد تقارير من قوالب JasperReports (ملف .jrxml يُصرَّف وقت التشغيل، أو .jasper مُصرَّف مسبقًا)،
- * مع تعبئة البيانات من List&lt;POJO&gt; عبر JRBeanCollectionDataSource، وتصدير النتيجة للصيغة
- * المطلوبة عبر {@link JasperExportFormat} (PDF / XLSX / HTML / CSV).
+ * Generates reports from JasperReports templates (a .jrxml file compiled at run time, or a precompiled .jasper),
+ * fills them with data from a List&lt;POJO&gt; through JRBeanCollectionDataSource, and exports the result to the
+ * format requested through {@link JasperExportFormat} (PDF / XLSX / HTML / CSV).
  *
- * <p>مسار القالب ({@code ReportRequest#template()}) يُبحث عنه أولًا كملف على القرص، ثم كمورد
- * على الـ classpath (مناسب لتضمين القوالب داخل jar المشروع المستهلك تحت src/main/resources).</p>
+ * <p>The template path ({@code ReportRequest#template()}) is looked up first as a file on disk, then as a resource
+ * on the classpath (useful for shipping templates inside the consuming project's jar under
+ * src/main/resources).</p>
  *
- * <p><b>الكاش:</b> تصريف الـ .jrxml عملية غالية (بتعدّي على مصرّف جافا)، فالقالب المصرَّف
- * بيتخزّن ويُعاد استخدامه. قوالب القرص بيتعاد تصريفها لوحدها لو الملف اتعدّل، وقوالب الـ classpath
- * بتتصرّف مرة واحدة لأنها ما بتتغيّرش وقت التشغيل.</p>
+ * <p><b>Cache:</b> compiling a .jrxml is expensive (it goes through the Java compiler), so the compiled template is
+ * stored and reused. Templates on disk are recompiled automatically when the file changes, and classpath templates
+ * are compiled once, because they do not change at run time.</p>
  *
- * <p><b>العربي في PDF:</b> الوحدة بتسجّل Noto Naskh Arabic كـ font extension لـ JasperReports نفسه، مش هنا:
- * الحروف العربية في قالب ما بيسمّيش خطًا بتترسم بيه ({@link ArabicFonts})، والقالب يقدر يسمّي
- * "Noto Naskh Arabic" بنفسه. والتعبئة بتقيس النص بـ {@link ArabicTextMeasurerFactory}: السطر العربي اللي خانته
- * أقصر منه شوية بيترسم بدل ما يختفي، والنص اللي مش هيطلع منه حاجة بيتسجّل تحذير باسمه.</p>
+ * <p><b>Arabic in PDF:</b> the module registers Noto Naskh Arabic as a font extension of JasperReports itself, not
+ * here: Arabic letters in a template that names no font are drawn with it ({@link ArabicFonts}), and a template
+ * can name "Noto Naskh Arabic" itself. Filling measures text with {@link ArabicTextMeasurerFactory}: an Arabic line
+ * slightly taller than its box is drawn instead of disappearing, and text that would print nothing logs a warning
+ * that names it.</p>
  */
 public final class JasperReportProvider implements ReportProvider {
 
     private static final Logger log = LoggerFactory.getLogger(JasperReportProvider.class);
 
-    /** ختم زمني ثابت لقوالب الـ classpath: مش ممكن تتغيّر وإحنا شغالين. */
+    /** A fixed timestamp for classpath templates: they cannot change while the application runs. */
     private static final long CLASSPATH_STAMP = -1L;
 
     private static final Map<String, CachedTemplate> CACHE = new ConcurrentHashMap<>();
@@ -101,9 +103,10 @@ public final class JasperReportProvider implements ReportProvider {
     }
 
     /**
-     * سياق التعبئة: سياق JasperReports العام، ومقياس النص فيه {@link ArabicTextMeasurerFactory} لو البرنامج والقالب
-     * ما اختاروش مقياسًا بنفسهم (خاصية القالب أو العنصر بتغلب السياق). سياق واحد لكل التعبئات، عشان الكاش اللي
-     * JasperReports بيحطه في السياق يفضل؛ الخصائص التانية كلها بتتقري من السياق العام وقت التعبئة.
+     * The fill context: the global JasperReports context, with {@link ArabicTextMeasurerFactory} as its text
+     * measurer when neither the application nor the template chose a measurer (a template or element property
+     * overrides the context). One context for all fills, so the cache JasperReports keeps in the context survives;
+     * all other properties are read from the global context at fill time.
      */
     static JasperReportsContext fillContext() {
         JasperReportsContext global = DefaultJasperReportsContext.getInstance();
@@ -111,7 +114,7 @@ public final class JasperReportProvider implements ReportProvider {
         return chosen.getClass() == TextMeasurerFactory.class ? ARABIC_FIT : global;
     }
 
-    /** يفضّي الكاش؛ مفيد في الاختبارات ولو القوالب بتتبدّل وقت التشغيل. */
+    /** Empties the cache; useful in tests, and when templates are replaced at run time. */
     public static void clearTemplateCache() {
         CACHE.clear();
     }
@@ -139,9 +142,9 @@ public final class JasperReportProvider implements ReportProvider {
     }
 
     /**
-     * المسار كملف موجود على القرص، أو {@code null} لو مش موجود أو أصلًا مش اسم مسار صالح
-     * على النظام ده. أسماء موارد الـ classpath ممكن تحتوي محارف ممنوعة في مسارات ويندوز،
-     * فلازم نكمّل للبحث في الـ classpath بدل ما نرمي InvalidPathException.
+     * The path as an existing file on disk, or {@code null} when it does not exist or is not even a valid path on
+     * this system. Classpath resource names can contain characters that are not allowed in Windows paths, so the
+     * lookup must go on to the classpath instead of throwing InvalidPathException.
      */
     private static Path asExistingFile(String template) {
         try {
@@ -168,10 +171,10 @@ public final class JasperReportProvider implements ReportProvider {
     }
 
     /**
-     * تقرير Jasper البرنامج ملاه بنفسه كـ PDF، بالخطوط العربية بتاعة الوحدة دي: عشان يتعاين في {@code PdfPreview.ofPdf}
-     * أو يتطبع بـ {@code PdfPrinter}.
+     * Exports a Jasper report that the application filled itself to PDF, with this module's Arabic fonts, so it
+     * can be previewed in {@code PdfPreview.ofPdf} or printed with {@code PdfPrinter}.
      *
-     * @throws ReportException لو التصدير فشل
+     * @throws ReportException if the export fails
      */
     public static byte[] pdf(JasperPrint print) throws ReportException {
         java.util.Objects.requireNonNull(print, "print");

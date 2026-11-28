@@ -12,19 +12,19 @@ import java.util.Base64;
 import java.util.Objects;
 
 /**
- * نص رمز QR للفاتورة الضريبية المبسطة في السعودية (الفوترة الإلكترونية، هيئة الزكاة والضريبة والجمارك).
- * الرمز بيشيل قيمًا بترميز TLV، وبعدها Base64. المرحلة الأولى ({@link #payload}) خمس قيم:
+ * The QR code text for a Saudi simplified tax invoice (e-invoicing, Zakat, Tax and Customs Authority, ZATCA).
+ * The code holds TLV-encoded values, then Base64. Phase 1 ({@link #payload}) has five values:
  *
  * <ol>
- *     <li>اسم البائع</li>
- *     <li>الرقم الضريبي للبائع</li>
- *     <li>وقت إصدار الفاتورة (ISO 8601 بتوقيت UTC: {@code 2022-04-25T15:30:00Z})</li>
- *     <li>إجمالي الفاتورة شامل الضريبة</li>
- *     <li>إجمالي ضريبة القيمة المضافة</li>
+ *     <li>The seller name</li>
+ *     <li>The seller's VAT registration number</li>
+ *     <li>The invoice issue time (ISO 8601 in UTC: {@code 2022-04-25T15:30:00Z})</li>
+ *     <li>The invoice total including VAT</li>
+ *     <li>The VAT total</li>
  * </ol>
  *
- * <p>كل قيمة: رقمها في بايت، وطولها في بايت، وبعدين بايتاتها UTF-8. الطول بعدد البايتات مش الحروف:
- * الحرف العربي بايتين، فـ«شركة الهدى» طولها 19 مش 10.</p>
+ * <p>Each value is: its tag in one byte, its length in one byte, then its UTF-8 bytes. The length counts
+ * bytes, not characters: an Arabic letter is two bytes, so «شركة الهدى» has length 19, not 10.</p>
  *
  * <pre>{@code
  * String qr = ZatcaQr.payload("شركة الهدى", "310122393500003",
@@ -33,38 +33,39 @@ import java.util.Objects;
  * document.qrCode(qr);   // smart-report-pdf
  * }</pre>
  *
- * <p><b>المرحلة الثانية (الربط والتكامل)</b> ({@link #phase2}) بتزوّد أربع قيم من توقيع الفاتورة: البصمة،
- * والتوقيع، والمفتاح العام، وتوقيع الهيئة على الشهادة. الصنف ما بيوقّعش حاجة: القيم دي بتيجي من برنامج
- * التوقيع أو من SDK الهيئة. التفاصيل في {@link Phase2}.</p>
+ * <p><b>Phase 2 (integration)</b> ({@link #phase2}) adds four values from the invoice signature: the hash,
+ * the signature, the public key, and ZATCA's signature on the certificate. This class signs nothing: these
+ * values come from the signing software or from the ZATCA SDK. Details are in {@link Phase2}.</p>
  *
- * <p>المصادر: «E-invoicing Detailed Technical Guidelines» الإصدار 2 (نوفمبر 2022) القسم 6، و«Security Features
- * Implementation Standards» الإصدار 1.2 (2023-05-19) القسم 4.1، الاتنين من موقع الهيئة zatca.gov.sa.</p>
+ * <p>Sources: «E-invoicing Detailed Technical Guidelines» version 2 (November 2022) section 6, and «Security
+ * Features Implementation Standards» version 1.2 (2023-05-19) section 4.1, both from the ZATCA site
+ * zatca.gov.sa.</p>
  *
- * <p>الدوال الثابتة بلا حالة وآمنة بين الـ threads، والصنف ما بيحتاجش أي مكتبة.</p>
+ * <p>The static methods are stateless and thread-safe, and the class needs no library.</p>
  */
 public final class ZatcaQr {
 
     private static final DateTimeFormatter TIMESTAMP = DateTimeFormatter.ISO_INSTANT;
-    /** أقصى طول لقيمة: الطول بايت واحد. */
+    /** The maximum length of a value: the length is one byte. */
     private static final int MAX_VALUE_BYTES = 255;
-    /** أقصى طول لنص الرمز: «up to 700 characters» (Security Features Implementation Standards، 4.1). */
+    /** Maximum length of the code text: «up to 700 characters» (Security Features Implementation Standards, 4.1). */
     static final int MAX_PAYLOAD_CHARS = 700;
-    /** بصمة الفاتورة SHA-256. */
+    /** The SHA-256 invoice hash. */
     private static final int HASH_BYTES = 32;
 
     private ZatcaQr() {}
 
     /**
-     * رمز المرحلة الأولى: القيم الخمس.
+     * The phase 1 code: the five values.
      *
-     * @param sellerName   اسم البائع كما في السجل
-     * @param vatNumber    الرقم الضريبي: 15 رقمًا أوله وآخره 3
-     * @param timestamp    وقت إصدار الفاتورة؛ بيتكتب بتوقيت UTC لأقرب ثانية
-     * @param totalWithVat إجمالي الفاتورة شامل الضريبة؛ بيتكتب بخانتين عشريتين ({@code 1150.00})
-     * @param vatTotal     إجمالي الضريبة؛ بخانتين عشريتين
-     * @return نص الرمز: Base64 لترميز الـ TLV
-     * @throws IllegalArgumentException لو الاسم فاضي أو أطول من 255 بايت، أو الرقم الضريبي مش 15 رقمًا
-     *                                  أوله وآخره 3، أو مبلغ سالب
+     * @param sellerName   the seller name as registered
+     * @param vatNumber    the VAT registration number: 15 digits that begin and end with 3
+     * @param timestamp    the invoice issue time; written in UTC to the nearest second
+     * @param totalWithVat the invoice total including VAT; written with two decimal places ({@code 1150.00})
+     * @param vatTotal     the VAT total; with two decimal places
+     * @return the code text: Base64 of the TLV encoding
+     * @throws IllegalArgumentException if the name is blank or longer than 255 bytes, the VAT number is not 15
+     *                                  digits that begin and end with 3, or an amount is negative
      */
     public static String payload(String sellerName, String vatNumber, Instant timestamp,
                                  BigDecimal totalWithVat, BigDecimal vatTotal) {
@@ -73,22 +74,22 @@ public final class ZatcaQr {
     }
 
     /**
-     * رمز المرحلة الثانية لفاتورة ضريبية مبسطة (أو إشعار دائن أو مدين تابع لها): نفس القيم الخمس، وبعدها
-     * قيم التوقيع من {@link Phase2}.
+     * The phase 2 code for a simplified tax invoice (or a credit or debit note for one): the same five values,
+     * followed by the signature values from {@link Phase2}.
      *
      * <pre>{@code
      * String qr = ZatcaQr.phase2("شركة الهدى", "310122393500003", issued,
      *                 new BigDecimal("1150.00"), new BigDecimal("150.00"))
-     *         .invoiceHash(digestValue)          // ds:DigestValue من الفاتورة الموقّعة
+     *         .invoiceHash(digestValue)          // ds:DigestValue from the signed invoice
      *         .signature(signatureValue)         // ds:SignatureValue
-     *         .certificate(certificate)          // شهادة الجهاز (CSID): المفتاح العام وتوقيع الهيئة
+     *         .certificate(certificate)          // the device certificate (CSID): public key and ZATCA signature
      *         .payload();
      * }</pre>
      *
-     * <p>القيم دي لازم تطابق الفاتورة الـ XML الموقّعة: الاسم والرقم الضريبي والمبلغين ووقت الإصدار
-     * ({@code cbc:IssueDate} و{@code cbc:IssueTime}).</p>
+     * <p>These values must match the signed XML invoice: the name, the VAT number, the two amounts and the issue
+     * time ({@code cbc:IssueDate} and {@code cbc:IssueTime}).</p>
      *
-     * @throws IllegalArgumentException بنفس شروط {@link #payload}
+     * @throws IllegalArgumentException under the same conditions as {@link #payload}
      */
     public static Phase2 phase2(String sellerName, String vatNumber, Instant timestamp,
                                 BigDecimal totalWithVat, BigDecimal vatTotal) {
@@ -96,30 +97,32 @@ public final class ZatcaQr {
     }
 
     /**
-     * قيم التوقيع اللي بتتزوّد على رمز المرحلة الثانية، بالترتيب ده وبالشكل اللي في مثال دليل الهيئة
-     * (E-invoicing Detailed Technical Guidelines، القسم 6.2):
+     * The signature values added to the phase 2 code, in this order and in the form used in the ZATCA guide's
+     * example (E-invoicing Detailed Technical Guidelines, section 6.2):
      *
      * <table>
-     *     <caption>القيم من 6 لـ 9</caption>
-     *     <tr><th>رقم</th><th>القيمة</th><th>بتتكتب</th><th>مكانها في الفاتورة</th></tr>
-     *     <tr><td>6</td><td>بصمة الفاتورة (SHA-256)</td><td>نص Base64 كما هو (44 حرف)</td>
+     *     <caption>Values 6 to 9</caption>
+     *     <tr><th>Tag</th><th>Value</th><th>Written as</th><th>Where it is in the invoice</th></tr>
+     *     <tr><td>6</td><td>Invoice hash (SHA-256)</td><td>The Base64 text as is (44 characters)</td>
      *         <td>{@code ds:SignedInfo/ds:Reference/ds:DigestValue}</td></tr>
-     *     <tr><td>7</td><td>توقيع ECDSA على البصمة</td><td>نص Base64 كما هو</td>
+     *     <tr><td>7</td><td>ECDSA signature on the hash</td><td>The Base64 text as is</td>
      *         <td>{@code ds:SignatureValue}</td></tr>
-     *     <tr><td>8</td><td>المفتاح العام</td><td>بايتات DER (SubjectPublicKeyInfo)</td>
-     *         <td>من {@code ds:X509Certificate}</td></tr>
-     *     <tr><td>9</td><td>توقيع الهيئة على شهادة الختم</td><td>بايتات DER للتوقيع</td>
-     *         <td>من {@code ds:X509Certificate}</td></tr>
+     *     <tr><td>8</td><td>Public key</td><td>DER bytes (SubjectPublicKeyInfo)</td>
+     *         <td>From {@code ds:X509Certificate}</td></tr>
+     *     <tr><td>9</td><td>ZATCA's signature on the stamp certificate</td><td>DER bytes of the signature</td>
+     *         <td>From {@code ds:X509Certificate}</td></tr>
      * </table>
      *
-     * <p>معيار ملامح الأمان (الإصدار 1.2، القسم 4.1) بيوصف القيمة 6 بأنها الـ 32 بايت بتوع البصمة، لكن المثال
-     * المحلول في الدليل (بالـ hex وبالـ Base64) بيكتب نص الـ Base64 بطول 44، وده اللي بنعمله.</p>
+     * <p>The Security Features standard (version 1.2, section 4.1) describes value 6 as the 32 bytes of the hash,
+     * but the worked example in the guide (in hex and in Base64) writes the 44-character Base64 text, and that is
+     * what we do.</p>
      *
-     * <p>القيمة 9 للفاتورة المبسطة وإشعاراتها بس، فكل القيم الأربع مطلوبة هنا. الفاتورة الضريبية (B2B) الهيئة
-     * هي اللي بتختمها وبترجّع رمزها في الفاتورة المعتمدة (clearance)، فالبرنامج بيطبع الرمز ده كما هو.</p>
+     * <p>Value 9 applies only to the simplified invoice and its notes, so all four values are required here. A
+     * standard tax invoice (B2B) is stamped by ZATCA, which returns its code in the cleared invoice (clearance),
+     * so the program prints that code as is.</p>
      *
-     * <p>النص الناتج بحد أقصى 700 حرف («up to 700 characters»، معيار ملامح الأمان 4.1)؛ الاسم الطويل جدًا هو
-     * اللي بيعدّيه عادةً. الكائن ده بيتملا من thread واحد.</p>
+     * <p>The resulting text is at most 700 characters («up to 700 characters», Security Features standard 4.1);
+     * a very long seller name is what usually goes over it. Fill this object from a single thread.</p>
      */
     public static final class Phase2 {
 
@@ -134,9 +137,9 @@ public final class ZatcaQr {
         }
 
         /**
-         * القيمة 6: بصمة الفاتورة كما في {@code ds:DigestValue}، نص Base64 لـ SHA-256 (44 حرف).
+         * Value 6: the invoice hash as in {@code ds:DigestValue}, the Base64 text of a SHA-256 digest (44 characters).
          *
-         * @throws IllegalArgumentException لو مش Base64 لـ 32 بايت (البصمة بالـ hex مثلًا)
+         * @throws IllegalArgumentException if it is not Base64 of 32 bytes (for example, the hash in hex)
          */
         public Phase2 invoiceHash(String digestValue) {
             Objects.requireNonNull(digestValue, "digestValue");
@@ -150,9 +153,9 @@ public final class ZatcaQr {
         }
 
         /**
-         * القيمة 7: توقيع ECDSA كما في {@code ds:SignatureValue}، نص Base64.
+         * Value 7: the ECDSA signature as in {@code ds:SignatureValue}, as Base64 text.
          *
-         * @throws IllegalArgumentException لو مش Base64 لتوقيع DER
+         * @throws IllegalArgumentException if it is not Base64 of a DER signature
          */
         public Phase2 signature(String signatureValue) {
             Objects.requireNonNull(signatureValue, "signatureValue");
@@ -165,10 +168,10 @@ public final class ZatcaQr {
         }
 
         /**
-         * القيمة 8: المفتاح العام بترميز DER (SubjectPublicKeyInfo، اللي بيرجّعه
-         * {@code PublicKey.getEncoded()}؛ 88 بايت لمفتاح secp256k1).
+         * Value 8: the DER-encoded public key (SubjectPublicKeyInfo, as returned by
+         * {@code PublicKey.getEncoded()}; 88 bytes for a secp256k1 key).
          *
-         * @throws IllegalArgumentException لو البايتات مش DER
+         * @throws IllegalArgumentException if the bytes are not DER
          */
         public Phase2 publicKey(byte[] subjectPublicKeyInfo) {
             this.publicKey = der(subjectPublicKeyInfo, "public key");
@@ -176,10 +179,10 @@ public final class ZatcaQr {
         }
 
         /**
-         * القيمة 9: توقيع الجهة المُصدِرة (الهيئة) على شهادة الختم، بايتات DER زي ما بيرجّعها
+         * Value 9: the issuer's (ZATCA's) signature on the stamp certificate, as DER bytes as returned by
          * {@link X509Certificate#getSignature()}.
          *
-         * @throws IllegalArgumentException لو البايتات مش DER
+         * @throws IllegalArgumentException if the bytes are not DER
          */
         public Phase2 certificateSignature(byte[] signature) {
             this.certificateSignature = der(signature, "certificate signature");
@@ -187,7 +190,7 @@ public final class ZatcaQr {
         }
 
         /**
-         * القيمتين 8 و9 من شهادة الختم (CSID) اللي اتوقّعت بيها الفاتورة، وهي نفسها اللي في
+         * Values 8 and 9 from the stamp certificate (CSID) that signed the invoice, which is the same one as in
          * {@code ds:X509Certificate}.
          */
         public Phase2 certificate(X509Certificate certificate) {
@@ -197,9 +200,10 @@ public final class ZatcaQr {
         }
 
         /**
-         * @return نص الرمز: Base64 لقيم الـ TLV من 1 لـ 9
-         * @throws IllegalStateException    لو قيمة من الأربعة ناقصة
-         * @throws IllegalArgumentException لو قيمة أطول من 255 بايت أو النص أطول من 700 حرف
+         * @return the code text: Base64 of TLV values 1 to 9
+         * @throws IllegalStateException    if one of the four values is missing
+         * @throws IllegalArgumentException if a value is longer than 255 bytes or the text is longer than 700
+         *                                  characters
          */
         public String payload() {
             require(invoiceHash, "invoiceHash");
@@ -286,7 +290,7 @@ public final class ZatcaQr {
         return bytes.clone();
     }
 
-    /** بايتات DER لـ SEQUENCE واحد بطوله بالظبط: المفتاح والتوقيع الاتنين كده. */
+    /** DER bytes of exactly one SEQUENCE with its full length: both the key and the signature look like this. */
     private static boolean derSequence(byte[] der) {
         if (der.length < 2 || der[0] != 0x30) {
             return false;

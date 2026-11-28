@@ -17,68 +17,70 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * يولّد تقرير PDF جدولي عام (عنوان + رأس أعمدة + صفوف بيانات) من أي List من الكائنات + قائمة
- * ColumnDefinition، بدون أي قالب. الرسم نفسه شغل {@link PdfDocument}: الجدول في اتجاه القراءة،
- * النص الطويل بيلتف بدل ما يتقطع، ورأس الأعمدة بيتكرر في كل صفحة.
+ * Generates a generic tabular PDF report (title + column header + data rows) from any List of objects plus a list
+ * of ColumnDefinition, without any template. The drawing itself is done by {@link PdfDocument}: the table follows
+ * the reading direction, long text wraps instead of being cut, and the column header repeats on every page.
  *
- * <p><b>الاتجاه:</b> من اليمين لليسار لو العنوان أو أي رأس عمود فيه عربي، وإلا من اليسار لليمين —
- * إلا لو {@link #RIGHT_TO_LEFT} اتحدد في {@code parameters}.</p>
+ * <p><b>Direction:</b> right to left if the title or any column header contains Arabic, otherwise left to right,
+ * unless {@link #RIGHT_TO_LEFT} is set in {@code parameters}.</p>
  *
- * <p><b>القيم:</b> الأرقام بفواصل الآلاف والتواريخ بصيغة {@code yyyy-MM-dd} ({@link CellText})، وعمود
- * قيمه كلها أرقام بيتحاذى لنهاية السطر فالأرقام تيجي تحت بعض. خيارات كل عمود (نمط التنسيق، المحاذاة،
- * الوزن) في {@link ColumnDefinition} بتغلب الافتراضي؛ النمط اللي ما ينفعش مع قيمة بيرمي
- * {@link ReportException} باسم العمود.</p>
+ * <p><b>Values:</b> numbers get thousands separators and dates use {@code yyyy-MM-dd} ({@link CellText}). A column
+ * whose values are all numbers aligns to the end of the line, so the numbers line up under each other. The options
+ * of each column in {@link ColumnDefinition} (format pattern, alignment, weight) override the defaults; a pattern
+ * that does not fit a value throws a {@link ReportException} that names the column.</p>
  *
- * <p><b>الإجمالي:</b> لو في عمود متجمّع ({@link ColumnDefinition#withTotal()})، صف إجمالي تحت الجدول: كل
- * مجموع تحت عموده بنمط العمود، والكلمة ({@link Totals#label}) تحت أول عمود مش متجمّع. المجموع بالظبط
- * ({@link java.math.BigDecimal})، والقيمة اللي مش رقم في عمود متجمّع بترمي {@link ReportException} باسم
- * العمود ورقم الصف (شوف {@link Totals}). من غير بيانات، الإجمالي صفر.</p>
+ * <p><b>Total:</b> if a column is totalled ({@link ColumnDefinition#withTotal()}), a totals row goes under the
+ * table: each sum under its column in the column's pattern, and the label ({@link Totals#label}) under the first
+ * column that is not totalled. The sum is exact ({@link java.math.BigDecimal}). A value that is not a number in a
+ * totalled column throws a {@link ReportException} with the column name and the row number (see {@link Totals}).
+ * With no data, the total is zero.</p>
  *
- * <p><b>الإجمالي الفرعي:</b> مع {@link ReportRequest.Builder#groupBy}، صف إجمالي تحت كل مجموعة صفوف ورا بعض بنفس
- * القيمة، بنفس شكل صف الإجمالي وكلمته {@link Totals#subtotalLabel}؛ والإجمالي الكلي في الآخر زي ما هو. الإجمالي الفرعي
- * ما بينزلش لوحده في أول صفحة: آخر صف في مجموعته بيتنقل معاه.</p>
+ * <p><b>Subtotal:</b> with {@link ReportRequest.Builder#groupBy}, a totals row goes under each run of consecutive
+ * rows with the same value. It looks like the totals row and its label is {@link Totals#subtotalLabel}; the grand
+ * total stays at the end as before. A subtotal never lands alone at the top of a page: the last row of its group
+ * moves with it.</p>
  *
- * <p><b>الورق:</b> A4 طولي، إلا لو {@link #PAPER} اتحدد في {@code parameters} بكائن {@link Paper}
- * أو باسمه ({@code "A5"}، {@code "A4-landscape"}). ومع {@link #LANDSCAPE_FROM_COLUMNS} الورقة بتتقلب بالعرض لو عدد
- * الأعمدة وصل للرقم ده، فالتقرير اللي أعمدته كتير ما يتزنقش.</p>
+ * <p><b>Paper:</b> A4 portrait, unless {@link #PAPER} is set in {@code parameters} to a {@link Paper} object or its
+ * name ({@code "A5"}, {@code "A4-landscape"}). With {@link #LANDSCAPE_FROM_COLUMNS}, the paper turns to landscape
+ * when the number of columns reaches that number, so a report with many columns is not squeezed.</p>
  *
- * <p><b>الخط:</b> الخط العام ({@link PdfFontResolver})، إلا لو {@link #FONT} اتحدد بكائن {@link PdfFont}؛
- * و {@link #FAIL_ON_MISSING_GLYPHS} بيخلّي الحرف اللي مش في أي خط يرمي {@link ReportException} بدل
- * {@code ?}.</p>
+ * <p><b>Font:</b> the global font ({@link PdfFontResolver}), unless {@link #FONT} is set to a {@link PdfFont}
+ * object. {@link #FAIL_ON_MISSING_GLYPHS} makes a character that is in no font throw a {@link ReportException}
+ * instead of printing {@code ?}.</p>
  *
- * <p>لمستند فيه أكتر من جدول أو ترويسة أو ملخص استخدم {@link PdfDocument} مباشرة؛ وللتقارير ذات
- * التصميم المخصّص بصريًا استخدم وحدة smart-report-jasper.</p>
+ * <p>For a document with more than one table, a letterhead or a summary, use {@link PdfDocument} directly. For
+ * reports with a custom visual design, use the smart-report-jasper module.</p>
  */
 public final class PdfReportProvider implements ReportProvider {
 
-    /** مفتاح في {@code ReportRequest.parameters()}: {@link Paper} أو اسمه. */
+    /** Key in {@code ReportRequest.parameters()}: a {@link Paper} or its name. */
     public static final String PAPER = "smart.report.pdf.paper";
     /**
-     * مفتاح في {@code ReportRequest.parameters()}: عدد أعمدة ({@code Integer}، أو نصه)، لو التقرير فيه العدد ده
-     * أو أكتر الورقة ({@link #PAPER} أو A4) بتتقلب بالعرض ({@link Paper#landscape()}). أقل منه الورقة زي ما هي،
-     * واللفة الحرارية ما بتتقلبش.
+     * Key in {@code ReportRequest.parameters()}: a number of columns ({@code Integer}, or its text). If the report
+     * has that many columns or more, the paper ({@link #PAPER} or A4) turns to landscape
+     * ({@link Paper#landscape()}). Below that, the paper stays as it is, and a thermal roll never turns.
      */
     public static final String LANDSCAPE_FROM_COLUMNS = "smart.report.pdf.landscapeFromColumns";
-    /** مفتاح في {@code ReportRequest.parameters()}: {@code Boolean} يحسم اتجاه التقرير. */
+    /** Key in {@code ReportRequest.parameters()}: a {@code Boolean} that fixes the report direction. */
     public static final String RIGHT_TO_LEFT = "smart.report.pdf.rightToLeft";
     /**
-     * مفتاح في {@code ReportRequest.parameters()}: {@link PdfFont} للتقرير ده بدل الخط العام
+     * Key in {@code ReportRequest.parameters()}: a {@link PdfFont} for this report instead of the global font
      * ({@link PdfDocument#font(PdfFont)}).
      */
     public static final String FONT = "smart.report.pdf.documentFont";
     /**
-     * مفتاح في {@code ReportRequest.parameters()}: {@code Boolean.TRUE} = حرف مش في أي خط بيرمي
-     * {@link ReportException} بدل ما يتطبع {@code ?} ({@link PdfDocument#failOnMissingGlyphs(boolean)}).
+     * Key in {@code ReportRequest.parameters()}: {@code Boolean.TRUE} = a character that is in no font throws a
+     * {@link ReportException} instead of printing as {@code ?} ({@link PdfDocument#failOnMissingGlyphs(boolean)}).
      */
     public static final String FAIL_ON_MISSING_GLYPHS = "smart.report.pdf.failOnMissingGlyphs";
     /**
-     * مفتاح في {@code ReportRequest.parameters()}: {@code Boolean.TRUE} = المبالغ السالبة بالأحمر في كل الأعمدة
-     * ({@link PdfTable#negativeInRed}): كشف حساب برصيد دائن مثلًا.
+     * Key in {@code ReportRequest.parameters()}: {@code Boolean.TRUE} = negative amounts in red in all columns
+     * ({@link PdfTable#negativeInRed}), for example an account statement with a credit balance.
      */
     public static final String NEGATIVE_IN_RED = "smart.report.pdf.negativeInRed";
     /**
-     * مفتاح في {@code ReportRequest.parameters()}: {@code Boolean.TRUE} = كل الأرقام بالأرقام العربية ({@code ١٢٣})،
-     * زي {@link PdfDocument#arabicIndicDigits}.
+     * Key in {@code ReportRequest.parameters()}: {@code Boolean.TRUE} = all numbers in Arabic-Indic digits
+     * ({@code ١٢٣}), as in {@link PdfDocument#arabicIndicDigits}.
      */
     public static final String ARABIC_INDIC_DIGITS = "smart.report.pdf.arabicIndicDigits";
 
@@ -194,7 +196,7 @@ public final class PdfReportProvider implements ReportProvider {
         return document.table(table).toBytes();
     }
 
-    /** جدول بأعمدة التقرير ومحاذاتها، من غير صفوف. */
+    /** A table with the report's columns and their alignment, without rows. */
     private static PdfTable table(List<ColumnDefinition> columns, boolean[] numeric, boolean[] other,
                                   boolean negativeInRed) {
         PdfTable table = PdfTable.create();
@@ -211,7 +213,10 @@ public final class PdfReportProvider implements ReportProvider {
         return table;
     }
 
-    /** مجموعة صفوف ورا بعض بنفس القيمة ({@link ReportRequest#groupBy()}): أول صف فيها ومجموع كل عمود. */
+    /**
+     * A run of consecutive rows with the same value ({@link ReportRequest#groupBy()}): its first row and the sum of
+     * each column.
+     */
     private record Group(Object value, int first, BigDecimal[] sums) {
 
         Group(Object value, int first, int columns) {
@@ -225,7 +230,10 @@ public final class PdfReportProvider implements ReportProvider {
         }
     }
 
-    /** قيمة المجموعة زي ما بتظهر في عمودها لو هي عمود في التقرير (بنمطه)، وإلا بالتنسيق الافتراضي. */
+    /**
+     * The group value as it appears in its column if it is a column of the report (in that column's pattern),
+     * otherwise in the default format.
+     */
     private static String groupText(ReportRequest<?> request, Object value, CellText text) throws ReportException {
         int at = Totals.groupColumn(request);
         if (at < 0) {
@@ -239,7 +247,10 @@ public final class PdfReportProvider implements ReportProvider {
         }
     }
 
-    /** خلايا صف إجمالي (كلي أو فرعي): كل مجموع بنمط عموده، والكلمة تحت أول عمود مش متجمّع. */
+    /**
+     * The cells of a totals row (grand total or subtotal): each sum in its column's pattern, and the label under
+     * the first column that is not totalled.
+     */
     private static String[] totals(ReportRequest<?> request, BigDecimal[] sums, String label, CellText text)
             throws ReportException {
         List<ColumnDefinition> columns = request.columns();
@@ -269,7 +280,7 @@ public final class PdfReportProvider implements ReportProvider {
         };
     }
 
-    /** {@code Boolean.TRUE} أو النص {@code "true"} — قيمة جاية من ملف إعدادات مثلًا. */
+    /** {@code Boolean.TRUE} or the text {@code "true"}, for example a value that comes from a settings file. */
     private static boolean isTrue(Object value) {
         return Boolean.TRUE.equals(value) || value instanceof String text && Boolean.parseBoolean(text.trim());
     }
@@ -313,8 +324,8 @@ public final class PdfReportProvider implements ReportProvider {
     }
 
     /**
-     * قيمة من البيانات في سطر واحد: أي سطر جديد أو tab جوّه القيمة بيبقى مسافة، فالصف الواحد من
-     * البيانات يفضل صفًا واحدًا — والخلية بتلتف على عرض عمودها زي أي نص طويل.
+     * A data value on one line: any newline or tab inside the value becomes a space, so one data row stays one
+     * row. The cell still wraps to its column width like any long text.
      */
     private static String singleLine(String raw) {
         if (raw == null || raw.isEmpty()) {

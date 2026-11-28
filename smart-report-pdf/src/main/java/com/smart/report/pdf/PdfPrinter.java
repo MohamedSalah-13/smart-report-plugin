@@ -32,21 +32,21 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * يبعت PDF جاهزًا لطابعة باسمها، من غير نافذة حفظ ولا نافذة طباعة: البرنامج هو اللي بيختار
- * الطابعة (من {@link #printerNames()}) والمقاس وعدد النسخ.
+ * Sends a finished PDF to a printer by name, with no save dialog and no print dialog: the program picks the
+ * printer (from {@link #printerNames()}), the paper size and the number of copies.
  *
- * <p>الصفحات بتتبعت بحجمها الفعلي، والطابعة بتتطلب منها ورقة المستند (A4 أو A5)، فاللي بيتطبع هو
- * اللي اترسم. الطباعة بتاخد وقتها؛ نادِها من thread غير thread الواجهة.</p>
+ * <p>Pages are sent at their actual size, and the printer is asked for the document's paper (A4 or A5), so what
+ * prints is what was drawn. Printing takes time; call it from a thread other than the UI thread.</p>
  */
 public final class PdfPrinter {
 
-    /** أكتر من كده نسخ من مستند واحد غلطة كتابة، مش طلبية طباعة. */
+    /** More copies than this of one document is a typing mistake, not a print order. */
     public static final int MAX_COPIES = 99;
 
     private PdfPrinter() {
     }
 
-    /** الطابعات المعرّفة على الجهاز، بالاسم اللي {@code print} بياخده — بتتسأل من النظام كل مرة. */
+    /** The printers installed on this computer, by the name {@code print} takes. The system is asked every time. */
     public static List<String> printerNames() {
         return Arrays.stream(PrintServiceLookup.lookupPrintServices(null, null))
                 .map(PrintService::getName)
@@ -54,46 +54,47 @@ public final class PdfPrinter {
                 .toList();
     }
 
-    /** الطابعة الافتراضية في النظام، لو فيه. */
+    /** The system's default printer, if there is one. */
     public static Optional<String> defaultPrinter() {
         PrintService service = PrintServiceLookup.lookupDefaultPrintService();
         return service == null ? Optional.empty() : Optional.of(service.getName());
     }
 
-    /** يبني المستند ويطبعه على ورقته. */
+    /** Builds the document and prints it on its paper. */
     public static void print(PdfDocument document, String printerName, int copies) throws ReportException {
         Objects.requireNonNull(document, "document");
         print(document.toBytes(), printerName, document.paper(), copies);
     }
 
     /**
-     * يبني مستندات الدفعة ويبعتها للطابعة مهمة واحدة على ورقتها: النسخ بتطلع مجموعات كاملة (الدفعة كلها،
-     * وبعدها الدفعة كلها تاني)، مش كل صفحة مكررة ورا بعضها.
+     * Builds the documents of the batch and sends them to the printer as one job on their paper. Copies come out
+     * as complete sets (the whole batch, then the whole batch again), not each page repeated in a row.
      *
-     * @throws ReportException لو المستندات مش على نفس الورقة ({@link PdfBatch})، أو الطابعة مش موجودة أو
-     *                         رفضت المهمة
+     * @throws ReportException if the documents are not on the same paper ({@link PdfBatch}), or the printer is not
+     *                         found or rejects the job
      */
     public static void print(PdfBatch batch, String printerName, int copies) throws ReportException {
         Objects.requireNonNull(batch, "batch");
         print(batch.toBytes(), printerName, batch.paper(), copies);
     }
 
-    /** يبني المستند ويطبعه على ورقته بالطلبات دي (نسخ، ومدى صفحات، ووجهين). */
+    /** Builds the document and prints it on its paper with these options (copies, page range, duplex). */
     public static void print(PdfDocument document, String printerName, PrintOptions options) throws ReportException {
         Objects.requireNonNull(document, "document");
         print(document.toBytes(), printerName, document.paper(), options);
     }
 
-    /** يبني الدفعة ويطبعها مهمة واحدة بالطلبات دي؛ مدى الصفحات على صفحات الدفعة كلها. */
+    /** Builds the batch and prints it as one job with these options; the page range counts the whole batch's pages. */
     public static void print(PdfBatch batch, String printerName, PrintOptions options) throws ReportException {
         Objects.requireNonNull(batch, "batch");
         print(batch.toBytes(), printerName, batch.paper(), options);
     }
 
     /**
-     * زي {@link #print(byte[], String, Paper, int)} بطلبات المهمة كلها.
+     * Like {@link #print(byte[], String, Paper, int)}, with all the job options.
      *
-     * @throws ReportException لو أول صفحة في المدى بعد آخر صفحة في المستند، أو الطابعة مش موجودة أو رفضت المهمة
+     * @throws ReportException if the first page of the range is after the document's last page, or the printer is
+     *                         not found or rejects the job
      */
     public static void print(byte[] pdf, String printerName, Paper paper, PrintOptions options) throws ReportException {
         Objects.requireNonNull(pdf, "pdf");
@@ -101,7 +102,7 @@ public final class PdfPrinter {
         printOn(find(printerName), pdf, paper, options);
     }
 
-    /** يطبع ملف PDF موجودًا. */
+    /** Prints an existing PDF file. */
     public static void print(Path file, String printerName, Paper paper, int copies) throws ReportException {
         Objects.requireNonNull(file, "file");
         try {
@@ -112,18 +113,18 @@ public final class PdfPrinter {
     }
 
     /**
-     * @param printerName اسم الطابعة كما في {@link #printerNames()}؛ {@code null} أو فاضي = الافتراضية
-     * @param paper       الورقة المطلوبة من الطابعة؛ {@code null} = الطابعة تختار
-     * @param copies      عدد النسخ من المستند كله، بين 1 و{@link #MAX_COPIES}؛ المستند اللي أكتر من صفحة
-     *                    بيطلع نسخًا كاملة مرتبة (1، 2، 3، 1، 2، 3)
-     * @throws ReportException لو الطابعة مش موجودة على الجهاز، أو رفضت المهمة، أو الملف مش PDF
+     * @param printerName the printer name as in {@link #printerNames()}; {@code null} or blank = the default printer
+     * @param paper       the paper to ask the printer for; {@code null} = the printer chooses
+     * @param copies      the number of copies of the whole document, between 1 and {@link #MAX_COPIES}; a document
+     *                    of more than one page comes out as complete, collated copies (1, 2, 3, 1, 2, 3)
+     * @throws ReportException if the printer is not on this computer, rejects the job, or the file is not a PDF
      */
     public static void print(byte[] pdf, String printerName, Paper paper, int copies) throws ReportException {
         Objects.requireNonNull(pdf, "pdf");
         printOn(find(printerName), pdf, paper, copies);
     }
 
-    /** يطبع على خدمة طباعة بعينها؛ الاختبارات بتديها خدمة بتكتب في stream بدل طابعة من النظام. */
+    /** Prints on a given print service; tests pass a service that writes to a stream instead of a system printer. */
     static void printOn(PrintService printer, byte[] pdf, Paper paper, int copies) throws ReportException {
         printOn(printer, pdf, paper, PrintOptions.copies(Math.clamp(copies, 1, MAX_COPIES)));
     }
@@ -179,29 +180,30 @@ public final class PdfPrinter {
         }
     }
 
-    /** سن درج النقدية في الطابعة: أغلب الأدراج على السن 2. */
+    /** The cash drawer pin on the printer: most drawers are on pin 2. */
     public enum DrawerPin {
         PIN_2, PIN_5
     }
 
-    /** يفتح درج النقدية المتوصل بالطابعة: السن 2، ونبضة 100 ملّي ثانية. */
+    /** Opens the cash drawer connected to the printer: pin 2, with a 100 ms pulse. */
     public static void openCashDrawer(String printerName) throws ReportException {
         openCashDrawer(printerName, DrawerPin.PIN_2, 100);
     }
 
     /**
-     * يفتح درج النقدية المتوصل بطابعة الإيصالات: أمر ESC/POS {@code ESC p} كبايتات خام، من غير PDF.
+     * Opens the cash drawer connected to the receipt printer: sends the ESC/POS command {@code ESC p} as raw bytes,
+     * without a PDF.
      *
-     * @param pin     السن اللي الدرج عليه
-     * @param pulseMs طول النبضة بالملّي ثانية، من 2 لـ 510 (أغلب الأدراج 50 لـ 200)
-     * @throws ReportException لو الطابعة مش موجودة، أو الدرايفر بتاعها ما بياخدش بايتات خام (طابعة PDF أو طابعة
-     *                         مكتب)، أو رفضت المهمة
+     * @param pin     the pin the drawer is on
+     * @param pulseMs the pulse length in milliseconds, from 2 to 510 (most drawers take 50 to 200)
+     * @throws ReportException if the printer is not found, its driver does not take raw bytes (a PDF printer or an
+     *                         office printer), or it rejects the job
      */
     public static void openCashDrawer(String printerName, DrawerPin pin, int pulseMs) throws ReportException {
         sendRaw(find(printerName), drawerPulse(pin, pulseMs));
     }
 
-    /** {@code ESC p m t1 t2}: السن، ومدة النبضة ومدة الراحة بوحدات 2 ملّي ثانية. */
+    /** {@code ESC p m t1 t2}: the pin, then the pulse time and the rest time in units of 2 ms. */
     static byte[] drawerPulse(DrawerPin pin, int pulseMs) {
         Objects.requireNonNull(pin, "pin");
         if (pulseMs < 2 || pulseMs > 510) {
@@ -228,10 +230,11 @@ public final class PdfPrinter {
     }
 
     /**
-     * هل الطابعة بتقول إنها بتطبع على الورقة دي؟ عشان شاشة الإعدادات تنبّه قبل أول طباعة. اللفة الحرارية {@code true}
-     * (ما بيتطلبش لها مقاس)، وكمان لو الطابعة ما بتعلنش أي مقاسات (ما نقدرش نعرف).
+     * Does the printer say it prints on this paper? Lets a settings screen warn before the first print. A thermal
+     * roll gives {@code true} (no size is requested for it), and so does a printer that declares no sizes at all
+     * (there is no way to know).
      *
-     * @throws ReportException لو الطابعة مش موجودة
+     * @throws ReportException if the printer is not found
      */
     public static boolean declaresPaper(String printerName, Paper paper) throws ReportException {
         Objects.requireNonNull(paper, "paper");
@@ -277,7 +280,7 @@ public final class PdfPrinter {
                 + " Available printers: " + printerNames());
     }
 
-    /** اسم الورقة عند الطابعة: A4 و A5 باسميهما، وأي مقاس تاني بأقرب مقاس تعرفه Java. */
+    /** The paper name for the printer: A4 and A5 by their own names, any other size by the nearest size Java knows. */
     static MediaSizeName media(Paper paper) {
         // اللفة الحرارية مالهاش مقاس في Java: الطابعة بتستخدم لفتها، والصفحة بتتبعت بطولها الفعلي.
         if (paper == null || paper.roll()) {
