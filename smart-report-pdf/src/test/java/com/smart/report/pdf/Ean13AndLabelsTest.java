@@ -274,4 +274,30 @@ class Ean13AndLabelsTest {
         assertThrows(ReportException.class, () -> PdfLabels.roll(40, 10)
                 .add(pepsi()).toBytes(), "الاسم والسعر ما سابوش مكان للخطوط");
     }
+
+    /**
+     * A 40 mm label at 203 dpi: 0.264 mm is not a whole number of dots, so the bars go down to two dots (0.25 mm)
+     * rather than up to three, which needed 42.4 mm. Found by the hardware check (#42).
+     */
+    @Test
+    void anEan13FitsA40mmLabelAt203Dpi() throws Exception {
+        byte[] pdf = PdfLabels.roll(40, 25).printerDpi(203).rightToLeft(false).add(pepsi()).toBytes();
+        BufferedImage page = render(pdf, 0, 203);
+        List<Integer> best = List.of();
+        for (int y = 0; y < page.getHeight(); y++) {
+            List<Integer> runs = runs(page, y);
+            if (runs.size() == 59) {
+                best = runs;
+                break;
+            }
+        }
+        assertEquals(59, best.size(), "a row through the 30 bars and 29 spaces");
+        assertEquals(2, best.stream().mapToInt(Integer::intValue).min().orElseThrow());
+        for (int run : best) {
+            assertEquals(0, run % 2, best.toString());
+        }
+        assertEquals("4006381333931", ean(page).getText());
+        // In a document the natural three dots still win when they fit.
+        assertTrue(PdfDocument.ltr(Paper.ROLL_80).printerDpi(203).ean13("4006381333931").toBytes().length > 0);
+    }
 }

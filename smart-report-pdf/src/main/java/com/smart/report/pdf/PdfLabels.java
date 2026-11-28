@@ -435,7 +435,7 @@ public final class PdfLabels {
             if (Ean13Symbol.valid(item.code())) {
                 Ean13Symbol symbol = Ean13Symbol.encode(item.code());
                 int span = Ean13Symbol.QUIET_LEFT + Ean13Symbol.MODULES + Ean13Symbol.QUIET_RIGHT;
-                float module = SymbolParts.fitModule(span, SymbolParts.EAN_MODULE, SymbolParts.MIN_EAN_MODULE, inner,
+                float module = SymbolParts.fitModule(span, SymbolParts.EAN_MODULE, SymbolParts.minEanModule(dot), inner,
                         dot, printerDpi, "The label barcode " + item.code() + " (" + item.name() + ")");
                 SymbolParts.EanDigits digits = showDigits ? SymbolParts.EanDigits.of(text, symbol,
                         SymbolParts.eanDigitSize(text, module, nameSize)) : null;
