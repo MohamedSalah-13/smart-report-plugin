@@ -42,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -114,6 +115,74 @@ class PrintToStreamTest {
             assertEquals(width, sheet[0], 0.01f, "sheet width");
             assertEquals(height, sheet[1], 0.01f, "sheet height");
         }
+    }
+
+    private static Sent print(byte[] pdf, Paper paper, PrintOptions options) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        RecordingService service = new RecordingService(out);
+        PdfPrinter.printOn(service, pdf, paper, options);
+        assertNotNull(service.doc, "the job never reached the print service");
+        return new Sent(service.jobs, service.attributes, (Pageable) service.doc.getPrintData(),
+                out.toString(StandardCharsets.ISO_8859_1));
+    }
+
+    /** مدى الصفحات والوجهين بيوصلوا المهمة، والصفحات اللي برّه المدى ما بتتطبعش. */
+    @Test
+    void aPageRangeAndBothSidesReachTheJob() throws Exception {
+        byte[] pdf = statement(Paper.A4, 200);
+        int pages = pdfPages(pdf).size();
+        assertTrue(pages >= 4, "pages: " + pages);
+
+        Sent sent = print(pdf, Paper.A4, PrintOptions.copies(1).pages(2, 3)
+                .duplex(PrintOptions.Duplex.LONG_EDGE));
+        javax.print.attribute.standard.PageRanges ranges =
+                (javax.print.attribute.standard.PageRanges) sent.attributes().get(javax.print.attribute.standard.PageRanges.class);
+        assertEquals("2-3", ranges.toString());
+        assertEquals(javax.print.attribute.standard.Sides.TWO_SIDED_LONG_EDGE,
+                sent.attributes().get(javax.print.attribute.standard.Sides.class));
+        assertEquals(2, sent.pages(), "two pages in the PostScript");
+        assertEquals(1, sent.jobs());
+
+        Sent shortEdge = print(pdf, Paper.A4, PrintOptions.DEFAULT.duplex(PrintOptions.Duplex.SHORT_EDGE));
+        assertEquals(javax.print.attribute.standard.Sides.TWO_SIDED_SHORT_EDGE,
+                shortEdge.attributes().get(javax.print.attribute.standard.Sides.class));
+        assertEquals(pages, shortEdge.pages());
+        assertEquals(null, shortEdge.attributes().get(javax.print.attribute.standard.PageRanges.class));
+
+        Sent oneSided = print(pdf, Paper.A4, PrintOptions.copies(2).duplex(PrintOptions.Duplex.ONE_SIDED));
+        assertEquals(javax.print.attribute.standard.Sides.ONE_SIDED,
+                oneSided.attributes().get(javax.print.attribute.standard.Sides.class));
+        assertEquals(2, ((Copies) oneSided.attributes().get(Copies.class)).getValue());
+
+        Sent defaults = print(pdf, Paper.A4, PrintOptions.DEFAULT);
+        assertEquals(null, defaults.attributes().get(javax.print.attribute.standard.Sides.class), "افتراضي الطابعة");
+    }
+
+    /** المدى اللي آخره بعد آخر صفحة بيقف عند آخر صفحة؛ وأوله بعد آخر صفحة بيترفض. */
+    @Test
+    void aRangeBeyondTheDocument() throws Exception {
+        byte[] pdf = statement(Paper.A4, 90);
+        int pages = pdfPages(pdf).size();
+        Sent sent = print(pdf, Paper.A4, PrintOptions.DEFAULT.pages(2, 99));
+        assertEquals(pages - 1, sent.pages());
+        assertThrows(com.smart.report.ReportException.class,
+                () -> print(pdf, Paper.A4, PrintOptions.DEFAULT.pages(pages + 1, pages + 2)));
+    }
+
+    @Test
+    void typedPageRanges() {
+        assertEquals(PrintOptions.DEFAULT.pages(3, 3), PrintOptions.DEFAULT.pages("3", 10));
+        assertEquals(PrintOptions.DEFAULT.pages(2, 5), PrintOptions.DEFAULT.pages(" 2 - 5 ", 10));
+        assertEquals(PrintOptions.DEFAULT.pages(2, 5), PrintOptions.DEFAULT.pages("٢–٥", 10));
+        assertTrue(PrintOptions.DEFAULT.pages("", 10).allPagesChosen());
+        assertTrue(PrintOptions.DEFAULT.pages(null, 10).allPagesChosen());
+        for (String bad : new String[]{"0", "5-2", "11", "2-11", "a", "2-3-4", "-3", "1,2", "1234567"}) {
+            assertThrows(IllegalArgumentException.class, () -> PrintOptions.DEFAULT.pages(bad, 10), bad);
+        }
+        assertThrows(IllegalArgumentException.class, () -> PrintOptions.copies(0));
+        assertThrows(IllegalArgumentException.class, () -> PrintOptions.copies(100));
+        assertThrows(IllegalArgumentException.class, () -> PrintOptions.DEFAULT.pages(0, 3));
+        assertThrows(IllegalArgumentException.class, () -> PrintOptions.DEFAULT.pages(3, 2));
     }
 
     @Test

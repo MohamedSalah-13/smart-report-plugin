@@ -523,6 +523,9 @@ Optional<String> preferred = PdfPrinter.defaultPrinter();
 
 PdfPrinter.print(document, printerName, 1);                 // المستند على ورقته، نسخة واحدة
 PdfPrinter.print(pdfBytes, printerName, Paper.A5, 2);       // أو PDF جاهز
+
+PdfPrinter.print(document, printerName,                     // الصفحات من 2 لـ 5، على الوجهين (v2.11.0)
+        PrintOptions.copies(1).pages(2, 5).duplex(PrintOptions.Duplex.LONG_EDGE));
 ```
 
 </div>
@@ -531,6 +534,10 @@ PdfPrinter.print(pdfBytes, printerName, Paper.A5, 2);       // أو PDF جاهز
 الطابعة الافتراضية. نسخ المستند اللي أكتر من صفحة بتطلع مجموعات كاملة مرتبة (1، 2، 3، 1، 2، 3). الطباعة
 بتاخد وقتها، فنادِها من thread غير thread الواجهة. لو الطابعة مش على الجهاز بترمي `ReportException` باسمها
 وبالطابعات المتاحة.
+
+و`PrintOptions` (v2.11.0) بياخد كمان مدى صفحات (آخر صفحة بعد آخر المستند معناها لحد آخره)، و`Duplex.ONE_SIDED`
+أو `LONG_EDGE` أو `SHORT_EDGE`؛ من غيره إعداد الطابعة نفسها. الطابعة اللي ما بتطبعش على الوجهين بتطبع على وش.
+ونافذة المعاينة فيها نفس الاتنين: خانة «الصفحات» (`2-5`، فاضية للكل) و«على الوجهين»، للورق اللي مش لفة.
 
 ### مستندات كتير في ملف واحد ومهمة طباعة واحدة (`PdfBatch`)
 

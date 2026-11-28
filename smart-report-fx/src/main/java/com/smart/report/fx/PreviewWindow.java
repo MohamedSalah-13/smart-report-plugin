@@ -107,6 +107,9 @@ final class PreviewWindow {
     private final ComboBox<String> printer = new ComboBox<>();
     private final ComboBox<Paper> paper = new ComboBox<>();
     private final Spinner<Integer> copies = new Spinner<>(1, PdfPrinter.MAX_COPIES, 1);
+    private final javafx.scene.control.TextField pages = new javafx.scene.control.TextField();
+    private final javafx.scene.control.CheckBox twoSided = new javafx.scene.control.CheckBox();
+    private final PrintTexts printTexts;
     private final Button print = new Button();
     private final Button save = new Button();
     private final Button previous = new Button();
@@ -132,6 +135,7 @@ final class PreviewWindow {
     PreviewWindow(PdfPreview setup, Window owner) {
         this.setup = setup;
         this.texts = setup.resolvedTexts();
+        this.printTexts = PrintTexts.of(setup.rightToLeft);
         this.remembered = setup.remembered();
         if (owner != null) {
             stage.initOwner(owner);
@@ -198,7 +202,17 @@ final class PreviewWindow {
         }
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        top.getChildren().addAll(labelled(texts.copies(), copies), copies, spacer, save, print);
+        top.getChildren().addAll(labelled(texts.copies(), copies), copies);
+        if (!setup.papers.stream().allMatch(Paper::roll)) {
+            // مدى الصفحات والوجهين للورق المقصوص بس: الإيصال صفحة واحدة على لفة.
+            pages.setId("pages");
+            pages.setPromptText(printTexts.allPages());
+            pages.setPrefColumnCount(5);
+            twoSided.setId("two-sided");
+            twoSided.setText(printTexts.twoSided());
+            top.getChildren().addAll(labelled(printTexts.pages(), pages), pages, twoSided);
+        }
+        top.getChildren().addAll(spacer, save, print);
         top.setAlignment(Pos.CENTER_LEFT);
         top.setPadding(new Insets(10, 12, 10, 12));
 
@@ -527,6 +541,15 @@ final class PreviewWindow {
             return;
         }
         int count = copies.getValue();
+        com.smart.report.pdf.PrintOptions options;
+        try {
+            options = com.smart.report.pdf.PrintOptions.copies(count).pages(pages.getText(), current.widths().length)
+                    .duplex(twoSided.isSelected() ? com.smart.report.pdf.PrintOptions.Duplex.LONG_EDGE : null);
+        } catch (IllegalArgumentException wrong) {
+            say(String.format(printTexts.badPages(), current.widths().length), true);
+            pages.requestFocus();
+            return;
+        }
         printing = true;
         updateActions();
         // الطابعة والمقاس اللي اتطبع عليهم هم اللي printOrShow بتطبع عليهم المرة الجاية.
@@ -535,7 +558,7 @@ final class PreviewWindow {
         Thread thread = new Thread(() -> {
             boolean sent;
             try {
-                setup.system.print(current.bytes(), target, current.paper(), count);
+                setup.system.print(current.bytes(), target, current.paper(), options);
                 sent = true;
             } catch (ReportException | RuntimeException e) {
                 log.warn("Printing on {} failed", target, e);

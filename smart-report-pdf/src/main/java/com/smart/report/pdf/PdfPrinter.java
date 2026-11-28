@@ -14,7 +14,9 @@ import javax.print.attribute.standard.Copies;
 import javax.print.attribute.standard.JobName;
 import javax.print.attribute.standard.MediaSize;
 import javax.print.attribute.standard.MediaSizeName;
+import javax.print.attribute.standard.PageRanges;
 import javax.print.attribute.standard.SheetCollate;
+import javax.print.attribute.standard.Sides;
 import java.awt.print.PrinterException;
 import java.awt.print.PrinterJob;
 import java.io.IOException;
@@ -72,6 +74,29 @@ public final class PdfPrinter {
         print(batch.toBytes(), printerName, batch.paper(), copies);
     }
 
+    /** يبني المستند ويطبعه على ورقته بالطلبات دي (نسخ، ومدى صفحات، ووجهين). */
+    public static void print(PdfDocument document, String printerName, PrintOptions options) throws ReportException {
+        Objects.requireNonNull(document, "document");
+        print(document.toBytes(), printerName, document.paper(), options);
+    }
+
+    /** يبني الدفعة ويطبعها مهمة واحدة بالطلبات دي؛ مدى الصفحات على صفحات الدفعة كلها. */
+    public static void print(PdfBatch batch, String printerName, PrintOptions options) throws ReportException {
+        Objects.requireNonNull(batch, "batch");
+        print(batch.toBytes(), printerName, batch.paper(), options);
+    }
+
+    /**
+     * زي {@link #print(byte[], String, Paper, int)} بطلبات المهمة كلها.
+     *
+     * @throws ReportException لو أول صفحة في المدى بعد آخر صفحة في المستند، أو الطابعة مش موجودة أو رفضت المهمة
+     */
+    public static void print(byte[] pdf, String printerName, Paper paper, PrintOptions options) throws ReportException {
+        Objects.requireNonNull(pdf, "pdf");
+        Objects.requireNonNull(options, "options");
+        printOn(find(printerName), pdf, paper, options);
+    }
+
     /** يطبع ملف PDF موجودًا. */
     public static void print(Path file, String printerName, Paper paper, int copies) throws ReportException {
         Objects.requireNonNull(file, "file");
@@ -96,6 +121,11 @@ public final class PdfPrinter {
 
     /** يطبع على خدمة طباعة بعينها؛ الاختبارات بتديها خدمة بتكتب في stream بدل طابعة من النظام. */
     static void printOn(PrintService printer, byte[] pdf, Paper paper, int copies) throws ReportException {
+        printOn(printer, pdf, paper, PrintOptions.copies(Math.clamp(copies, 1, MAX_COPIES)));
+    }
+
+    static void printOn(PrintService printer, byte[] pdf, Paper paper, PrintOptions options) throws ReportException {
+        int copies = options.copies();
         try (PDDocument document = Loader.loadPDF(pdf)) {
             PrinterJob job = PrinterJob.getPrinterJob();
             job.setPrintService(printer);
@@ -111,6 +141,21 @@ public final class PdfPrinter {
                 // نسخ كاملة مرتبة: من غير الطلب ده الطابعة ممكن تكرر كل صفحة ورا بعضها (1، 1، 2، 2)، والدفعة
                 // تطلع كشوفها متلخبطة. لو الدرايفر ما بيرتبش، Java بتبعت المستند كله كذا مرة في نفس المهمة.
                 attributes.add(SheetCollate.COLLATED);
+            }
+            if (!options.allPagesChosen()) {
+                int pages = document.getNumberOfPages();
+                if (options.firstPage() > pages) {
+                    throw new ReportException("The document has " + pages + " page" + (pages == 1 ? "" : "s")
+                            + "; there is no page " + options.firstPage() + " to print.");
+                }
+                attributes.add(new PageRanges(options.firstPage(), Math.min(options.lastPage(), pages)));
+            }
+            if (options.duplex() != null) {
+                attributes.add(switch (options.duplex()) {
+                    case ONE_SIDED -> Sides.ONE_SIDED;
+                    case LONG_EDGE -> Sides.TWO_SIDED_LONG_EDGE;
+                    case SHORT_EDGE -> Sides.TWO_SIDED_SHORT_EDGE;
+                });
             }
             String title = document.getDocumentInformation().getTitle();
             attributes.add(new JobName(title == null || title.isBlank() ? "Report" : title, null));
