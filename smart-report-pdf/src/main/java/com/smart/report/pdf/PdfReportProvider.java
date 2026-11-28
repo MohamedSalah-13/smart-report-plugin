@@ -138,20 +138,25 @@ public final class PdfReportProvider implements ReportProvider {
             rows.add(values);
         }
 
-        PdfTable table = PdfTable.create();
-        if (isTrue(request.parameters().get(NEGATIVE_IN_RED))) {
-            table.negativeInRed();
-        }
-        for (int i = 0; i < count; i++) {
-            ColumnDefinition column = columns.get(i);
-            // العمود المتجمّع أرقام بس (غير كده بيرمي فوق)، فمجموعه تحت أرقامه حتى من غير بيانات.
-            Align align = column.align() != null ? align(column.align())
-                    : column.total() || numeric[i] && !other[i] ? Align.END : Align.START;
-            table.column(singleLine(column.header()), column.weight(), align);
-        }
+        boolean negativeInRed = isTrue(request.parameters().get(NEGATIVE_IN_RED));
+        PdfTable table = table(columns, numeric, other, negativeInRed);
         CellText text = new CellText(rightToLeft ? Locale.forLanguageTag("ar") : Locale.ENGLISH);
+        // عنوان لكل مجموعة أو صفحة لكل مجموعة: جدول لكل مجموعة، ورأس أعمدته بيتكرر تحت عنوانها.
+        boolean perGroup = request.groupHeader() || request.pageBreakPerGroup();
         int groupAt = 0;
         for (int r = 0; r < rows.size(); r++) {
+            if (perGroup && groupAt < groups.size() && r == groups.get(groupAt).first()) {
+                if (r > 0) {
+                    document.table(table);
+                    if (request.pageBreakPerGroup()) {
+                        document.pageBreak();
+                    }
+                    table = table(columns, numeric, other, negativeInRed);
+                }
+                if (request.groupHeader()) {
+                    document.heading(groupText(request, groups.get(groupAt).value(), text));
+                }
+            }
             Object[] values = rows.get(r);
             String[] cells = new String[count];
             for (int i = 0; i < count; i++) {
@@ -181,6 +186,23 @@ public final class PdfReportProvider implements ReportProvider {
             }
         }
         return document.table(table).toBytes();
+    }
+
+    /** جدول بأعمدة التقرير ومحاذاتها، من غير صفوف. */
+    private static PdfTable table(List<ColumnDefinition> columns, boolean[] numeric, boolean[] other,
+                                  boolean negativeInRed) {
+        PdfTable table = PdfTable.create();
+        if (negativeInRed) {
+            table.negativeInRed();
+        }
+        for (int i = 0; i < columns.size(); i++) {
+            ColumnDefinition column = columns.get(i);
+            // العمود المتجمّع أرقام بس (غير كده بيرمي فوق)، فمجموعه تحت أرقامه حتى من غير بيانات.
+            Align align = column.align() != null ? align(column.align())
+                    : column.total() || numeric[i] && !other[i] ? Align.END : Align.START;
+            table.column(singleLine(column.header()), column.weight(), align);
+        }
+        return table;
     }
 
     /** مجموعة صفوف ورا بعض بنفس القيمة ({@link ReportRequest#groupBy()}): أول صف فيها ومجموع كل عمود. */

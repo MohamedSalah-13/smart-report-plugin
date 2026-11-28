@@ -139,6 +139,10 @@ public final class Totals {
      * @throws ReportException لو في مجموعات ومفيش عمود {@link ColumnDefinition#withTotal()}
      */
     public static void checkGroups(ReportRequest<?> request) throws ReportException {
+        if ((request.groupHeader() || request.pageBreakPerGroup()) && request.groupBy() == null) {
+            throw new ReportException("groupHeader and pageBreakPerGroup need groupBy: say which property the rows"
+                    + " are grouped by.");
+        }
         if (request.groupBy() != null && !any(request)) {
             throw new ReportException("groupBy(\"" + request.groupBy() + "\") puts a subtotal under each group, so"
                     + " at least one column needs withTotal().");

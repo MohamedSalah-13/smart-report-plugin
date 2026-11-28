@@ -431,6 +431,9 @@ has not been on a real printer yet; the old one usually had.
   wherever the value changes, under it comes a row `إجمالى: <value>` (`Total: <value>`; `.subtotalLabel("...")`
   changes the words) with each summed column in its format, and the grand total stays at the end. In the PDF the
   subtotal never starts a page alone: the last row of its group moves with it. It needs a `withTotal()` column.
+  From `v2.11.0`, `.groupHeader(true)` adds a line with the group's value above its rows, and
+  `.pageBreakPerGroup(true)` starts each group on a new page (one customer's statement per page; in Excel a
+  printed page break).
   Do not insert subtotal rows into the data yourself. Use `PdfDocument` instead as soon as the page needs fields, a summary or more than one table.
 - **The same list as Excel** - add `smart-report-excel` and ask for `ReportType.EXCEL`. It applies each
   column's format (as an Excel format, so numbers stay numbers) and alignment, and ignores the weight. A

@@ -25,6 +25,8 @@ public final class ReportRequest<T> {
     private final String totalsLabel;
     private final String groupBy;
     private final String subtotalLabel;
+    private final boolean groupHeader;
+    private final boolean pageBreakPerGroup;
 
     private ReportRequest(Builder<T> builder) {
         this.title = builder.title;
@@ -37,6 +39,8 @@ public final class ReportRequest<T> {
         this.totalsLabel = builder.totalsLabel;
         this.groupBy = builder.groupBy;
         this.subtotalLabel = builder.subtotalLabel;
+        this.groupHeader = builder.groupHeader;
+        this.pageBreakPerGroup = builder.pageBreakPerGroup;
     }
 
     /**
@@ -105,6 +109,16 @@ public final class ReportRequest<T> {
         return subtotalLabel;
     }
 
+    /** سطر بقيمة المجموعة فوق صفوفها ({@link Builder#groupHeader}). */
+    public boolean groupHeader() {
+        return groupHeader;
+    }
+
+    /** كل مجموعة في صفحة جديدة ({@link Builder#pageBreakPerGroup}). */
+    public boolean pageBreakPerGroup() {
+        return pageBreakPerGroup;
+    }
+
     public static <T> Builder<T> builder() {
         return new Builder<>();
     }
@@ -119,6 +133,8 @@ public final class ReportRequest<T> {
         private String totalsLabel;
         private String groupBy;
         private String subtotalLabel;
+        private boolean groupHeader;
+        private boolean pageBreakPerGroup;
 
         public Builder<T> title(String title) {
             this.title = title == null ? "" : title;
@@ -205,6 +221,24 @@ public final class ReportRequest<T> {
          */
         public Builder<T> subtotalLabel(String label) {
             this.subtotalLabel = label;
+            return this;
+        }
+
+        /**
+         * سطر بقيمة المجموعة فوق صفوف كل مجموعة ({@link #groupBy}): في الـ PDF عنوان ما بيفضلش لوحده في آخر صفحة،
+         * وفي Excel صف بخط عريض. محتاج {@link #groupBy}.
+         */
+        public Builder<T> groupHeader(boolean value) {
+            this.groupHeader = value;
+            return this;
+        }
+
+        /**
+         * كل مجموعة ({@link #groupBy}) تبدأ في صفحة جديدة، فكشف كل عميل يتبعت لوحده؛ والإجمالي الكلي تحت آخر مجموعة.
+         * في Excel فاصل صفحات للطباعة بعد كل إجمالي فرعي. محتاج {@link #groupBy}.
+         */
+        public Builder<T> pageBreakPerGroup(boolean value) {
+            this.pageBreakPerGroup = value;
             return this;
         }
 

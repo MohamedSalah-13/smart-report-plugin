@@ -133,8 +133,9 @@ public final class ExcelReportProvider implements ReportProvider {
                 groups++;
             }
         }
-        // صف الإجمالي وسطر فاضي قبله، وصف لكل مجموعة
-        long totalRows = (long) request.data().size() + headerRows + groups + (totals ? 2 : 0);
+        // صف الإجمالي وسطر فاضي قبله، وصف لكل مجموعة (واتنين مع عنوانها)
+        long totalRows = (long) request.data().size() + headerRows + groups * (request.groupHeader() ? 2L : 1L)
+                + (totals ? 2 : 0);
         if (totalRows > MAX_ROWS) {
             throw new ReportException("An .xlsx sheet holds at most " + MAX_ROWS + " rows, but this report needs "
                     + totalRows + ". Split the data across several reports.");
@@ -184,14 +185,25 @@ public final class ExcelReportProvider implements ReportProvider {
             double[] groupSums = new double[columns.size()];
             int groupFirstRow = rowIndex;
             int dataRow = 0;
+            CellStyle groupHeaderStyle = request.groupHeader() ? groupHeaderStyle(workbook) : null;
             for (Object item : request.data()) {
                 if (groupValues != null && dataRow > 0
                         && !Totals.sameGroup(groupValues[dataRow - 1], groupValues[dataRow])) {
                     writeSubtotal(sheet.createRow(rowIndex), request, groupSums, groupFirstRow, rowIndex - 1,
                             groupValues[dataRow - 1], columnStyles, widths, rightToLeft);
+                    if (request.pageBreakPerGroup()) {
+                        // فاصل صفحات للطباعة: كل مجموعة تبدأ في ورقة.
+                        sheet.setRowBreak(rowIndex);
+                    }
                     rowIndex++;
                     groupFirstRow = rowIndex;
                     groupSums = new double[columns.size()];
+                }
+                if (groupValues != null && request.groupHeader()
+                        && (dataRow == 0 || !Totals.sameGroup(groupValues[dataRow - 1], groupValues[dataRow]))) {
+                    writeGroupHeader(sheet.createRow(rowIndex++), request, groupValues[dataRow], groupHeaderStyle,
+                            widths);
+                    groupFirstRow = rowIndex;
                 }
                 Row row = sheet.createRow(rowIndex++);
                 boolean sampled = dataRow < WIDTH_SAMPLE_ROWS;
@@ -281,6 +293,27 @@ public final class ExcelReportProvider implements ReportProvider {
             }
             widths.totals(cell, i);
         }
+    }
+
+    /**
+     * صف عنوان المجموعة: قيمتها بخط عريض في عمودها لو هي عمود في التقرير (فالفلتر على العمود ده بيسيبها مع صفوفها)،
+     * وإلا في أول عمود.
+     */
+    private static void writeGroupHeader(Row row, ReportRequest<?> request, Object value, CellStyle style,
+                                         ColumnWidths widths) {
+        int at = Math.max(0, Totals.groupColumn(request));
+        Cell cell = row.createCell(at);
+        cell.setCellValue(value == null ? Totals.NO_GROUP_VALUE : String.valueOf(value));
+        cell.setCellStyle(style);
+        widths.cell(cell, at, true);
+    }
+
+    private static CellStyle groupHeaderStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont();
+        font.setBold(true);
+        style.setFont(font);
+        return style;
     }
 
     /**
