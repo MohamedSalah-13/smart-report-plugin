@@ -3,6 +3,7 @@
 - **تاريخ المراجعة:** 2026-11-28 (تحديث لحالة البنود بعد 2.9.1 و 2.10.0، لا مراجعة جديدة من الصفر؛ المراجعة الكاملة السابقة كُتبت على 2.8.0 في 2026-11-27)
 - **الإصدار:** 2.10.0 (الوسم `v2.10.0` على commit `47acf39`)، وفيه ما بعد 2.9.0: إصلاح اسم ورقة Excel ([#29](https://github.com/MohamedSalah-13/smart-report-plugin/pull/29))، وعقد الأجزاء في `PageWriter` ([#30](https://github.com/MohamedSalah-13/smart-report-plugin/pull/30))، والعلامة المائية ([#31](https://github.com/MohamedSalah-13/smart-report-plugin/pull/31))، والإجمالي الفرعي لكل مجموعة ([#32](https://github.com/MohamedSalah-13/smart-report-plugin/pull/32)).
 - **ما شُغّل:** `./mvnw verify` محليًا على Windows و JDK 25 على الوسم: 577 اختبارًا بلا فشل ولا تخطٍّ (api 192، pdf 243، fx 22، excel 80، jasper 40)، ولم يجد japicmp أي تغيير غير متوافق مع v2.9.1. ورُسمت صفحات العلامة المائية فوق مربع الملخص وعلى الورق الحراري، والكشف المجمّع بإجماليه الكلي. CI أخضر على #31 و #32 (Ubuntu و Windows مع Java 21 و 25)، وفحص JitPack أخضر للوسم v2.10.0 مع تنزيل jar كل وحدة.
+- **أفكار مضافة (2026-11-28):** 12 فكرة من قراءة كود الطباعة في البرامج التي تستخدم المكتبة أو يمكن أن تستخدمها، من [#43](https://github.com/MohamedSalah-13/smart-report-plugin/issues/43) إلى [#54](https://github.com/MohamedSalah-13/smart-report-plugin/issues/54). هذه قراءة لكود تلك البرامج، لا مراجعة جديدة للمكتبة، ولم يُشغَّل لها بناء ولا اختبار.
 
 ## الخلاصة
 
@@ -85,6 +86,27 @@
 | رأس لكل مجموعة في الكشف المجمّع، أو بداية كل مجموعة في صفحة ([#40](https://github.com/MohamedSalah-13/smart-report-plugin/issues/40)) | كشف لعميل واحد في كل صفحة يُرسل له | منخفض | صغير | الإجمالي الفرعي ✅ |
 | نطاق صفحات والطباعة على الوجهين ([#41](https://github.com/MohamedSalah-13/smart-report-plugin/issues/41)) | كشوف طويلة ودفعات كبيرة. لا `PageRanges` ولا `Sides` في مسار الطباعة | منخفض | صغير | — |
 
+### أفكار من كود الطباعة في البرامج المستخدِمة
+
+أُضيفت في 2026-11-28. مصدرها ما كتبته برامج سطح المكتب حول الطباعة بنفسها: ما تكرر في أكثر من برنامج، أو ما اضطر برنامج إلى كتابته فوق المكتبة.
+
+| الفكرة | من يستفيد ولماذا | الأثر | الجهد | تعتمد على |
+|---|---|---|---|---|
+| إعداد طباعة لكل نوع مستند: المقاس والإخراج والطابعة والنسخ، ولوحة إعدادات جاهزة ([#43](https://github.com/MohamedSalah-13/smart-report-plugin/issues/43)) | كل برنامج يطبع أكثر من ورقة. اليوم `remember(key)` يحفظ آخر طابعة ومقاس فقط، وبرنامجان كتبا الباقي كلٌّ بطريقته | عالٍ | متوسط | — |
+| طريق طباعة واحد يطبّق الإعداد: مباشر، معاينة، حفظ، اسأل، و«لمرة واحدة»، وتنبيه عند غياب الطابعة ([#44](https://github.com/MohamedSalah-13/smart-report-plugin/issues/44)) | الكاشير والمكتب. `printOrShow` يغطي المباشر والمعاينة فقط | عالٍ | متوسط | #43 |
+| مستندات جاهزة: فاتورة بأكثر من شكل، إيصال اسم الصنف فيه سطر مستقل، كشف حساب، سند ([#46](https://github.com/MohamedSalah-13/smart-report-plugin/issues/46)) | كل برنامج محاسبي. اليوم يركّب كل برنامج مستنده من `PdfDocument` بيده | عالٍ | كبير | عقد الأجزاء ✅ |
+| شكل التقرير كإعداد يختاره المحل مرة: مجموعات ألوان، سطر «طُبع في / بواسطة»، ترقيم `1 / 3`، مسافة علوية للورق المطبوع مسبقًا ([#45](https://github.com/MohamedSalah-13/smart-report-plugin/issues/45)) | محلات لها ورق بترويسة مطبوعة، وبرامج تعرض شاشة «شكل التقارير» | متوسط | متوسط | دوال `with…`، لا مكوّن جديد في `PdfStyle` |
+| الطابعات الحرارية: مهمة لكل نسخة على اللفة، فتح درج النقدية، وسؤال الطابعة عن المقاس الذي تدعمه ([#47](https://github.com/MohamedSalah-13/smart-report-plugin/issues/47)) | نقاط البيع. النسخ اليوم بسمة `Copies` لكل الورق ([PdfPrinter.java:109](../smart-report-pdf/src/main/java/com/smart/report/pdf/PdfPrinter.java#L109)) | متوسط | متوسط | تجربة على طابعة حقيقية ([#42](https://github.com/MohamedSalah-13/smart-report-plugin/issues/42)) |
+| وحدات الباركود و QR بعدد صحيح من نقاط الطابعة ([#48](https://github.com/MohamedSalah-13/smart-report-plugin/issues/48)) | الإيصالات والملصقات. الوحدة اليوم 0.33 مم، أي 2.64 نقطة على رأس 203 dpi ([SymbolParts.java:22](../smart-report-pdf/src/main/java/com/smart/report/pdf/SymbolParts.java#L22)). خطر محتمل لا عيب مؤكَّد | متوسط | صغير | مرتبطة بـ #33 |
+| المعاينة لأي مصدر (PDF جاهز أو `JasperPrint`)، وسطر تنبيه، وأيقونة النافذة الأم ([#51](https://github.com/MohamedSalah-13/smart-report-plugin/issues/51)) | برامج تطبع بـ Jasper وتريد النافذة نفسها | متوسط | متوسط | — |
+| التفقيط: 12 عملة إضافية، وخيار للمبلغ السالب ([#50](https://github.com/MohamedSalah-13/smart-report-plugin/issues/50)) | برامج خارج العملات التسع الحالية، وكشوف برصيد دائن | متوسط | صغير | — |
+| PDF/A-3 مع ملف مرفق: XML الفاتورة الإلكترونية داخل الـ PDF ([#52](https://github.com/MohamedSalah-13/smart-report-plugin/issues/52)) | الفوترة الإلكترونية وأرشفتها | متوسط | متوسط | veraPDF في الاختبار |
+| كود مستند يُقرأ بالماسح: أرقام فقط، طول ثابت، خانة تحقق ([#49](https://github.com/MohamedSalah-13/smart-report-plugin/issues/49)) | المرتجعات والبحث عن فاتورة بمسح ورقتها | منخفض | صغير | — |
+| QR والباركود كصورة PNG ([#53](https://github.com/MohamedSalah-13/smart-report-plugin/issues/53)) | برامج تعرض QR على الشاشة أو من خادم ويب | منخفض | صغير | — |
+| اسم ملف آمن من المعاينة، وصفحة بالعرض للتقرير العام كثير الأعمدة ([#54](https://github.com/MohamedSalah-13/smart-report-plugin/issues/54)) | كل من يحفظ من المعاينة بعنوان فيه `/` أو `:` | منخفض | صغير | — |
+
+وما يحتاجه ملصق الصنف عمليًّا (ملصق مزدوج، سياسة الاسم الطويل، سعر قديم مشطوب، معايرة لكل طابعة) أُضيف تعليقًا على [#33](https://github.com/MohamedSalah-13/smart-report-plugin/issues/33).
+
 ## التوصية
 
 1. **ملصقات الباركود (EAN-13 وورق الملصقات)، [#33](https://github.com/MohamedSalah-13/smart-report-plugin/issues/33).** أعلى أثر بين ما بقي، وكانت تنتظر عقد الأجزاء، وهو جاهز الآن: الملصق جزء جديد يكتب قطعه ولا يلمس قاعدة صفحات.
@@ -92,6 +114,8 @@
 3. **javadoc jar بالإنجليزية ثم Maven Central، [#36](https://github.com/MohamedSalah-13/smart-report-plugin/issues/36).** يُزيل نقطة الفشل الواحدة في التوزيع، ويفتح المكتبة لمن لا يقرأ العامية.
 
 ويُترك Jasper 7 والوضع الصارم الافتراضي لإصدار رئيسي واحد يجمعهما.
+
+ومن الأفكار المضافة في 2026-11-28، الأولى بالبدء **إعداد الطباعة لكل نوع مستند ثم الطريق الذي يطبّقه، [#43](https://github.com/MohamedSalah-13/smart-report-plugin/issues/43) و [#44](https://github.com/MohamedSalah-13/smart-report-plugin/issues/44)**: هي الأكثر تكرارًا بين البرامج، ولا تعتمد على شيء. وترتيبها مع البنود الثلاثة أعلاه لم يُحسم.
 
 ## ما تغير منذ المراجعة السابقة
 
