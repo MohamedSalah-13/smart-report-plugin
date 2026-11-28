@@ -413,6 +413,29 @@ codes.parse(scannedText)                            // Optional[Scanned[type=1, 
 - `DocumentCode.of(firstDigit, numberDigits)` for another shape. The default starts with 2, so it is also a valid
   EAN-13 in the 20–29 range GS1 leaves for use inside a shop, and never matches a real product's barcode.
 
+### Cell style, and an image in the body (`CellStyle`, `image`)
+
+A negative balance in red, a bold cell, and a stamp or a signature (v2.11.0):
+
+```java
+document.table(t -> t.column("التاريخ", 2).column("البيان", 3).column("الرصيد", 2, Align.END)
+        .rows(lines, l -> new String[]{l.date(), l.note(), l.balance()})
+        .negativeInRed(2)                                       // column 2; none = every column
+        .cellStyle((row, column, text) -> text.startsWith("مرتجع") ? CellStyle.bold() : CellStyle.PLAIN));
+
+document.image(stampPng, 35, Align.END);                       // 35 mm wide, its height from the image
+document.image(Path.of("signature.png"), 40, Align.START);
+```
+
+- A negative amount is a number with `-` or `−` before or after it, or in brackets (`(1,200.00)`). A date like
+  `2026-11-02` is not. Data rows and totals rows take the style; the header does not.
+- `cellStyle(rule)` takes the row (from 0, totals included), the column (from 0, in logical order) and the text,
+  and returns `CellStyle.bold()`, `CellStyle.color(0xRRGGBB)`, both (`.andBold()`), or `CellStyle.PLAIN`.
+  Several rules add up in order.
+- The generic PDF report: `.parameter(PdfReportProvider.NEGATIVE_IN_RED, true)`.
+- An image (PNG or JPEG; PNG transparency is kept, so a stamp does not hide what is under it) never splits: it
+  moves whole to the next page, and shrinks, keeping its shape, when it is wider than the line or taller than a page.
+
 ### Style (`PdfStyle`)
 
 With nothing set, the style follows the paper (`PdfStyle.forPaper`): a smaller font and margins on A5. To change it:

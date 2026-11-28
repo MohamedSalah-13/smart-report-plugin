@@ -36,7 +36,8 @@ final class TablePart implements Part {
     private enum RowKind { HEADER, NORMAL, TOTAL, GRAND }
 
     /** صف جدول اتقاس: سطور كل خلية وارتفاع الصف. */
-    private record RowLayout(List<List<Typesetter.Line>> cells, float height, float size, boolean split) {
+    /** @param colors لون كل خلية، أو -1 = لون الصف */
+    private record RowLayout(List<List<Typesetter.Line>> cells, float height, float size, boolean split, int[] colors) {
     }
 
     private final PdfTable table;
@@ -65,7 +66,7 @@ final class TablePart implements Part {
                 cursor += widths[i];
             }
         }
-        Row header = table.headerShown() ? new Row(layout(headers(table), true, frame.style().headerSize()),
+        Row header = table.headerShown() ? new Row(layout(headers(table), null, true, frame.style().headerSize()),
                 RowKind.HEADER, false) : null;
         // الرأس بيتكرر في أول كل صفحة لو مش واخد أكتر من تلت الصفحة. الأطول من كده بيترسم مرة واحدة
         // (ومتقسّم لو أطول من صفحة): كان بيتكرر في كل صفحة ويخرج عن الورقة أو ياكلها كلها.
@@ -197,7 +198,7 @@ final class TablePart implements Part {
                     index++;
                 }
                 RowKind kind = row.grand() ? RowKind.GRAND : row.total() ? RowKind.TOTAL : RowKind.NORMAL;
-                return new Row(layout(row.cells(), row.total(), size), kind,
+                return new Row(layout(row.cells(), row, row.total(), size), kind,
                         striped);
             }
         };
@@ -289,31 +290,53 @@ final class TablePart implements Part {
             widen(narrowest, headers(table), true, frame.style().headerSize(), frame);
         }
         for (PdfTable.Row row : table.rows()) {
-            widen(narrowest, row.cells(), row.total(), row.total() ? totalSize : bodySize, frame);
+            widen(narrowest, row.cells(), bolds(table, row), row.total() ? totalSize : bodySize, frame);
         }
         return ColumnFit.fit(weights, narrowest, frame.width());
     }
 
     /** يرفع أضيق عرض لكل عمود لعرض أطول كلمة في خليته مع حشوتها، بحد أقصى نصف عرض الجدول. */
+    /** خط كل خلية في الصف: عريض في الإجمالي، إلا لو قاعدة {@link PdfTable#cellStyle} قالت غير كده. */
+    private static boolean[] bolds(PdfTable table, PdfTable.Row row) {
+        boolean[] bold = new boolean[row.cells().length];
+        for (int i = 0; i < bold.length; i++) {
+            bold[i] = table.styleOf(row, i).boldOr(row.total());
+        }
+        return bold;
+    }
+
     private static void widen(float[] narrowest, String[] cells, boolean bold, float size, Frame frame)
             throws IOException, ReportException {
+        boolean[] all = new boolean[cells.length];
+        java.util.Arrays.fill(all, bold);
+        widen(narrowest, cells, all, size, frame);
+    }
+
+    private static void widen(float[] narrowest, String[] cells, boolean[] bold, float size, Frame frame)
+            throws IOException, ReportException {
         for (int i = 0; i < Math.min(cells.length, narrowest.length); i++) {
-            float word = frame.text().widestWord(cells[i], bold, size);
+            float word = frame.text().widestWord(cells[i], bold[i], size);
             if (word > 0) {
                 narrowest[i] = Math.max(narrowest[i], Math.min(word + 2 * PAD_X + SLACK, frame.width() / 2));
             }
         }
     }
 
-    private RowLayout layout(String[] cells, boolean bold, float size) throws IOException, ReportException {
+    /** @param source صف البيانات عشان شكل خلاياه، أو {@code null} للرأس */
+    private RowLayout layout(String[] cells, PdfTable.Row source, boolean bold, float size)
+            throws IOException, ReportException {
         List<List<Typesetter.Line>> lines = new ArrayList<>(cells.length);
+        int[] colors = new int[cells.length];
         int tallest = 1;
         for (int i = 0; i < cells.length; i++) {
-            List<Typesetter.Line> cell = frame.text().wrap(cells[i], bold, size, widths[i] - 2 * PAD_X - SLACK);
+            CellStyle style = source == null ? CellStyle.PLAIN : table.styleOf(source, i);
+            colors[i] = style.colorOr(-1);
+            List<Typesetter.Line> cell = frame.text().wrap(cells[i], style.boldOr(bold), size,
+                    widths[i] - 2 * PAD_X - SLACK);
             tallest = Math.max(tallest, cell.size());
             lines.add(cell);
         }
-        return new RowLayout(lines, tallest * size * LEADING + 2 * PAD_Y, size, false);
+        return new RowLayout(lines, tallest * size * LEADING + 2 * PAD_Y, size, false, colors);
     }
 
     /** صف واحد: بيترسم كله في مكانه، أو بيتقسم على سطوره لو أطول من صفحة كاملة. */
@@ -360,7 +383,8 @@ final class TablePart implements Part {
                 tallest = Math.max(tallest, part.size());
                 cells.add(part);
             }
-            return new Row(new RowLayout(cells, tallest * row.size() * LEADING + 2 * PAD_Y, row.size(), true), kind,
+            return new Row(new RowLayout(cells, tallest * row.size() * LEADING + 2 * PAD_Y, row.size(), true,
+                    row.colors()), kind,
                     striped);
         }
 
@@ -398,8 +422,9 @@ final class TablePart implements Part {
                 // الخلية الأقصر من صفها بتتوسّط رأسيًا — إلا في صف اتقسّم على صفحتين، سطوره بتكمل من أعلاه.
                 float firstTop = row.split() ? top - PAD_Y
                         : top - PAD_Y - (height - 2 * PAD_Y - lines.size() * leading) / 2;
+                int cellColor = row.colors()[i] >= 0 ? row.colors()[i] : color;
                 for (int k = 0; k < lines.size(); k++) {
-                    canvas.text(lines.get(k), row.size(), color, x[i] + PAD_X, widths[i] - 2 * PAD_X, side,
+                    canvas.text(lines.get(k), row.size(), cellColor, x[i] + PAD_X, widths[i] - 2 * PAD_X, side,
                             firstTop - k * leading - row.size() * BASELINE);
                 }
             }

@@ -83,6 +83,14 @@ public final class PdfDocument {
     record Ean13Block(Ean13Symbol symbol, float height, Align align) implements Block {
     }
 
+    /**
+     * @param bytes  PNG أو JPEG زي ما اتدّت
+     * @param width  العرض المطلوب بالنقطة
+     * @param pixels عرض الصورة وطولها بالبكسل، للنسبة بينهم
+     */
+    record ImageBlock(byte[] bytes, float width, int[] pixels, Align align) implements Block {
+    }
+
     /** الجزء اللي بعده يبدأ في صفحة جديدة؛ القواعد في {@link #pageBreak()}. */
     record PageBreakBlock() implements Block {
     }
@@ -362,6 +370,38 @@ public final class PdfDocument {
         }
         return add(new Ean13Block(Ean13Symbol.encode(digits), heightMm * POINTS_PER_MM,
                 align == null ? Align.CENTER : align));
+    }
+
+    /**
+     * صورة في جسم المستند: ختم، أو توقيع، أو صورة صنف. الطول بيتحسب من نسبة الصورة، والصورة ما بتتقسمش: لو
+     * ما كفّاهاش الباقي بتتنقل كلها للصفحة الجاية، ولو أعرض من السطر أو أطول من صفحة كاملة بتصغر بنفس نسبتها.
+     *
+     * @param image   PNG أو JPEG (الشفافية في PNG بتفضل: الختم ما بيغطيش اللي تحته)
+     * @param widthMm العرض بالمليمتر
+     * @param align   {@link Align#START} عند بداية السطر (يمين في المستند العربي)، {@link Align#CENTER}، أو
+     *                {@link Align#END}
+     * @throws IllegalArgumentException لو مش صورة PNG أو JPEG تتقري، أو العرض مش موجب
+     */
+    public PdfDocument image(byte[] image, float widthMm, Align align) {
+        if (!(widthMm > 0) || Float.isInfinite(widthMm)) {
+            throw new IllegalArgumentException("The image width must be a positive number of millimetres.");
+        }
+        Objects.requireNonNull(image, "image");
+        int[] pixels = ImageParts.pixels(image);
+        return add(new ImageBlock(image.clone(), widthMm * POINTS_PER_MM, pixels, align == null ? Align.CENTER : align));
+    }
+
+    /**
+     * صورة من ملف؛ زي {@link #image(byte[], float, Align)}.
+     *
+     * @throws java.io.UncheckedIOException لو الملف ما اتقراش
+     */
+    public PdfDocument image(java.nio.file.Path file, float widthMm, Align align) {
+        try {
+            return image(java.nio.file.Files.readAllBytes(file), widthMm, align);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException("The image " + file + " could not be read: " + e.getMessage(), e);
+        }
     }
 
     /** شعار الجهة (PNG أو JPEG) بجانب الترويسة، في الجهة اللي الصفحة بتبدأ منها. */

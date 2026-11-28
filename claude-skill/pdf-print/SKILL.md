@@ -137,6 +137,12 @@ What each part is:
   puts a PNG or JPEG beside it.
 - `title`, `subtitle` - centred. `heading` - a bold line over a section. `text` - a paragraph.
 - `field(label, value)` - "label: value"; consecutive fields sit two to a row.
+- **Negative amounts in red / a bold cell** (from `v2.11.0`): `table.negativeInRed(balanceColumn)` on a
+  statement, or `table.cellStyle((row, column, text) -> ... ? CellStyle.bold() : CellStyle.PLAIN)`; the generic
+  report takes `.parameter(PdfReportProvider.NEGATIVE_IN_RED, true)`. Do not prefix numbers with symbols to
+  mark them.
+- **A stamp or signature image** in the body (from `v2.11.0`): `document.image(pngBytes, widthMm, Align.END)` or
+  `image(path, widthMm, align)`; it keeps its shape, never splits, and moves whole to the next page.
 - `table(...)` - columns with weights, rows, and `totals(...)` rows drawn as a band with one cell under each
   column. Several tables are fine; the column headings repeat on every page a table runs onto.
 - `summary(label, value)` lines and one `summaryTotal(label, value)` - the figure the reader looks for.
