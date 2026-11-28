@@ -211,4 +211,16 @@ class ThermalPrinterTest {
         assertTrue(PdfPrinter.declares(a4Only, Paper.ROLL_80), "اللفة ما بيتطلبش لها مقاس");
         assertTrue(PdfPrinter.declares(new RawPrinter(true), Paper.A5), "ما بتعلنش حاجة: ما نقدرش نعرف");
     }
+
+    /** درايفر بيعلن أدراج بس من غير مقاسات: ما نقدرش نعرف، فمفيش تحذير. */
+    @Test
+    void traysAreNotPaperSizes() {
+        RawPrinter traysOnly = new RawPrinter(true, javax.print.attribute.standard.MediaTray.MAIN,
+                javax.print.attribute.standard.MediaTray.MANUAL);
+        assertTrue(PdfPrinter.declares(traysOnly, Paper.A5));
+        assertTrue(PdfPrinter.declares(traysOnly, Paper.A4));
+        RawPrinter traysAndA4 = new RawPrinter(true, javax.print.attribute.standard.MediaTray.MAIN, MediaSizeName.ISO_A4);
+        assertTrue(PdfPrinter.declares(traysAndA4, Paper.A4));
+        assertFalse(PdfPrinter.declares(traysAndA4, Paper.A5));
+    }
 }

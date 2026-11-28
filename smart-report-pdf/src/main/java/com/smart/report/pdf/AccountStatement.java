@@ -90,7 +90,8 @@ public final class AccountStatement {
         }
         document.table(table);
         if (closing != null) {
-            document.summaryTotal(closing[0], closing[1]);
+            // الرصيد الختامي السالب بالأحمر زي الأرصدة اللي في الجدول.
+            document.summaryTotalNegativeInRed(closing[0], closing[1]);
         }
         return document;
     }
