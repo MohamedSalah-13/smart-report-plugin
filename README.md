@@ -323,6 +323,19 @@ document.barcode(waybillNumber, 15, Align.START);     // 15 mm, at the start of 
 - Code 128 holds English letters, digits and signs only: Arabic text, accented letters or tabs are rejected with an
   `IllegalArgumentException` when the barcode is added.
 
+**Whole printer dots** (v2.11.0). 0.33 mm is 2.64 dots on a 203 dpi head, so the driver gives some bars 2 dots
+and others 3, and uneven bars are a known cause of labels that do not scan. Tell the document the printer's
+resolution and every bar and QR module becomes a whole number of dots, placed on the printer's dot grid:
+
+```java
+PdfDocument receipt = PdfDocument.rtl(Paper.ROLL_80).printerDpi(203);   // or 300, 600...
+```
+
+- The narrowest bar becomes the whole number of dots nearest to 0.33 mm (3 at 203 dpi, 4 at 300), and a QR module
+  the nearest to the size asked for. If the symbol does not fit, it loses one dot at a time, down to 2 dots and no
+  less than 0.25 mm for bars; below that it fails with a `ReportException` instead of shrinking to fractions.
+- Without it, or with `printerDpi(0)`, nothing changes.
+
 ### QR code or barcode as an image (`SymbolImage`)
 
 To show a code on a screen, or serve one from a web endpoint, without a PDF (v2.11.0):

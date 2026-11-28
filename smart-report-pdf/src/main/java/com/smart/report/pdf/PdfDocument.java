@@ -106,6 +106,7 @@ public final class PdfDocument {
     private PageNumbers pageNumbers = PageNumbers.WHEN_SEVERAL;
     private String watermark = "";
     private int watermarkColor = Watermark.DEFAULT_COLOR;
+    private int printerDpi;
 
     private PdfDocument(Paper paper, boolean rightToLeft) {
         this.paper = Objects.requireNonNull(paper, "paper");
@@ -144,6 +145,27 @@ public final class PdfDocument {
      */
     public PdfDocument failOnMissingGlyphs(boolean value) {
         this.failOnMissingGlyphs = value;
+        return this;
+    }
+
+    /**
+     * دقة الطابعة اللي المستند رايح لها (203 للطابعة الحرارية المعتادة، 300، 600...)، عشان كل مربع في الباركود
+     * ورمز QR ياخد عدد صحيح من نقطها، ومكانه على نقطة منها. من غيرها أضيق خط 0.33 مم، أي 2.64 نقطة على رأس
+     * 203، فالدرايفر بيقرر أنهي خط ياخد 2 وأنهي 3، والخطوط المش متساوية سبب معروف لباركود ما بيتقريش.
+     *
+     * <p>بالدقة: أضيق خط في الباركود أقرب عدد نقط لـ 0.33 مم، ومربع QR أقرب عدد نقط للمقاس المطلوب، والاتنين
+     * نقطتين على الأقل، والباركود مش أضيق من 0.25 مم. لو الرمز ما كفّاش السطر بيقل نقطة نقطة لحد الحد ده،
+     * وبعدها بيفشل بـ {@link ReportException} بدل ما يصغر لكسور. من غيرها (أو بصفر) الرسم زي ما هو.</p>
+     *
+     * @param dpi نقط في البوصة، من 72 لـ 2400؛ صفر = من غير
+     * @throws IllegalArgumentException لو برّه المدى
+     */
+    public PdfDocument printerDpi(int dpi) {
+        if (dpi != 0 && (dpi < 72 || dpi > 2400)) {
+            throw new IllegalArgumentException("The printer resolution must be between 72 and 2400 dpi, or 0 for"
+                    + " none: " + dpi);
+        }
+        this.printerDpi = dpi;
         return this;
     }
 
@@ -487,6 +509,10 @@ public final class PdfDocument {
 
     String watermarkText() {
         return watermark;
+    }
+
+    int printerDpi() {
+        return printerDpi;
     }
 
     int watermarkColor() {

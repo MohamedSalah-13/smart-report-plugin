@@ -22,10 +22,23 @@ final class SymbolParts {
     static final float BAR_MODULE = 0.33f * POINTS_PER_MM;
     /** أضيق خط يتقري: 0.25 مم، نقطتين على الطابعة الحرارية. أضيق من كده الباركود بيفشل بدل ما يطلع بايظ. */
     static final float MIN_BAR_MODULE = 0.25f * POINTS_PER_MM;
+    /** أقل عدد نقط طابعة للمربع مع {@link PdfDocument#printerDpi}: نقطة واحدة بتضيع أو بتتمد مع الحبر. */
+    static final int MIN_DOTS = 2;
     /** المسافة بين الخطوط والنص المكتوب تحتها. */
     private static final float BARCODE_CAPTION_GAP = 2f;
 
     private SymbolParts() {
+    }
+
+    /** أقرب نقطة طابعة لـ {@code x} من حافة الورقة الشمال؛ زي ما هو من غير دقة. */
+    private static float onDots(float x, float dot) {
+        return dot > 0 ? Math.round(x / dot) * dot : x;
+    }
+
+    /** أقرب نقطة طابعة لـ {@code top} من حافة الورقة الفوقانية (الطابعة بتعدّ من فوق)؛ زي ما هو من غير دقة. */
+    private static float topOnDots(float top, Frame frame) {
+        float dot = frame.dot();
+        return dot > 0 ? frame.pageHeight() - Math.round((frame.pageHeight() - top) / dot) * dot : top;
     }
 
     /** مكان صندوق عرضه {@code boxWidth} على السطر، حسب محاذاته. */
@@ -41,13 +54,30 @@ final class SymbolParts {
      * رمز QR بمنطقته الفاضية، كله في صفحة واحدة. المنطقة الفاضية جزء من مكانه، فمفيش حاجة قبله أو بعده
      * بتلمسه. لو هو ومنطقته أعرض من السطر أو أطول من صفحة جديدة بيصغر لحد ما يكفي.
      */
-    static Part qrCode(PdfDocument.QrBlock qr, Frame frame) {
+    static Part qrCode(PdfDocument.QrBlock qr, Frame frame) throws ReportException {
         QrSymbol symbol = qr.symbol();
         int modules = symbol.size();
         int span = modules + 2 * QrSymbol.QUIET_ZONE;
-        float module = Math.min(qr.size() / modules, Math.min(frame.width(), frame.freshRoom()) / span);
+        float room = Math.min(frame.width(), frame.freshRoom());
+        float fitted = Math.min(qr.size() / modules, room / span);
+        float dot = frame.dot();
+        if (dot > 0) {
+            // عدد صحيح من نقط الطابعة: الأقرب للمقاس المطلوب، وأقل لو ما كفّاش، ونقطتين على الأقل.
+            int dots = Math.max(MIN_DOTS, Math.round(qr.size() / modules / dot));
+            while (dots > MIN_DOTS && span * dots * dot > room) {
+                dots--;
+            }
+            if (span * dots * dot > room * 1.0001f) {
+                throw new ReportException(String.format(Locale.ROOT,
+                        "The QR code needs %.1f mm with %d printer dots per module at %d dpi, but there are only"
+                                + " %.1f mm. Use less text or wider paper.",
+                        span * dots * dot / POINTS_PER_MM, dots, frame.dpi(), room / POINTS_PER_MM));
+            }
+            fitted = dots * dot;
+        }
+        float module = fitted;
         float side = span * module;
-        float boxLeft = boxLeft(frame, qr.align(), side);
+        float boxLeft = onDots(boxLeft(frame, qr.align(), side), dot);
         Piece square = new Piece() {
             @Override
             public float height() {
@@ -57,7 +87,7 @@ final class SymbolParts {
             @Override
             public void draw(Canvas canvas, float top) throws IOException {
                 float originX = boxLeft + QrSymbol.QUIET_ZONE * module;
-                float originY = top - QrSymbol.QUIET_ZONE * module;
+                float originY = topOnDots(top, frame) - QrSymbol.QUIET_ZONE * module;
                 canvas.fillColor(0x000000);
                 for (int row = 0; row < modules; row++) {
                     int column = 0;
@@ -92,13 +122,29 @@ final class SymbolParts {
         BarcodeSymbol symbol = barcode.symbol();
         float width = frame.width();
         int span = symbol.modules() + 2 * BarcodeSymbol.QUIET_ZONE;
-        float module = Math.min(BAR_MODULE, width / span);
-        if (module < MIN_BAR_MODULE * 0.999f) {
+        float fitted = Math.min(BAR_MODULE, width / span);
+        float dot = frame.dot();
+        if (dot > 0) {
+            // عدد صحيح من نقط الطابعة: الأقرب لـ 0.33 مم، وأقل لو ما كفّاش، لحد نقطتين ومش أضيق من 0.25 مم.
+            int fewest = Math.max(MIN_DOTS, (int) Math.ceil(MIN_BAR_MODULE / dot - 0.001f));
+            int dots = Math.max(fewest, Math.round(BAR_MODULE / dot));
+            while (dots > fewest && span * dots * dot > width) {
+                dots--;
+            }
+            if (span * dots * dot > width * 1.0001f) {
+                throw new ReportException(String.format(Locale.ROOT,
+                        "The barcode \"%s\" needs %.1f mm with its narrowest bars %d printer dots wide at %d dpi,"
+                                + " but the line is %.1f mm wide. Use a shorter code or wider paper.",
+                        symbol.text(), span * dots * dot / POINTS_PER_MM, dots, frame.dpi(), width / POINTS_PER_MM));
+            }
+            fitted = dots * dot;
+        } else if (fitted < MIN_BAR_MODULE * 0.999f) {
             throw new ReportException(String.format(Locale.ROOT,
                     "The barcode \"%s\" needs %.1f mm at its narrowest readable bars, but the line is %.1f mm wide."
                             + " Use a shorter code or wider paper.",
                     symbol.text(), span * MIN_BAR_MODULE / POINTS_PER_MM, width / POINTS_PER_MM));
         }
+        float module = fitted;
         float size = frame.style().bodySize();
         float natural = frame.text().plain(symbol.text(), size).width();
         if (natural > width) {
@@ -109,7 +155,8 @@ final class SymbolParts {
         float captionHeight = BARCODE_CAPTION_GAP + captions.size() * size * LEADING;
         float bars = Math.max(1f, Math.min(barcode.height(), frame.freshRoom() - captionHeight));
         float barsWidth = symbol.modules() * module;
-        float originX = boxLeft(frame, barcode.align(), span * module) + BarcodeSymbol.QUIET_ZONE * module;
+        float originX = onDots(boxLeft(frame, barcode.align(), span * module), dot)
+                + BarcodeSymbol.QUIET_ZONE * module;
         Piece code = new Piece() {
             @Override
             public float height() {
