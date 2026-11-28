@@ -178,6 +178,7 @@ final class PreviewWindow {
         });
         copies.setId("copies");
         copies.setPrefWidth(80);
+        copies.getValueFactory().setValue(setup.copies);
 
         print.setId("print");
         print.setText(texts.print());
@@ -259,7 +260,18 @@ final class PreviewWindow {
         bottom.setAlignment(Pos.CENTER_LEFT);
         bottom.setPadding(new Insets(8, 12, 8, 12));
 
-        BorderPane root = new BorderPane(scroll, top, null, new VBox(bottom), null);
+        VBox header = new VBox(top);
+        if (setup.notice != null) {
+            // سطر البرنامج فوق الصفحة: سبب فتح المعاينة، أو تنبيه للمستخدم قبل ما يطبع.
+            Label notice = new Label(setup.notice);
+            notice.setId("notice");
+            notice.setWrapText(true);
+            notice.setMaxWidth(Double.MAX_VALUE);
+            notice.setPadding(new Insets(6, 12, 6, 12));
+            notice.setStyle("-fx-background-color: #fff4ce; -fx-text-fill: #5c4400;");
+            header.getChildren().add(notice);
+        }
+        BorderPane root = new BorderPane(scroll, header, null, new VBox(bottom), null);
         Scene scene = new Scene(root);
         scene.setNodeOrientation(setup.rightToLeft ? NodeOrientation.RIGHT_TO_LEFT : NodeOrientation.LEFT_TO_RIGHT);
         scene.getStylesheets().addAll(setup.stylesheets);
@@ -311,7 +323,8 @@ final class PreviewWindow {
                 }
                 printer.getItems().setAll(names);
                 String last = remembered == null ? null : remembered.get("printer", null);
-                printer.setValue(last != null && names.contains(last) ? last
+                printer.setValue(setup.printer != null && names.contains(setup.printer) ? setup.printer
+                        : last != null && names.contains(last) ? last
                         : preferred != null && names.contains(preferred) ? preferred
                         : names.isEmpty() ? null : names.get(0));
                 noPrinters = names.isEmpty();

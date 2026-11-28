@@ -283,6 +283,12 @@ papers...)...)` (`com.smart.report.print`, in `smart-report-api`), read `setting
 default printer), and put `PrintSettingsPane.of(settings).rightToLeft(true).build()` in the program's settings
 screen. Use printer roles (`"normal"`, `"thermal"`) rather than printer names in the defaults.
 
+Then the print button is one call: `PdfPreview.of(paper -> ...).fileName(...).print(settings, "sale-receipt",
+owner)` returns a `CompletableFuture<PrintResult>` (`Printed`, `Shown`, `Saved`, `Cancelled`, `Failed`). It prints,
+previews, saves or asks as the profile says. A missing printer opens the preview with a notice instead of printing
+elsewhere. A "Preview" button next to "Print" is `print(settings, kind, p -> p.withMode(OutputMode.PREVIEW),
+owner)`, which saves nothing. Do not write the switch over `OutputMode` in the program.
+
 The function given to `PdfPreview.of` runs **off the JavaFX thread**, once per paper the person chooses. Read
 everything it needs before the call, as above, and keep JavaFX nodes and lazy-loaded entities out of it -
 otherwise the preview fails only sometimes, which is the worst way to fail.
