@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.11.0] - 2026-11-28
+
+### Added
+- Print settings per kind of document: each kind (a sales receipt, a statement...) keeps its paper, printer or
+  printer role, copies and way out (print, preview, save a PDF, or ask), with a ready settings pane and a trial
+  print. One call, `PdfPreview.print(settings, kind, owner)`, then does what the settings say; a printer that is not
+  installed opens the preview with a notice instead of printing elsewhere. (#43, #44)
+- Ready-made documents: an invoice in three layouts that also prints as a receipt on an 80 or 58 mm roll, an account
+  statement and a receipt/payment voucher, filled with the program's own text. (#46)
+- Item labels with EAN-13 or Code 128 barcodes, on a label roll or an A4 sheet, and `ean13(...)` in documents. (#33)
+- Barcode and QR modules in whole printer dots (`printerDpi(203)`), for codes that scan from thermal printers. (#48)
+- PDF/A-3B with the e-invoice XML attached inside the PDF, checked with veraPDF. (#52)
+- A report look a shop sets once: colour sets, a "printed on ... by ..." line, `1 / 3` page numbers, paper with a
+  pre-printed letterhead, and the totals row in its own size. (#45)
+- Negative amounts in red and bold cells in tables, and a stamp or signature image in the document body. (#34, #35)
+- Arabic-Indic digits (`١٢٣`) for a whole document; codes for scanners stay Latin. (#39)
+- Printing a page range and on both sides, from code and from the preview window. (#41)
+- The cash drawer of a receipt printer, and asking a printer whether it lists a paper size. (#47)
+- A header line above each group, or each group on a new page, in grouped generic reports. (#40)
+- The preview window shows any PDF (a Jasper report, a file) and takes the program's icon. (#51)
+- `AmountInWords`: 12 more currencies, lookup by ISO code, and negative amounts with a word of the program's. (#50)
+- A scannable document code with a check digit (`DocumentCode`), and QR codes and barcodes as PNG images. (#49, #53)
+- A wide generic PDF report can turn the page sideways from a number of columns. (#54)
+- A javadoc jar for every module, and the public API documented in English. (#36)
+
+### Changed
+- Several copies on a thermal roll go out as one job each, so the printer cuts between them. (#47)
+- The file name suggested by the preview's "Save PDF" no longer holds characters Windows refuses (`/ : * ?`). (#54)
+
+## [2.10.0] - 2026-11-28
 ## [2.10.0] - 2026-11-28
 
 ### Added

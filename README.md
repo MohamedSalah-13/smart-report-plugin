@@ -15,6 +15,17 @@ A Java library for reports and printing, added to any project as a dependency:
 
 ## What's New
 
+### 2.11.0
+
+- **New:** print settings per kind of document, with a ready settings pane, and one call that prints, previews or saves as they say. See [Print settings per kind of document](#print-settings-per-kind-of-document-printsettings).
+- **New:** ready-made invoice (three layouts, or a receipt on a roll), account statement and voucher. See [Ready-made documents](#ready-made-documents-invoice-receipt-statement-voucher).
+- **New:** item labels and EAN-13 barcodes, and barcodes in whole printer dots for thermal printers. See [EAN-13 and item labels](#ean-13-and-item-labels-ean13-pdflabels).
+- **New:** PDF/A-3 with the e-invoice XML inside the file. See [An archivable invoice](#an-archivable-invoice-pdfa-3-with-the-e-invoice-xml-pdfa3-attach).
+- **New:** a report look a shop sets once, negative amounts in red, a stamp image, and Arabic-Indic digits. See [Style](#style-pdfstyle) and [Arabic-Indic digits](#arabic-indic-digits-arabicindicdigits).
+- **New:** page ranges and two-sided printing, the cash drawer, and a header or a new page per group. See [Printing](#printing-pdfprinter).
+- **New:** more currencies and negative amounts in `AmountInWords`, a scannable document code, and QR codes as images. See [Amount in words](#amount-in-words-amountinwords).
+- **Changed:** copies on a thermal roll come out cut apart, and the public API is documented in English.
+
 ### 2.10.0
 
 - **New:** a watermark on every page (`watermark`), such as «صورة» on a copy of an invoice or «ملغاة», light enough to read the page under it. See [Watermark](#watermark-watermark).
@@ -62,7 +73,7 @@ The library is served by [JitPack](https://jitpack.io) straight from the reposit
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.10.0</version>
+    <version>v2.11.0</version>
 </dependency>
 ```
 
