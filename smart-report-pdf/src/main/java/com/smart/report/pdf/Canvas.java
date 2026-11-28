@@ -5,6 +5,7 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.pdmodel.graphics.state.RenderingMode;
+import org.apache.pdfbox.util.Matrix;
 
 import java.io.IOException;
 
@@ -89,6 +90,29 @@ final class Canvas {
             stream.endText();
             x += run.face().font().getStringWidth(run.text()) / 1000f * size;
         }
+    }
+
+    /**
+     * سطر العلامة المائية ({@link Watermark}): بيبدأ عند {@code matrix} (مكان بداية خط الكتابة وميله)،
+     * ومقاطعه ورا بعض في نفس الاتجاه. <b>مش علامة على الصفحة</b>: ما بيغيرش {@link #marked()}، فالصفحة اللي
+     * فيها العلامة بس فاضية. اللون والمصفوفة جوه {@code q ... Q}، فاللي بعده بيبدأ من نفس حالة الرسم.
+     */
+    void stamp(Typesetter.Line line, float size, int rgb, Matrix matrix) throws IOException {
+        stream.saveGraphicsState();
+        stream.setNonStrokingColor(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f);
+        stream.beginText();
+        stream.setTextMatrix(matrix);
+        for (FontSet.Run run : line.runs()) {
+            stream.setFont(run.face().font(), size);
+            Object[] positioned = run.positioned();
+            if (positioned == null) {
+                stream.showText(run.text());
+            } else {
+                stream.showTextWithPositioning(positioned);
+            }
+        }
+        stream.endText();
+        stream.restoreGraphicsState();
     }
 
     void rule(float x1, float x2, float atY, int color, float lineWidth) throws IOException {

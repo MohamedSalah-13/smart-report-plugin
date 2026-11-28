@@ -126,6 +126,20 @@ class PrintToStreamTest {
         assertEverySheet(pdf, sent, Paper.A4.width(), Paper.A4.height());
     }
 
+    /** العلامة المائية أول حاجة في كل صفحة، والمستند بيوصل الطابعة بكل صفحاته زي من غيرها. */
+    @Test
+    void aWatermarkedDocumentIsSentWithEveryPage() throws Exception {
+        PdfTable table = PdfTable.create().column("Day", 1).column("Amount", 1);
+        for (int day = 1; day <= 90; day++) {
+            table.row("row" + day, "5");
+        }
+        byte[] pdf = PdfDocument.rtl(Paper.A4).title("كشف").table(table).watermark("صورة").toBytes();
+        assertTrue(pdfPages(pdf).size() > 1, "more than one page");
+
+        Sent sent = print(pdf, Paper.A4, 1);
+        assertEverySheet(pdf, sent, Paper.A4.width(), Paper.A4.height());
+    }
+
     @Test
     void a5IsSentOnA5WithEveryPage() throws Exception {
         byte[] pdf = statement(Paper.A5, 90);

@@ -27,6 +27,8 @@ import static com.smart.report.pdf.Typesetter.LEADING;
  *         ({@link #place(Piece, Piece, float)}).</li>
  *     <li>رأس الجزء (رأس الجدول) بيترسم فوق أول قطعة في كل صفحة، ومكانه محسوب معاها.</li>
  *     <li>الترويسة في أعلى الصفحة الأولى أو كل صفحة، وتذييل الصفحات ورقمها في الهامش السفلي ومكانهم محجوز.</li>
+ *     <li>العلامة المائية ({@link Watermark}) أول حاجة في كل صفحة، تحت كل اللي بعدها، ومش محتوى: الصفحة
+ *         اللي فيها العلامة بس فاضية.</li>
  *     <li>خانات التوقيع بتتنقل مع اللي بيتوقّع عليه ({@link Join}).</li>
  *     <li>الفاصل بيفتح صفحة، والصفحة اللي فتحها بتتشال لو ما اترسمش فيها حاجة.</li>
  *     <li>الورق الحراري صفحة واحدة بطول المحتوى: بيترسم مرة عشان يتقاس، وبعدين على ورقة بالطول ده
@@ -54,6 +56,8 @@ final class PageWriter {
     private final Letterhead letterhead;
     /** تذييل الصفحات متكسّرًا لسطوره، بيترسم في الآخر مع أرقام الصفحات. */
     private List<Typesetter.Line> pageFooter = List.of();
+    /** العلامة المائية مقاسة على الورقة، أو {@code null} = مفيش. */
+    private Watermark watermark;
 
     private float y;
     private int pages;
@@ -153,6 +157,7 @@ final class PageWriter {
                 throw new IllegalArgumentException("The page footer leaves no room on the page for its content.");
             }
         }
+        watermark = Watermark.of(document.watermarkText(), document.watermarkColor(), text, paper, style.margin());
         newPage();
         try {
             Frame frame = new Frame(text, style, rtl, left, right, width, freshRoom());
@@ -406,6 +411,10 @@ final class PageWriter {
         PDPage page = new PDPage(new PDRectangle(paper.width(), paper.height()));
         pdf.addPage(page);
         canvas.start(page);
+        if (watermark != null) {
+            // أول حاجة في الصفحة: كل اللي بعدها بيترسم فوقها.
+            watermark.draw(canvas);
+        }
         y = top;
         lowestReserved = Float.MAX_VALUE;
         pages++;

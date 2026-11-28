@@ -104,6 +104,8 @@ public final class PdfDocument {
     private boolean letterheadOnEveryPage;
     private String pageFooter = "";
     private PageNumbers pageNumbers = PageNumbers.WHEN_SEVERAL;
+    private String watermark = "";
+    private int watermarkColor = Watermark.DEFAULT_COLOR;
 
     private PdfDocument(Paper paper, boolean rightToLeft) {
         this.paper = Objects.requireNonNull(paper, "paper");
@@ -175,6 +177,38 @@ public final class PdfDocument {
      */
     public PdfDocument pageFooter(String text) {
         this.pageFooter = text == null ? "" : text;
+        return this;
+    }
+
+    /**
+     * علامة مائية رمادية فاتحة في كل صفحة — «مسودة»، «صورة»، «ملغاة»، «مدفوع»، {@code DRAFT}، {@code COPY}:
+     * لنسخة الفاتورة وصورة المستند. {@code null} أو نص فاضي = من غير علامة.
+     *
+     * @see #watermark(String, int)
+     */
+    public PdfDocument watermark(String text) {
+        return watermark(text, Watermark.DEFAULT_COLOR);
+    }
+
+    /**
+     * علامة مائية في كل صفحة بلون فاتح من {@code color} ({@code 0xRRGGBB}) — أحمر لـ «ملغاة» وأخضر لـ «مدفوع»
+     * مثلًا. {@code null} أو نص فاضي = من غير علامة.
+     *
+     * <ul>
+     *   <li>كبيرة ومايلة على قطر الصفحة في نصها، <b>تحت المحتوى</b>: بتترسم أول حاجة في الصفحة، فما بتغطيش
+     *       أي نص. سطر واحد بخط المستند ({@link #font(PdfFont)})، والعربي متشكّل ومن اليمين لليسار.</li>
+     *   <li>بتصغر على قد الورقة: الكلمة الطويلة والورق الصغير بيصغّروا الخط لحد ما العلامة تكفي جوه الهوامش.</li>
+     *   <li>على الورق الحراري ({@link Paper#roll()}) العلامة بالعرض مش مايلة، ومتكررة على طول الإيصال (نسخة
+     *       لكل حوالي مرة ونص عرض اللفة؛ الإيصال القصير نسخة واحدة في نصه)، عشان أي جزء من الإيصال يبان فيه.</li>
+     *   <li>اللون 15% من {@code color} والباقي أبيض، من غير شفافية: فاتح دايمًا حتى لو اللون غامق، بيتطبع زي ما
+     *       هو على أي طابعة، وحبره قليل حتى مع {@link PdfStyle#inkSaver()}.</li>
+     *   <li>مش محتوى: الصفحة اللي فيها العلامة بس فاضية، فالفاصل ({@link #pageBreak()}) ما بيسيبش صفحة
+     *       عشانها. وفي {@link PdfBatch} كل مستند بعلامته.</li>
+     * </ul>
+     */
+    public PdfDocument watermark(String text, int color) {
+        this.watermark = text == null ? "" : text;
+        this.watermarkColor = color & 0xFFFFFF;
         return this;
     }
 
@@ -447,6 +481,14 @@ public final class PdfDocument {
 
     String pageFooterText() {
         return pageFooter;
+    }
+
+    String watermarkText() {
+        return watermark;
+    }
+
+    int watermarkColor() {
+        return watermarkColor;
     }
 
     /** المستند كبايتات PDF. */

@@ -178,6 +178,29 @@ document.title("كشف حساب عربية")
 - Sections that each need their own letterhead and their own page numbers (a statement per driver in one file)
   are separate documents in a `PdfBatch`, not breaks.
 
+### Watermark (`watermark`)
+
+From `v2.10.0`:
+
+```java
+invoice.watermark("صورة");                 // a copy of an invoice, in light grey
+invoice.watermark("ملغاة", 0xC00000);      // cancelled, in light red
+invoice.watermark("DRAFT");
+```
+
+- A large word in a light colour on **every page**, diagonal across the middle of the page. It is drawn first on
+  the page, **behind** everything else, so it never hides text.
+- It is one line in the document's font; Arabic is shaped and right to left. It shrinks to fit inside the margins
+  for long words and small paper.
+- The colour is 15% of the colour given and 85% white, without transparency: always light, even when the colour
+  given is dark, it prints the same on every printer, and it takes little ink, also with `PdfStyle.inkSaver()`.
+  Without a colour it is light grey.
+- On a thermal roll it is horizontal and repeated down the receipt, about one copy for every one and a half
+  widths of the roll; a short receipt has one copy in its middle.
+- It is not content: a page with only the watermark is still empty, so a `pageBreak()` leaves no page for it. In a
+  `PdfBatch` each document keeps its own watermark, and the preview shows it.
+- `null` or blank text means no watermark.
+
 ### Thermal receipts (80 mm and 58 mm)
 
 ```java
