@@ -10,12 +10,23 @@ import javafx.stage.Window;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.smart.report.print.DocumentKind;
+import com.smart.report.print.OutputMode;
+import com.smart.report.print.PrintProfile;
+import com.smart.report.print.PrintSettings;
+import javafx.stage.FileChooser;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.prefs.Preferences;
 
 /**
@@ -57,6 +68,13 @@ public final class PdfPreview {
     PreviewTexts texts;
     boolean rightToLeft;
     String rememberKey;
+    /** الطابعة اللي النافذة بتفتح عليها لو موجودة؛ {@code null} = المحفوظة ثم الافتراضية. */
+    String printer;
+    int copies = 1;
+    /** سطر فوق الصفحة من البرنامج؛ {@code null} = مفيش. */
+    String notice;
+    /** مستند أو دفعة جاهزين: الورقة بتاعتهم، ومقاس الإعداد ما بيغيرهاش. */
+    boolean fixedPaper;
     /** الطابعات ونافذة الحفظ؛ الاختبارات بتبدّلها. */
     PreviewSystem system = PreviewSystem.REAL;
 
@@ -70,6 +88,7 @@ public final class PdfPreview {
         Objects.requireNonNull(document, "document");
         PdfPreview preview = new PdfPreview(paper -> document.toBytes(), document.rightToLeft());
         preview.papers.add(document.paper());
+        preview.fixedPaper = true;
         return preview;
     }
 
@@ -81,6 +100,7 @@ public final class PdfPreview {
         Objects.requireNonNull(batch, "batch");
         PdfPreview preview = new PdfPreview(paper -> batch.toBytes(), batch.documents().getFirst().rightToLeft());
         preview.papers.add(batch.paper());
+        preview.fixedPaper = true;
         return preview;
     }
 
@@ -168,6 +188,30 @@ public final class PdfPreview {
             return "";
         }
         return RESERVED.matcher(safe).matches() ? "_" + safe : safe;
+    }
+
+    /**
+     * الطابعة اللي النافذة بتفتح عليها لو متعرّفة على الجهاز؛ من غيرها (أو لو مش موجودة) المحفوظة بـ
+     * {@link #remember}، ثم الافتراضية.
+     */
+    public PdfPreview printer(String name) {
+        this.printer = name == null || name.isBlank() ? null : name;
+        return this;
+    }
+
+    /** عدد النسخ اللي النافذة بتفتح عليه، من 1 لـ 99. */
+    public PdfPreview copies(int count) {
+        if (count < 1 || count > PrintProfile.MAX_COPIES) {
+            throw new IllegalArgumentException("Copies must be between 1 and " + PrintProfile.MAX_COPIES + ": " + count);
+        }
+        this.copies = count;
+        return this;
+    }
+
+    /** سطر رسالة من البرنامج فوق الصفحة: «نسخة للعميل»، أو سبب فتح المعاينة؛ {@code null} أو فاضي = مفيش. */
+    public PdfPreview notice(String text) {
+        this.notice = text == null || text.isBlank() ? null : text;
+        return this;
     }
 
     /** اتجاه النافذة ولغة كلامها (عربي / إنجليزي) لو {@link #texts} ما اتحددش. */
@@ -308,5 +352,163 @@ public final class PdfPreview {
         thread.setDaemon(true);
         thread.start();
         return outcome;
+    }
+
+    /**
+     * يطلّع المستند زي ما إعداد نوعه بيقول ({@link PrintSettings#profile}، مقري دلوقتي، فتغيير في شاشة الإعدادات
+     * بيوصل لشاشة مفتوحة من قبله).
+     *
+     * @see #print(PrintSettings, String, UnaryOperator, Window)
+     */
+    public CompletableFuture<PrintResult> print(PrintSettings settings, String kind, Window owner) {
+        return print(settings, kind, UnaryOperator.identity(), owner);
+    }
+
+    /**
+     * يطلّع المستند زي ما إعداد نوعه بيقول، بعد تغيير لمرة واحدة ما بيتحفظش:
+     * {@code profile -> profile.withMode(OutputMode.PREVIEW)} لزر «معاينة» جنب «طباعة»، أو
+     * {@code profile -> profile.withPaper("A4")}.
+     *
+     * <ul>
+     *   <li>{@link OutputMode#PRINT}: النسخ على طابعة الإعداد (الدور بيتحول لاسمها دلوقتي، ومن غير طابعة للدور
+     *       الافتراضية)، والنتيجة {@link PrintResult.Printed}. لو الطابعة دي مش متعرّفة على الجهاز النافذة بتفتح
+     *       وفوق الصفحة سطر بيقول كده، والنتيجة {@link PrintResult.Shown}: <b>المستند ما بيتبعتش لطابعة تانية
+     *       من غير ما المستخدم يختار.</b></li>
+     *   <li>{@link OutputMode#PREVIEW}: النافذة على ورقة الإعداد وطابعته ونسخه.</li>
+     *   <li>{@link OutputMode#SAVE_PDF}: نافذة اختيار مكان الحفظ بالاسم من {@link #fileName}، والنتيجة
+     *       {@link PrintResult.Saved} أو {@link PrintResult.Cancelled}.</li>
+     *   <li>{@link OutputMode#ASK}: سؤال بتلات اختيارات، وبعدين زي اللي اتختار؛ القفل = {@link PrintResult.Cancelled}.</li>
+     * </ul>
+     *
+     * <p>المستند اللي بيتبني لكل ورقة بيتبني على ورقة الإعداد، والنافذة بتعرض أوراق النوع؛ المستند الجاهز
+     * ({@link #of(PdfDocument)}) بيفضل على ورقته. البناء والطباعة والكتابة خارج thread الواجهة، والنتيجة بتكمل
+     * عليه. بتتنادى من thread الواجهة.</p>
+     *
+     * @throws IllegalArgumentException لو النوع مش معرّف، أو التغيير طلّع ورقة النوع ما بياخدهاش أو اسم ورقة
+     *                                  ما يتقريش
+     */
+    public CompletableFuture<PrintResult> print(PrintSettings settings, String kind,
+                                                UnaryOperator<PrintProfile> override, Window owner) {
+        Objects.requireNonNull(settings, "settings");
+        Objects.requireNonNull(override, "override");
+        DocumentKind documentKind = settings.kind(kind);
+        PrintProfile profile = Objects.requireNonNull(override.apply(settings.profile(kind)), "override result");
+        documentKind.check(profile);
+        Paper chosen = Paper.parse(profile.paper());
+        if (!fixedPaper) {
+            papers.clear();
+            for (String name : documentKind.papers()) {
+                try {
+                    papers.add(Paper.parse(name));
+                } catch (IllegalArgumentException unknown) {
+                    log.warn("The paper {} of {} is not one Paper.parse reads; it is left out", name, kind);
+                }
+            }
+            if (!papers.contains(chosen)) {
+                papers.add(0, chosen);
+            }
+            paper = chosen;
+        }
+        Paper target = fixedPaper ? papers.get(0) : chosen;
+        copies = profile.copies();
+        Optional<String> printerName = settings.printerName(profile);
+        printerName.ifPresent(name -> printer = name);
+        PrintTexts words = PrintTexts.of(rightToLeft);
+
+        OutputMode mode = profile.mode();
+        if (mode == OutputMode.ASK) {
+            mode = system.ask(owner, words);
+            if (mode == null) {
+                return CompletableFuture.completedFuture(new PrintResult.Cancelled());
+            }
+        }
+        return switch (mode) {
+            case PREVIEW, ASK -> CompletableFuture.completedFuture(new PrintResult.Shown(show(owner)));
+            case SAVE_PDF -> saveTo(owner, target);
+            case PRINT -> printTo(owner, printerName.orElse(null), target, profile.copies(), words);
+        };
+    }
+
+    /** يكتب الملف في المكان اللي المستخدم اختاره، من غير نافذة معاينة. */
+    private CompletableFuture<PrintResult> saveTo(Window owner, Paper target) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(resolvedTexts().saveTitle());
+        chooser.setInitialFileName(fileName);
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF", "*.pdf"));
+        File file = system.chooseSaveFile(chooser, owner);
+        if (file == null) {
+            return CompletableFuture.completedFuture(new PrintResult.Cancelled());
+        }
+        CompletableFuture<PrintResult> result = new CompletableFuture<>();
+        Thread thread = new Thread(() -> {
+            PrintResult done;
+            try {
+                Files.write(file.toPath(), source.pdf(target));
+                done = new PrintResult.Saved(file.toPath());
+            } catch (ReportException | IOException | RuntimeException e) {
+                log.warn("Saving the document to {} failed", file, e);
+                done = new PrintResult.Failed(e);
+            } catch (Error e) {
+                Platform.runLater(() -> result.completeExceptionally(e));
+                throw e;
+            }
+            PrintResult finished = done;
+            Platform.runLater(() -> result.complete(finished));
+        }, "pdf-preview-save");
+        thread.setDaemon(true);
+        thread.start();
+        return result;
+    }
+
+    /**
+     * يطبع على {@code name} (أو الافتراضية لو {@code null}) لو متعرّفة على الجهاز؛ غير كده يفتح النافذة بسطر
+     * بيقول ليه، وما بيبعتش لطابعة تانية.
+     */
+    private CompletableFuture<PrintResult> printTo(Window owner, String name, Paper target, int count,
+                                                   PrintTexts words) {
+        CompletableFuture<PrintResult> result = new CompletableFuture<>();
+        Thread thread = new Thread(() -> {
+            String missing = null;
+            PrintResult done = null;
+            try {
+                List<String> installed = system.printerNames();
+                String chosen = name != null ? name : system.defaultPrinter().orElse(null);
+                if (chosen == null || !installed.contains(chosen)) {
+                    log.info("The profile's printer {} is not on this computer; opening the preview", chosen);
+                    missing = chosen == null ? words.noPrinter() : String.format(words.missingPrinter(), chosen);
+                } else {
+                    try {
+                        system.print(source.pdf(target), chosen, target, count);
+                        done = new PrintResult.Printed(chosen, target, count);
+                    } catch (ReportException | RuntimeException e) {
+                        log.warn("Printing to {} failed", chosen, e);
+                        done = new PrintResult.Failed(e);
+                    }
+                }
+            } catch (RuntimeException e) {
+                log.warn("Listing the printers failed", e);
+                done = new PrintResult.Failed(e);
+            } catch (Error e) {
+                Platform.runLater(() -> result.completeExceptionally(e));
+                throw e;
+            }
+            String why = missing;
+            PrintResult finished = done;
+            Platform.runLater(() -> {
+                if (why == null) {
+                    result.complete(finished);
+                    return;
+                }
+                notice = why;
+                try {
+                    result.complete(new PrintResult.Shown(show(owner)));
+                } catch (RuntimeException e) {
+                    result.completeExceptionally(e);
+                }
+            });
+        }, "pdf-preview-profile-print");
+        thread.setDaemon(true);
+        thread.start();
+        return result;
     }
 }

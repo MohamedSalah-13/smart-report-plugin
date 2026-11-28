@@ -538,6 +538,35 @@ settingsTab.setContent(PrintSettingsPane.of(settings)     // in smart-report-fx
   as the trial page; without it the trial is a page with the kind, the paper, the printer and the time.
 - `PdfPreview.remember(key)` keeps working as before.
 
+**One call that does what the profile says** (v2.11.0):
+
+```java
+PdfPreview.of(paper -> ReceiptPdf.document(sale, paper))
+        .fileName("إيصال " + sale.number())
+        .print(settings, "sale-receipt", ownerWindow)           // the profile is read now
+        .thenAccept(result -> {
+            switch (result) {
+                case PrintResult.Printed printed -> status.setText("أُرسل إلى " + printed.printer());
+                case PrintResult.Saved saved -> status.setText("حُفظ في " + saved.file());
+                case PrintResult.Failed failed -> showError("تعذرت الطباعة", failed.reason());
+                case PrintResult.Shown shown -> { }
+                case PrintResult.Cancelled cancelled -> { }
+            }
+        });
+
+preview.print(settings, "sale-receipt", p -> p.withMode(OutputMode.PREVIEW), ownerWindow);   // this time only
+```
+
+- `PRINT` sends the profile's copies to its printer on its paper. `PREVIEW` opens the window on the profile's
+  paper, printer and copies, with the kind's papers to choose from. `SAVE_PDF` asks where to save, with no
+  window. `ASK` asks each time: print, preview or save.
+- If the profile's printer is not on this computer, the window opens with a line above the page that says so.
+  **The document is never sent to another printer silently.**
+- The override changes one thing for this print only (another paper, preview first) and saves nothing.
+- A ready document (`PdfPreview.of(document)`) keeps its own paper.
+- The window can also be told where to start: `.printer(name)`, `.copies(n)`, and `.notice(text)` for a line
+  of your own above the page.
+
 ### Font
 
 The library bundles the **Noto Naskh Arabic** font (regular and bold), so the output is the same on every

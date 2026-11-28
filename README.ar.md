@@ -603,6 +603,37 @@ settingsTab.setContent(PrintSettingsPane.of(settings)     // في smart-report-f
   فيها النوع والورق والطابعة والوقت.
 - `PdfPreview.remember(key)` شغال زي ما هو.
 
+**نداء واحد بيعمل اللي الإعداد بيقوله** (v2.11.0):
+
+<div dir="ltr">
+
+```java
+PdfPreview.of(paper -> ReceiptPdf.document(sale, paper))
+        .fileName("إيصال " + sale.number())
+        .print(settings, "sale-receipt", ownerWindow)           // الإعداد بيتقرا دلوقتي
+        .thenAccept(result -> {
+            switch (result) {
+                case PrintResult.Printed printed -> status.setText("أُرسل إلى " + printed.printer());
+                case PrintResult.Saved saved -> status.setText("حُفظ في " + saved.file());
+                case PrintResult.Failed failed -> showError("تعذرت الطباعة", failed.reason());
+                case PrintResult.Shown shown -> { }
+                case PrintResult.Cancelled cancelled -> { }
+            }
+        });
+
+preview.print(settings, "sale-receipt", p -> p.withMode(OutputMode.PREVIEW), ownerWindow);   // المرة دي بس
+```
+
+</div>
+
+- `PRINT` بيبعت نسخ الإعداد لطابعته على ورقه. `PREVIEW` بيفتح النافذة على ورق الإعداد وطابعته ونسخه، وأوراق النوع
+  للاختيار. `SAVE_PDF` بيسأل فين يحفظ، من غير نافذة. `ASK` بيسأل كل مرة: طباعة، أو معاينة، أو حفظ.
+- لو طابعة الإعداد مش على الجهاز، النافذة بتفتح وفوق الصفحة سطر بيقول كده. **المستند ما بيروحش لطابعة تانية من
+  غير ما حد يعرف.**
+- التغيير لمرة واحدة بيغيّر حاجة للطباعة دي بس (ورقة تانية، معاينة الأول) وما بيحفظش حاجة.
+- المستند الجاهز (`PdfPreview.of(document)`) بيفضل على ورقته.
+- والنافذة نفسها تقدر تبدأ من مكان: `.printer(name)`، و`.copies(n)`، و`.notice(text)` لسطر منك فوق الصفحة.
+
 ### الخط
 
 المكتبة فيها خط **Noto Naskh Arabic** مضمَّن (عادي وعريض)، فالناتج واحد على كل جهاز من غير أي إعداد.
