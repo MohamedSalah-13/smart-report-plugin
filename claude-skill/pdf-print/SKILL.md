@@ -56,7 +56,7 @@ above them, `v2.6.0`; `printOrShow` and the preview's Ctrl+P / Ctrl+S, `ZatcaQr.
 amounts in English words, and Arabic in Jasper PDFs `v2.7.1`; totals in the generic report, and the first line of
 Arabic in a Jasper box a little too short for it, `v2.8.0`; `pageBreak()`, `PdfBatch`, a font per document,
 `failOnMissingGlyphs` and the symbols drawn from Liberation Sans, `v2.9.0`; a generic Excel report whose
-title starts or ends with an apostrophe, `v2.9.1`; `watermark`, `v2.10.0`. A program on an older tag that needs one of these
+title starts or ends with an apostrophe, `v2.9.1`; `watermark` and subtotals by group (`groupBy`), `v2.10.0`. A program on an older tag that needs one of these
 moves to the newest tag.
 
 ```xml
@@ -80,13 +80,13 @@ moves to the newest tag.
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.9.1</version>
+    <version>v2.10.0</version>
 </dependency>
 <!-- Only for a JavaFX program that wants the preview window. JavaFX itself is the program's own. -->
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-fx</artifactId>
-    <version>v2.9.1</version>
+    <version>v2.10.0</version>
 </dependency>
 ```
 

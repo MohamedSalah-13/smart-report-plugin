@@ -15,6 +15,11 @@ A Java library for reports and printing, added to any project as a dependency:
 
 ## What's New
 
+### 2.10.0
+
+- **New:** a watermark on every page (`watermark`), such as «صورة» on a copy of an invoice or «ملغاة», light enough to read the page under it. See [Watermark](#watermark-watermark).
+- **New:** subtotals by group in the generic PDF and Excel report (`groupBy`), for a statement by customer or by month. See [Subtotals by group](#subtotals-by-group).
+
 ### 2.9.1
 
 - **Fixed:** a generic Excel report whose title starts or ends with an apostrophe, such as `'Q1' sales`, no longer fails. See [Generic PDF or Excel](#generic-pdf-or-excel-no-template).
@@ -57,7 +62,7 @@ The library is served by [JitPack](https://jitpack.io) straight from the reposit
 <dependency>
     <groupId>com.github.MohamedSalah-13.smart-report-plugin</groupId>
     <artifactId>smart-report-pdf</artifactId>
-    <version>v2.9.1</version>
+    <version>v2.10.0</version>
 </dependency>
 ```
 

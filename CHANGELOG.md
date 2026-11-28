@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.10.0] - 2026-11-28
+
+### Added
+- `PdfDocument.watermark("صورة")`: a large light word over every page, such as «صورة» on a copy of an invoice,
+  «ملغاة» or `DRAFT`. It is translucent, so the content under it stays readable, and `watermark(text, color)` takes
+  a colour. On a thermal roll it is repeated down the receipt. (#31)
+- Subtotals by group in the generic PDF and Excel report: `groupBy("customer")` adds a subtotal row under each
+  group, and `subtotalLabel(...)` changes its words. In the PDF a subtotal never starts a page alone, and in Excel
+  the subtotals and the grand total are `SUBTOTAL` formulas that follow the header filter. (#32)
+
 ## [2.9.1] - 2026-11-28
 
 ### Changed
